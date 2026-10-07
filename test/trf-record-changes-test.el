@@ -14,6 +14,7 @@
 
 (deftest trf-record-changes-all-records-before-any-implementation ()
   "With nothing implemented, every record is a record change; other files are not."
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
   (assert-equal
    '((:path "docs/user-workflows.org" :status added :identifier nil :title "User Workflows")
      (:path "docs/user-workflows/uw-1-order-a-widget.org" :status added
@@ -24,6 +25,7 @@
 (deftest trf-record-changes-none-once-implemented ()
   "Once every record is implemented, there are no record changes."
   (trf-record-changes-test-mark-implemented)
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
   (assert-nil (trf-record-changes trf-record-changes-test-root)))
 
 (deftest trf-record-changes-uncommitted-edit ()
@@ -32,6 +34,7 @@
   (trf-test-write-files trf-record-changes-test-root
                         '(("docs/user-workflows/uw-1-order-a-widget.org"
                            . "* UW-1 Order a widget\n\n1. Buyer orders twice.\n")))
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
   (assert-equal '((:path "docs/user-workflows/uw-1-order-a-widget.org" :status modified
                    :identifier "UW-1" :title "Order a widget"))
                 (trf-record-changes trf-record-changes-test-root)))
@@ -44,11 +47,55 @@
                           ("src/widget.el" . "(provide 'widget) ; edited\n")))
   (delete-file (expand-file-name "docs/user-workflows/uw-1-order-a-widget.org"
                                  trf-record-changes-test-root))
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
   (assert-equal '((:path "docs/features/f-1-order.org" :status added
                    :identifier "F-1" :title "Order")
                   (:path "docs/user-workflows/uw-1-order-a-widget.org" :status deleted
                    :identifier "UW-1" :title "Order a widget"))
                 (trf-record-changes trf-record-changes-test-root)))
+
+(deftest trf-record-changes-record-with-non-ascii-name ()
+  "A record whose file name is not ASCII is a record change under its own path."
+  (trf-record-changes-test-mark-implemented)
+  (trf-test-write-files trf-record-changes-test-root
+                        '(("docs/features/f-2-café.org" . "* F-2 Café\n\nTakes: a coffee.\n")))
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
+  (assert-equal '((:path "docs/features/f-2-café.org" :status added
+                   :identifier "F-2" :title "Café"))
+                (trf-record-changes trf-record-changes-test-root)))
+
+(deftest trf-record-changes-record-removed-from-index ()
+  "A record removed from the index but kept on disk is one modified record change."
+  (trf-record-changes-test-mark-implemented)
+  (trf-test-git trf-record-changes-test-root "rm" "--cached" "--quiet"
+                "docs/user-workflows/uw-1-order-a-widget.org")
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
+  (assert-equal '((:path "docs/user-workflows/uw-1-order-a-widget.org" :status modified
+                   :identifier "UW-1" :title "Order a widget"))
+                (trf-record-changes trf-record-changes-test-root)))
+
+(deftest trf-record-changes-lowercase-heading-has-no-identifier ()
+  "A heading in lowercase names no record identifier."
+  (trf-record-changes-test-mark-implemented)
+  (trf-test-write-files trf-record-changes-test-root
+                        '(("docs/features/notes.org" . "#+TITLE: Notes\n\n* notes-2026 about\n")))
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
+  (assert-equal '((:path "docs/features/notes.org" :status added
+                   :identifier nil :title "Notes"))
+                (let ((case-fold-search t))
+                  (trf-record-changes trf-record-changes-test-root))))
+
+(deftest trf-record-changes-lowercase-title-keyword ()
+  "A projection file's #+title: is its title, whatever its case."
+  (trf-record-changes-test-mark-implemented)
+  (trf-test-write-files trf-record-changes-test-root
+                        '(("docs/user-workflows.org"
+                           . "#+title: User Workflows\n\n- UW-1 :: Order a widget\n")))
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
+  (assert-equal '((:path "docs/user-workflows.org" :status modified
+                   :identifier nil :title "User Workflows"))
+                (let ((case-fold-search nil))
+                  (trf-record-changes trf-record-changes-test-root))))
 
 (provide 'trf-record-changes-test)
 ;;; trf-record-changes-test.el ends here
