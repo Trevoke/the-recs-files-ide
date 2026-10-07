@@ -1,0 +1,31 @@
+* ADR-1 Ship the IDE as a bare Emacs with its own pinned binary
+
+** Context
+
+The records are org files. The IDE reads and edits them, runs git, and runs
+machines as processes; Emacs does all three without additions. Speed of
+iteration is the priority while the first user workflow is pending, and elisp
+can be re-evaluated in a running Emacs. A record keeper's computer may have no
+Emacs, or one with a personal configuration. Starter kits such as Doom or
+Spacemacs bring behaviour of their own. Emacs 30 takes its configuration from
+a directory named at launch (=--init-directory=).
+
+** Decision
+
+We build the IDE as an Emacs configuration, starting from bare Emacs with only
+the packages the IDE pins, and ship it with an Emacs binary of a pinned
+version, launched with the IDE's own configuration directory.
+
+** Status
+
+Accepted.
+
+** Consequences
+
+- Org files, git and processes work in the IDE from the start.
+- The IDE never reads the record keeper's own Emacs configuration.
+- The IDE's code may rely only on the pinned Emacs version and the packages
+  the IDE pins.
+- The IDE's views are org buffers, not designed screens.
+- A record keeper new to Emacs learns its basics.
+- Building the Emacs binary for each platform is the IDE's own work.

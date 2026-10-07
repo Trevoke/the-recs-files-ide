@@ -1,0 +1,8 @@
+#+TITLE: Architectural Decisions
+
+Each architectural decision is written in Nygard's form
+([[./knowledge-base/nygard-architecture-decision-records.org][Nygard Architecture Decision Records — Reference]]):
+context, decision, status, consequences.
+
+- ADR-1 :: [[./architectural-decisions/adr-1-ship-the-ide-as-a-bare-emacs-with-its-own-pinned-binary.org][Ship the IDE as a bare Emacs with its own pinned binary]]
+- ADR-2 :: [[./architectural-decisions/adr-2-talk-to-machines-over-acp.org][Talk to machines over ACP]]

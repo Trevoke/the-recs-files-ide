@@ -1,0 +1,27 @@
+* ADR-2 Talk to machines over ACP
+
+** Context
+
+Record keepers use different AI programs, and the IDE assumes none in
+particular. A machine asks the record keeper questions while it works, and the
+IDE has to know when a machine has finished or stopped. The Agent Client
+Protocol (ACP) is an open protocol between an editor and an AI program; Claude
+Code speaks it through an adapter, and agent-shell is an Emacs client for it.
+
+** Decision
+
+The IDE talks to every machine over ACP, and to no AI program through any
+other interface.
+
+** Status
+
+Accepted.
+
+** Consequences
+
+- Any AI program that speaks ACP can run as the IDE's machines.
+- A machine's questions, its use of devices, and the end of its work reach the
+  IDE as ACP messages.
+- The IDE uses only what ACP carries; what one AI program offers outside ACP
+  goes unused.
+- ACP is young and still changing; the IDE follows its versions.
