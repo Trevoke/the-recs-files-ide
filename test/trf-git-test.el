@@ -22,6 +22,12 @@
   "trf-git-lines returns one string per non-empty line."
   (assert-includes (trf-git-lines trf-git-test-root "ls-files") "AGENTS.md"))
 
+(deftest trf-git-paths-splits-nul-separated-output ()
+  "trf-git-paths returns one path per NUL-separated field, as UTF-8."
+  (trf-test-write-files trf-git-test-root '(("docs/f-2-café.org" . "* F-2 Café\n")))
+  (assert-equal '("docs/f-2-café.org")
+                (trf-git-paths trf-git-test-root "ls-files" "-z" "--others")))
+
 (deftest trf-git-ref-commit-resolves-and-misses ()
   "trf-git-ref-commit returns the commit a ref names, or nil when it is missing."
   (assert-equal (trf-test-head trf-git-test-root)

@@ -9,6 +9,8 @@ Return a list of its exit status, standard output and standard error."
     (unwind-protect
         (with-temp-buffer
           (let* ((default-directory directory)
+                 (coding-system-for-read 'utf-8)
+                 (coding-system-for-write 'utf-8)
                  (status (apply #'process-file "git" nil (list t stderr-file) nil args)))
             (list status
                   (buffer-string)
@@ -30,6 +32,10 @@ when that is empty, when git fails."
 (defun trf-git-lines (directory &rest args)
   "Run git with ARGS in DIRECTORY and return its non-empty output lines."
   (split-string (apply #'trf-git directory args) "\n" t))
+
+(defun trf-git-paths (directory &rest args)
+  "Run git with ARGS in DIRECTORY and return its NUL-separated output fields."
+  (split-string (apply #'trf-git directory args) "\0" t))
 
 (defun trf-git-ref-commit (directory ref)
   "Return the commit REF names in DIRECTORY, or nil when REF does not exist."

@@ -35,6 +35,10 @@
           :identifier (car heading)
           :title (cdr heading))))
 
+(defun trf-record-changes--untracked (root paths)
+  "Return the files under PATHS in ROOT that git does not track."
+  (apply #'trf-git-paths root "ls-files" "-z" "--others" "--exclude-standard" "--" paths))
+
 (defun trf-record-changes--pairs (fields)
   "Return the alternating status and path FIELDS as (PATH . STATUS) pairs."
   (let (pairs)
@@ -47,18 +51,13 @@
 (defun trf-record-changes (root)
   "Return the record changes of the target product at ROOT, by path."
   (when-let* ((paths (append (trf-project-record-directories root)
-                             (trf-project-single-file-paths root))))
-    (let* ((coding-system-for-read 'utf-8)
-           (coding-system-for-write 'utf-8)
-           (base (trf-record-changes--base root))
+                             (trf-project-vision-and-ubiquitous-language-paths root))))
+    (let* ((base (trf-record-changes--base root))
            (changed (trf-record-changes--pairs
-                     (split-string (apply #'trf-git root "diff" "--name-status" "-z"
-                                          "--no-renames" base "--" paths)
-                                   "\0" t)))
+                     (apply #'trf-git-paths root "diff" "--name-status" "-z"
+                            "--no-renames" base "--" paths)))
            (untracked (mapcar (lambda (path) (cons path "A"))
-                              (split-string (apply #'trf-git root "ls-files" "-z" "--others"
-                                                   "--exclude-standard" "--" paths)
-                                            "\0" t)))
+                              (trf-record-changes--untracked root paths)))
            (entries (append (mapcar (lambda (entry)
                                       (if (assoc (car entry) untracked)
                                           (cons (car entry) "M")
@@ -84,19 +83,13 @@
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-record-changes-commit (root changes)
   "Commit CHANGES in ROOT and nothing else; return the commit they are in."
-  (let* ((coding-system-for-read 'utf-8)
-         (coding-system-for-write 'utf-8)
-         (paths (mapcar (lambda (change) (plist-get change :path)) changes))
-         (untracked (when paths
-                      (split-string (apply #'trf-git root "ls-files" "-z" "--others"
-                                           "--exclude-standard" "--" paths)
-                                    "\0" t))))
+  (let* ((paths (mapcar (lambda (change) (plist-get change :path)) changes))
+         (untracked (when paths (trf-record-changes--untracked root paths))))
     (when untracked
       (apply #'trf-git root "add" "--" untracked))
     (when-let* ((uncommitted (when paths
-                               (split-string (apply #'trf-git root "diff" "--name-only" "-z"
-                                                    "--no-renames" "HEAD" "--" paths)
-                                             "\0" t))))
+                               (apply #'trf-git-paths root "diff" "--name-only" "-z"
+                                      "--no-renames" "HEAD" "--" paths))))
       (apply #'trf-git root "commit" "--quiet" "--only" "--message"
              (trf-record-changes--commit-message
               (seq-filter (lambda (change) (member (plist-get change :path) uncommitted))

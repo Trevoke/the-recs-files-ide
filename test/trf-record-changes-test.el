@@ -106,6 +106,17 @@
   ;; F-1 §Takes: Ask the IDE to implement the record changes
   (assert-nil (trf-record-changes trf-record-changes-test-root)))
 
+(deftest trf-record-changes-ubiquitous-language-edit ()
+  "An edit to the ubiquitous language is a record change."
+  (trf-record-changes-test-mark-implemented)
+  (trf-test-write-files trf-record-changes-test-root
+                        '(("docs/ubiquitous-language.org"
+                           . "#+TITLE: Ubiquitous Language\n\n* Records\n\n- widget :: a thing a buyer orders twice.\n")))
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
+  (assert-equal '((:path "docs/ubiquitous-language.org" :status modified
+                   :identifier nil :title "Ubiquitous Language"))
+                (trf-record-changes trf-record-changes-test-root)))
+
 (deftest trf-record-changes-commit-holds-only-the-record-changes ()
   "The commit holds the record changes and leaves other edits uncommitted."
   (trf-record-changes-test-mark-implemented)
@@ -175,17 +186,6 @@
     ;; F-1 §Rules: Ask the IDE to implement the record changes
     (assert-equal head (trf-test-head root))))
 
-(deftest trf-record-changes-ubiquitous-language-edit ()
-  "An edit to the ubiquitous language is a record change."
-  (trf-record-changes-test-mark-implemented)
-  (trf-test-write-files trf-record-changes-test-root
-                        '(("docs/ubiquitous-language.org"
-                           . "#+TITLE: Ubiquitous Language\n\n* Records\n\n- widget :: a thing a buyer orders twice.\n")))
-  ;; F-1 §Takes: Ask the IDE to implement the record changes
-  (assert-equal '((:path "docs/ubiquitous-language.org" :status modified
-                   :identifier nil :title "Ubiquitous Language"))
-                (trf-record-changes trf-record-changes-test-root)))
-
 (defun trf-record-changes-test-commit-deletion ()
   (let ((root trf-record-changes-test-root))
     (trf-record-changes-test-mark-implemented)
@@ -214,7 +214,7 @@
       ;; F-1 §Rules: Ask the IDE to implement the record changes
       (assert-equal "" (trf-test-git root "status" "--porcelain")))))
 
-(deftest trf-record-changes-commit-removed-record ()
+(deftest trf-record-changes-commit-record-removed-from-index ()
   "A record removed with git rm and not committed is committed as a deletion."
   (let ((root trf-record-changes-test-root))
     (trf-record-changes-test-mark-implemented)
@@ -226,7 +226,7 @@
       ;; F-1 §Rules: Ask the IDE to implement the record changes
       (assert-equal "" (trf-test-git root "status" "--porcelain")))))
 
-(deftest trf-record-changes-commit-removed-record-beside-an-edit ()
+(deftest trf-record-changes-commit-record-removed-from-index-beside-an-edit ()
   "A record removed with git rm is committed with an edit to another record."
   (let ((root trf-record-changes-test-root))
     (trf-record-changes-test-mark-implemented)
