@@ -20,24 +20,28 @@ Return a list of its exit status, standard output and standard error."
                     (buffer-string)))))
       (delete-file stderr-file))))
 
+(defun trf-git--output (stdout stderr)
+  "Return git's own account of a failure: STDERR, or STDOUT when STDERR is empty."
+  (string-trim (if (string-empty-p (string-trim stderr)) stdout stderr)))
+
 (defun trf-git (directory &rest args)
   "Run git with ARGS in DIRECTORY and return its standard output.
-Signal an error carrying git's standard error, or its standard output
-when that is empty, when git fails."
+When git fails, signal an error whose message is git's standard error,
+or its standard output when that is empty."
   (pcase-let ((`(,status ,stdout ,stderr) (trf-git--run directory args)))
     (unless (eq status 0)
-      (error "git %s: %s" (string-join args " ")
-             (string-trim (if (string-empty-p (string-trim stderr)) stdout stderr))))
+      (error "%s" (trf-git--output stdout stderr)))
     stdout))
 
 (defun trf-git-check (directory &rest args)
   "Run git with ARGS in DIRECTORY; return t when it exits 0, nil when it exits 1.
-Signal an error carrying git's standard error on any other exit."
-  (pcase-let ((`(,status ,_stdout ,stderr) (trf-git--run directory args)))
+On any other exit, signal an error whose message is git's standard error,
+or its standard output when that is empty."
+  (pcase-let ((`(,status ,stdout ,stderr) (trf-git--run directory args)))
     (pcase status
       (0 t)
       (1 nil)
-      (_ (error "git %s: %s" (string-join args " ") (string-trim stderr))))))
+      (_ (error "%s" (trf-git--output stdout stderr))))))
 
 (defun trf-git-lines (directory &rest args)
   "Run git with ARGS in DIRECTORY and return its non-empty output lines."

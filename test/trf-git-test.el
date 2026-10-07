@@ -14,9 +14,19 @@
   (assert-equal (concat (trf-test-head trf-git-test-root) "\n")
                 (trf-git trf-git-test-root "rev-parse" "HEAD")))
 
+(defun trf-git-test-stderr (&rest args)
+  "Return what git prints to standard error when run with ARGS in the target product."
+  (let ((default-directory trf-git-test-root))
+    (string-trim (shell-command-to-string
+                  (concat "git " (mapconcat #'shell-quote-argument args " ")
+                          " 2>&1 >/dev/null")))))
+
 (deftest trf-git-signals-on-failure ()
-  "trf-git signals an error when git fails."
-  (assert-raises 'error (trf-git trf-git-test-root "rev-parse" "no-such-ref")))
+  "trf-git signals an error whose message is git's own output when git fails."
+  (assert-equal (list 'error (trf-git-test-stderr "rev-parse" "no-such-ref"))
+                (condition-case err
+                    (progn (trf-git trf-git-test-root "rev-parse" "no-such-ref") nil)
+                  (error err))))
 
 (deftest trf-git-check-answers-true-false-or-signals ()
   "trf-git-check is t when git exits 0, nil when it exits 1, and signals otherwise."
@@ -27,8 +37,13 @@
     (trf-test-git trf-git-test-root "commit" "--quiet" "--message" "Other work")
     (assert-nil (trf-git-check trf-git-test-root "merge-base" "--is-ancestor"
                                (trf-test-head trf-git-test-root) head))
-    (assert-raises 'error (trf-git-check trf-git-test-root "merge-base" "--is-ancestor"
-                                         "no-such-ref" head))))
+    (assert-equal (list 'error (trf-git-test-stderr "merge-base" "--is-ancestor"
+                                                    "no-such-ref" head))
+                  (condition-case err
+                      (progn (trf-git-check trf-git-test-root "merge-base" "--is-ancestor"
+                                            "no-such-ref" head)
+                             nil)
+                    (error err)))))
 
 (deftest trf-git-lines-splits-output ()
   "trf-git-lines returns one string per non-empty line."
