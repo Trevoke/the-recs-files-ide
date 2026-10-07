@@ -110,20 +110,31 @@
                         (car projection)))
                     (trf-project-projection-files root))))
 
+(defun trf-record-changes--stage (root &rest args)
+  "Run git with ARGS in ROOT, each pathspec a literal path; return its output.
+When git fails, throw `trf-record-changes--refused' with the reason git gave."
+  (pcase-let ((`(,status ,stdout ,stderr)
+               (trf-git--run root (cons "--literal-pathspecs" args))))
+    (unless (eq status 0)
+      (throw 'trf-record-changes--refused
+             (string-trim (if (string-empty-p (string-trim stderr)) stdout stderr))))
+    stdout))
+
 (defun trf-record-changes--add-untracked (root paths)
   "Add the files under PATHS in ROOT that git does not track; return them."
   (let ((untracked (trf-record-changes--untracked root paths)))
     (when untracked
-      (apply #'trf-record-changes--git root "add" "--" untracked))
+      (apply #'trf-record-changes--stage root "add" "--" untracked))
     untracked))
 
 (defun trf-record-changes--uncommitted (root head paths)
   "Return those of PATHS in ROOT that differ from HEAD."
   (when paths
-    (apply #'trf-record-changes--git-paths root
-         "diff" "--name-only" "-z" "--no-renames"
-         (or head (trf-record-changes--empty-tree root))
-         "--" paths)))
+    (split-string (apply #'trf-record-changes--stage root
+                         "diff" "--name-only" "-z" "--no-renames"
+                         (or head (trf-record-changes--empty-tree root))
+                         "--" paths)
+                  "\0" t)))
 
 (defun trf-record-changes--unstage (root paths)
   "Remove PATHS from ROOT's index, keeping them on disk."
@@ -140,38 +151,33 @@ Return the commit they are in."
     (user-error "%s" trf-record-changes-operation-in-progress-message))
   (if (null changes)
       (trf-git-ref-commit root "HEAD")
-    (let ((head (trf-git-ref-commit root "HEAD"))
-          added
-          refusal)
-      (condition-case err
-          (let* ((paths (mapcar (lambda (change) (plist-get change :path)) changes))
-                 (_ (setq added (trf-record-changes--add-untracked root paths)))
-                 (uncommitted (trf-record-changes--uncommitted root head paths))
-                 (projection-files (trf-record-changes--projection-files root uncommitted))
-                 (_ (setq added (append added (trf-record-changes--add-untracked
-                                               root projection-files)))))
-            (when uncommitted
-              (pcase-let ((`(,status ,stdout ,stderr)
-                           (trf-git--run
-                            root
-                            (append (list "--literal-pathspecs" "commit" "--quiet" "--only"
-                                          "--message"
-                                          (trf-record-changes--commit-message
-                                           (seq-filter (lambda (change)
-                                                         (member (plist-get change :path)
-                                                                 uncommitted))
-                                                       changes))
-                                          "--")
-                                    uncommitted
-                                    (trf-record-changes--uncommitted
-                                     root head projection-files)))))
-                (unless (eq status 0)
-                  (setq refusal (string-trim (if (string-empty-p (string-trim stderr))
-                                                 stdout
-                                               stderr)))))))
-        (error
-         (trf-record-changes--unstage root added)
-         (signal (car err) (cdr err))))
+    (let* ((head (trf-git-ref-commit root "HEAD"))
+           added
+           (refusal
+            (catch 'trf-record-changes--refused
+              (condition-case err
+                  (let* ((paths (mapcar (lambda (change) (plist-get change :path)) changes))
+                         (_ (setq added (trf-record-changes--add-untracked root paths)))
+                         (uncommitted (trf-record-changes--uncommitted root head paths))
+                         (projection-files (trf-record-changes--projection-files
+                                            root uncommitted)))
+                    (setq added (append added (trf-record-changes--add-untracked
+                                               root projection-files)))
+                    (when uncommitted
+                      (apply #'trf-record-changes--stage root
+                             "commit" "--quiet" "--only" "--message"
+                             (trf-record-changes--commit-message
+                              (seq-filter (lambda (change)
+                                            (member (plist-get change :path) uncommitted))
+                                          changes))
+                             "--"
+                             (append uncommitted
+                                     (trf-record-changes--uncommitted
+                                      root head projection-files))))
+                    nil)
+                (error
+                 (trf-record-changes--unstage root added)
+                 (signal (car err) (cdr err)))))))
       (when refusal
         (trf-record-changes--unstage root added)
         ;; UW-1 §Extensions: Turn record changes into code

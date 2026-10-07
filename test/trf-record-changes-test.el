@@ -337,6 +337,46 @@
       ;; UW-1 §Minimal guarantee: Turn record changes into code
       (assert-equal head (trf-test-head root)))))
 
+(defun trf-record-changes-test-commit-with-stale-index-lock (files)
+  "Commit the record changes after writing FILES, with a stale index lock.
+Assert MSG-4 is given with git's reason, and the status and HEAD are unchanged."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root files)
+    (let ((changes (trf-record-changes root))
+          (head (trf-test-head root))
+          (status (trf-test-git root "status" "--porcelain")))
+      (trf-test-write-files root '((".git/index.lock" . "")))
+      (let ((refusal (condition-case err
+                         (progn (trf-record-changes-commit root changes) nil)
+                       (error err))))
+        (delete-file (expand-file-name ".git/index.lock" root))
+        ;; UW-1 §Extensions: Turn record changes into code
+        ;; MSG-4: Record changes could not be committed
+        (assert-equal 'user-error (car refusal))
+        ;; UW-1 §Extensions: Turn record changes into code
+        ;; MSG-4: Record changes could not be committed
+        (assert-true (string-prefix-p
+                      (concat "The record changes could not be committed:\n"
+                              "fatal: Unable to create '"
+                              (expand-file-name ".git/index.lock" root)
+                              "': File exists.")
+                      (cadr refusal)))
+        ;; UW-1 §Minimal guarantee: Turn record changes into code
+        (assert-equal status (trf-test-git root "status" "--porcelain"))
+        ;; UW-1 §Minimal guarantee: Turn record changes into code
+        (assert-equal head (trf-test-head root))))))
+
+(deftest trf-record-changes-commit-refused-new-record-change-with-stale-index-lock ()
+  "With a stale index lock, a new record change is not committed and MSG-4 is given with git's reason."
+  (trf-record-changes-test-commit-with-stale-index-lock
+   '(("docs/features/f-1-order.org" . "* F-1 Order\n"))))
+
+(deftest trf-record-changes-commit-refused-modified-record-change-with-stale-index-lock ()
+  "With a stale index lock, a modified record change is not committed and MSG-4 is given with git's reason."
+  (trf-record-changes-test-commit-with-stale-index-lock
+   '(("docs/vision.org" . "#+TITLE: Vision\n\nMore.\n"))))
+
 (deftest trf-record-changes-commit-first-commit ()
   "In a target product with no commit yet, the record changes make the first commit."
   (delete-directory trf-record-changes-test-root t)
