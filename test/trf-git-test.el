@@ -18,6 +18,18 @@
   "trf-git signals an error when git fails."
   (assert-raises 'error (trf-git trf-git-test-root "rev-parse" "no-such-ref")))
 
+(deftest trf-git-check-answers-true-false-or-signals ()
+  "trf-git-check is t when git exits 0, nil when it exits 1, and signals otherwise."
+  (let ((head (trf-test-head trf-git-test-root)))
+    (assert-true (trf-git-check trf-git-test-root "merge-base" "--is-ancestor" head head))
+    (trf-test-write-files trf-git-test-root '(("src/other.el" . "(provide 'other)\n")))
+    (trf-test-git trf-git-test-root "add" "--all")
+    (trf-test-git trf-git-test-root "commit" "--quiet" "--message" "Other work")
+    (assert-nil (trf-git-check trf-git-test-root "merge-base" "--is-ancestor"
+                               (trf-test-head trf-git-test-root) head))
+    (assert-raises 'error (trf-git-check trf-git-test-root "merge-base" "--is-ancestor"
+                                         "no-such-ref" head))))
+
 (deftest trf-git-lines-splits-output ()
   "trf-git-lines returns one string per non-empty line."
   (assert-includes (trf-git-lines trf-git-test-root "ls-files") "AGENTS.md"))

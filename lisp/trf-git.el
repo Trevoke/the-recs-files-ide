@@ -29,6 +29,15 @@ when that is empty, when git fails."
              (string-trim (if (string-empty-p (string-trim stderr)) stdout stderr))))
     stdout))
 
+(defun trf-git-check (directory &rest args)
+  "Run git with ARGS in DIRECTORY; return t when it exits 0, nil when it exits 1.
+Signal an error carrying git's standard error on any other exit."
+  (pcase-let ((`(,status ,_stdout ,stderr) (trf-git--run directory args)))
+    (pcase status
+      (0 t)
+      (1 nil)
+      (_ (error "git %s: %s" (string-join args " ") (string-trim stderr))))))
+
 (defun trf-git-lines (directory &rest args)
   "Run git with ARGS in DIRECTORY and return its non-empty output lines."
   (split-string (apply #'trf-git directory args) "\n" t))

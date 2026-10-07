@@ -34,7 +34,7 @@
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-worktree-create (root commit)
   "Create a worktree of ROOT starting from COMMIT; return its directory."
-  (let* ((name (format-time-string "trf-%Y%m%d-%H%M%S"))
+  (let* ((name (make-temp-name (format-time-string "trf-%Y%m%d-%H%M%S-")))
          (directory (file-name-as-directory
                      (expand-file-name (concat ".worktrees/" name) root))))
     (trf-worktree--exclude root "/.worktrees/")
@@ -61,8 +61,9 @@
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-worktree-codebase-moved-p (directory)
   "Return non-nil when the codebase has moved since DIRECTORY's base."
-  (not (equal (trf-git-ref-commit (trf-worktree-root directory) "HEAD")
-              (trf-worktree-base directory))))
+  (not (trf-git-check directory "merge-base" "--is-ancestor"
+                      (trf-git-ref-commit (trf-worktree-root directory) "HEAD")
+                      "HEAD")))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-worktree-accept (directory)

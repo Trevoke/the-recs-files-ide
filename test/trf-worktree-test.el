@@ -21,6 +21,7 @@
          (directory (trf-worktree-create root base)))
     ;; F-1 §Rules: Ask the IDE to implement the record changes
     (assert-equal base (trf-test-head directory))
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
     (assert-equal base (trf-worktree-test-read directory "base"))
     (assert-equal root (trf-worktree-test-read directory "root"))
     (assert-equal "" (trf-test-git directory "status" "--porcelain"))
@@ -32,6 +33,15 @@
     (trf-worktree-create root (trf-test-head root))
     ;; UW-1 §Minimal guarantee: Turn record changes into code
     (assert-equal "" (trf-test-git root "status" "--porcelain"))))
+
+(deftest trf-worktree-create-twice-in-a-row ()
+  "Two worktrees created in a row on the same root are distinct."
+  (let* ((root trf-worktree-test-root)
+         (first (trf-worktree-create root (trf-test-head root)))
+         (second (trf-worktree-create root (trf-test-head root))))
+    (assert-nil (equal first second))
+    (assert-true (file-directory-p first))
+    (assert-true (file-directory-p second))))
 
 (deftest trf-worktree-of-finds-the-worktree ()
   "Any file inside a worktree leads back to it."
@@ -49,7 +59,10 @@
     (trf-test-git root "add" "--all")
     (trf-test-git root "commit" "--quiet" "--message" "Other work")
     ;; UW-1 §Extensions: Turn record changes into code
-    (assert-true (trf-worktree-codebase-moved-p directory))))
+    (assert-true (trf-worktree-codebase-moved-p directory))
+    (trf-test-git directory "merge" "--quiet" "--no-edit" "main")
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-nil (trf-worktree-codebase-moved-p directory))))
 
 (deftest trf-worktree-accept-brings-the-work-in ()
   "Accepting merges the work into the codebase and marks the base implemented."
