@@ -1,0 +1,6 @@
+#+TITLE: Features
+
+Each feature states what it takes, what it produces, and what the record
+keeper may do next.
+
+- F-1 :: [[./features/f-1-ask-the-ide-to-implement-the-record-changes.org][Ask the IDE to implement the record changes]]

@@ -1,0 +1,21 @@
+* F-1 Ask the IDE to implement the record changes
+
+Takes: the record changes.
+
+Produces: a record implementation report on the record changes, from the
+implementation workflow and the reconciliation assessor running on them apart
+from the codebase.
+
+** Rules
+
+- The IDE shows the record changes, and implements them only once the record
+  keeper confirms them.
+- On confirmation, the IDE commits the record changes and nothing else, in one
+  commit naming each by its identifier and title; the implementation workflow
+  starts from that commit.
+- When there are no record changes, the IDE gives MSG-1: No record changes to
+  implement.
+
+** Next
+
+The record keeper accepts or rejects the record implementation report.
