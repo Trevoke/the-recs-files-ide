@@ -46,8 +46,15 @@ The record keeper asks to implement the record changes.
 - *a. Record keeper abandons :: IDE keeps the work in progress; nothing reaches
   the codebase.
 - 2a. There are no record changes :: IDE says so; the use case ends.
+- 3a. Implementing machine stops before finishing :: IDE keeps the work in
+  progress and shows the record keeper why; record keeper has the implementing
+  machine start again on it, at step 3.
 - 5a. A record change has no test citing it :: the record implementation report
   shows it untested.
+- 5b. Reconciliation assessor cannot assess :: the record implementation report
+  says so for every record change, and why.
 - 6a. Record keeper rejects the record implementation report :: IDE keeps the
   work in progress; the use case ends in failure, and the record keeper amends
   records and starts again.
+- 7a. The codebase has moved since step 3 :: IDE does not bring the work into
+  the codebase until the work is brought up to date with it.

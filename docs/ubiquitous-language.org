@@ -24,7 +24,7 @@ Each term is defined within its bounded context, as named in the vision.
   their record implementation report into the codebase.
 - codebase :: the target product's code that the record keeper has accepted.
 - machine :: an AI program the IDE has put to one kind of work, through the
-  instructions it gives and the devices it permits.
+  instructions it gives and the devices it configures it with.
 - device :: a tool a machine uses, such as the shell, the file system, the test
   runner or a skill.
 - implementing machine :: the machine that turns record changes into code,
