@@ -7,6 +7,10 @@
 
 (defconst trf-record-changes-implemented-ref "refs/recs/implemented")
 
+;; MSG-3: Finish the merge or rebase first
+(defconst trf-record-changes-operation-in-progress-message
+  "The target product is in the middle of a merge or rebase; finish it first.")
+
 (defun trf-record-changes--empty-tree (root)
   "Return the tree holding nothing in ROOT."
   (string-trim (trf-git root "hash-object" "-t" "tree" "/dev/null")))
@@ -121,6 +125,9 @@
 (defun trf-record-changes-commit (root changes)
   "Commit CHANGES in ROOT and the projection files listing them, and nothing else.
 Return the commit they are in."
+  ;; UW-1 §Extensions: Turn record changes into code
+  (when (trf-git-operation-in-progress-p root)
+    (user-error "%s" trf-record-changes-operation-in-progress-message))
   (if (null changes)
       (trf-git-ref-commit root "HEAD")
     (let ((head (trf-git-ref-commit root "HEAD"))

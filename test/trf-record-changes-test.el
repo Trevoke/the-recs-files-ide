@@ -372,5 +372,54 @@
       (assert-equal "?? docs/features/f-a.org\n"
                     (trf-test-git root "status" "--porcelain")))))
 
+(defun trf-record-changes-test-commit-in-progress (operation)
+  "Commit a record change while OPERATION is in progress.
+Return the error signalled, the status before and after, and HEAD before and after."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-leave-in-progress root operation)
+    (trf-test-write-files root '(("docs/vision.org" . "#+TITLE: Vision\n\nMore.\n")))
+    (let ((status (trf-test-git root "status" "--porcelain"))
+          (head (trf-test-head root))
+          (refusal (condition-case err
+                       (progn (trf-record-changes-commit root (trf-record-changes root)) nil)
+                     (error err))))
+      (list refusal
+            status (trf-test-git root "status" "--porcelain")
+            head (trf-test-head root)))))
+
+(defun trf-record-changes-test-refuses-in-progress (operation)
+  (pcase-let ((`(,refusal ,status-before ,status-after ,head-before ,head-after)
+               (trf-record-changes-test-commit-in-progress operation)))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-3: Finish the merge or rebase first
+    (assert-equal '(user-error
+                    "The target product is in the middle of a merge or rebase; finish it first.")
+                  refusal)
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    (assert-equal status-before status-after)
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    (assert-equal head-before head-after)))
+
+(deftest trf-record-changes-commit-refused-mid-merge ()
+  "Mid merge, the record changes are not committed and MSG-3 is given."
+  (trf-record-changes-test-refuses-in-progress 'merge))
+
+(deftest trf-record-changes-commit-refused-mid-rebase ()
+  "Mid rebase, the record changes are not committed and MSG-3 is given."
+  (trf-record-changes-test-refuses-in-progress 'rebase))
+
+(deftest trf-record-changes-commit-refused-mid-cherry-pick ()
+  "Mid cherry-pick, the record changes are not committed and MSG-3 is given."
+  (trf-record-changes-test-refuses-in-progress 'cherry-pick))
+
+(deftest trf-record-changes-commit-refused-mid-revert ()
+  "Mid revert, the record changes are not committed and MSG-3 is given."
+  (trf-record-changes-test-refuses-in-progress 'revert))
+
+(deftest trf-record-changes-commit-refused-mid-bisect ()
+  "Mid bisect, the record changes are not committed and MSG-3 is given."
+  (trf-record-changes-test-refuses-in-progress 'bisect))
+
 (provide 'trf-record-changes-test)
 ;;; trf-record-changes-test.el ends here

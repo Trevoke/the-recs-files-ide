@@ -58,5 +58,44 @@
                           (directory-files (expand-file-name ".git/hooks/" trf-git-test-root)
                                            nil directory-files-no-dot-files-regexp))))
 
+(deftest trf-git-operation-in-progress-p-when-none ()
+  "No operation is in progress in a target product at rest."
+  ;; UW-1 §Extensions: Turn record changes into code
+  (assert-nil (trf-git-operation-in-progress-p trf-git-test-root)))
+
+(defun trf-git-test-in-progress (operation)
+  (trf-test-leave-in-progress trf-git-test-root operation)
+  (trf-git-operation-in-progress-p trf-git-test-root))
+
+(deftest trf-git-operation-in-progress-p-merge ()
+  "A conflicted merge is an operation in progress."
+  ;; UW-1 §Extensions: Turn record changes into code
+  (assert-true (trf-git-test-in-progress 'merge)))
+
+(deftest trf-git-operation-in-progress-p-rebase ()
+  "A conflicted rebase is an operation in progress."
+  ;; UW-1 §Extensions: Turn record changes into code
+  (assert-true (trf-git-test-in-progress 'rebase)))
+
+(deftest trf-git-operation-in-progress-p-rebase-apply ()
+  "A conflicted rebase by the apply backend is an operation in progress."
+  ;; UW-1 §Extensions: Turn record changes into code
+  (assert-true (trf-git-test-in-progress 'rebase-apply)))
+
+(deftest trf-git-operation-in-progress-p-cherry-pick ()
+  "A conflicted cherry-pick is an operation in progress."
+  ;; UW-1 §Extensions: Turn record changes into code
+  (assert-true (trf-git-test-in-progress 'cherry-pick)))
+
+(deftest trf-git-operation-in-progress-p-revert ()
+  "An uncommitted revert is an operation in progress."
+  ;; UW-1 §Extensions: Turn record changes into code
+  (assert-true (trf-git-test-in-progress 'revert)))
+
+(deftest trf-git-operation-in-progress-p-bisect ()
+  "A bisect is an operation in progress."
+  ;; UW-1 §Extensions: Turn record changes into code
+  (assert-true (trf-git-test-in-progress 'bisect)))
+
 (provide 'trf-git-test)
 ;;; trf-git-test.el ends here

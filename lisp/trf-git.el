@@ -1,5 +1,6 @@
 ;;; trf-git.el --- Git access for trf -*- lexical-binding: t; -*-
 
+(require 'seq)
 (require 'subr-x)
 
 (defun trf-git--run (directory args)
@@ -53,6 +54,19 @@ Signal an error carrying git's standard error on any other exit."
                                              (concat ref "^{commit}")))))
     (when (eq status 0)
       (string-trim stdout))))
+
+(defconst trf-git--operation-files
+  '("MERGE_HEAD" "rebase-merge" "rebase-apply" "CHERRY_PICK_HEAD" "REVERT_HEAD" "BISECT_LOG")
+  "The files a merge, rebase, cherry-pick, revert or bisect in progress leaves.")
+
+;; UW-1 §Extensions: Turn record changes into code
+(defun trf-git-operation-in-progress-p (root)
+  "Return non-nil when ROOT is mid merge, rebase, cherry-pick, revert or bisect."
+  (let ((git-dir (file-name-as-directory
+                  (expand-file-name (string-trim (trf-git root "rev-parse" "--git-dir"))
+                                    root))))
+    (seq-some (lambda (file) (file-exists-p (expand-file-name file git-dir)))
+              trf-git--operation-files)))
 
 (provide 'trf-git)
 ;;; trf-git.el ends here

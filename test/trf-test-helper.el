@@ -30,6 +30,36 @@
         (error "git %S: %s" args (buffer-string)))
       (buffer-string))))
 
+(defun trf-test-git-may-fail (directory &rest args)
+  "Run git with ARGS in DIRECTORY; return its exit status."
+  (with-temp-buffer
+    (let ((default-directory directory)
+          (process-environment (cons "GIT_EDITOR=true" process-environment)))
+      (apply #'call-process "git" nil t nil args))))
+
+(defun trf-test-diverge (root)
+  "Commit conflicting edits to src/widget.el in ROOT, on main and on a branch \"other\"."
+  (trf-test-git root "checkout" "--quiet" "-b" "other")
+  (trf-test-write-files root '(("src/widget.el" . "(provide 'widget) ; other\n")))
+  (trf-test-git root "commit" "--quiet" "--all" "--message" "Other")
+  (trf-test-git root "checkout" "--quiet" "main")
+  (trf-test-write-files root '(("src/widget.el" . "(provide 'widget) ; main\n")))
+  (trf-test-git root "commit" "--quiet" "--all" "--message" "Main"))
+
+(defconst trf-test-operations
+  '((merge "merge" "other")
+    (rebase "rebase" "other")
+    (rebase-apply "rebase" "--apply" "other")
+    (cherry-pick "cherry-pick" "other")
+    (revert "revert" "--no-commit" "HEAD")
+    (bisect "bisect" "start"))
+  "Each operation git leaves in progress, and the git arguments that start it in a diverged ROOT.")
+
+(defun trf-test-leave-in-progress (root operation)
+  "Leave OPERATION, a key of `trf-test-operations', in progress in ROOT."
+  (trf-test-diverge root)
+  (apply #'trf-test-git-may-fail root (cdr (assq operation trf-test-operations))))
+
 (defun trf-test-write-files (root files)
   "Write FILES, an alist of (path . content), under ROOT."
   (dolist (file files)
