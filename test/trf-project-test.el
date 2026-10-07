@@ -27,6 +27,15 @@
   (with-mock-fs '(("/target/AGENTS.md" . "- **Features** (F-n) — `docs/features.org`\n"))
     (assert-nil (trf-project-vision-and-ubiquitous-language-paths (mock-fs-path "/target/")))))
 
+(deftest trf-project-projection-names-match-whatever-their-case ()
+  "AGENTS.md names the vision and the ubiquitous language whatever the case of their names."
+  (with-mock-fs '(("/target/AGENTS.md"
+                   . "- **VISION** — `docs/vision.org`\n- **Ubiquitous Language** — `docs/ubiquitous-language.org`\n- **Features** (F-n) — `docs/features.org`\n"))
+    (assert-equal '("docs/vision.org" "docs/ubiquitous-language.org")
+                  (trf-project-vision-and-ubiquitous-language-paths (mock-fs-path "/target/")))
+    (assert-equal '("docs/features/")
+                  (trf-project-record-directories (mock-fs-path "/target/")))))
+
 (deftest trf-project-root-finds-agents-md ()
   "The target product's root is the directory holding AGENTS.md."
   (with-mock-fs `(("/target/AGENTS.md" . ,trf-test-agents-md)

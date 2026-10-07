@@ -41,7 +41,7 @@ STEM is the projection's file relative to ROOT, without \".org\"."
 Each is relative to ROOT; a file AGENTS.md does not name is left out."
   (let ((projections (trf-project--projections root)))
     (delq nil (mapcar (lambda (name)
-                        (when-let* ((projection (assoc name projections)))
+                        (when-let* ((projection (assoc-string name projections t)))
                           (concat (cdr projection) ".org")))
                       trf-project--vision-and-ubiquitous-language-names))))
 
@@ -49,7 +49,8 @@ Each is relative to ROOT; a file AGENTS.md does not name is left out."
   "Return the directory of each projection's records, relative to ROOT."
   (mapcar (lambda (projection) (concat (cdr projection) "/"))
           (seq-remove (lambda (projection)
-                        (member (car projection) trf-project--vision-and-ubiquitous-language-names))
+                        (member-ignore-case (car projection)
+                                            trf-project--vision-and-ubiquitous-language-names))
                       (trf-project--projections root))))
 
 (provide 'trf-project)
