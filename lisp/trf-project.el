@@ -10,16 +10,16 @@
   "Return the root of the target product holding DIRECTORY, or nil."
   (when-let* ((root (locate-dominating-file (or directory default-directory)
                                             "AGENTS.md")))
-    (file-name-as-directory root)))
+    (file-name-as-directory (expand-file-name root))))
 
 (defun trf-project-projection-paths (root)
   "Return the projection paths named by ROOT's AGENTS.md, relative to ROOT.
 Each projection gives its file, then the directory of its records."
-  (let ((agents (expand-file-name "AGENTS.md" root))
+  (let ((agents-md (expand-file-name "AGENTS.md" root))
         paths)
-    (when (file-exists-p agents)
+    (when (file-exists-p agents-md)
       (with-temp-buffer
-        (insert-file-contents agents)
+        (insert-file-contents agents-md)
         (goto-char (point-min))
         (while (re-search-forward trf-project--projection-regexp nil t)
           (let ((stem (match-string 1)))

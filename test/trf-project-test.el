@@ -25,5 +25,18 @@
     (assert-equal (mock-fs-path "/target/")
                   (trf-project-root (mock-fs-path "/target/docs/")))))
 
+(deftest trf-project-root-is-expanded ()
+  "The target product's root is an expanded directory name."
+  (let ((root (file-name-as-directory
+               (make-temp-file (expand-file-name "trf-root-test-" "~/.cache/") t))))
+    (unwind-protect
+        (progn
+          (trf-test-write-files root `(("AGENTS.md" . ,trf-test-agents-md)
+                                       ("docs/vision.org" . "#+TITLE: Vision\n")))
+          (let ((found (trf-project-root (expand-file-name "docs/" root))))
+            (assert-equal root found)
+            (assert-nil (string-prefix-p "~" found))))
+      (delete-directory root t))))
+
 (provide 'trf-project-test)
 ;;; trf-project-test.el ends here
