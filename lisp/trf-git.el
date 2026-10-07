@@ -9,8 +9,8 @@ Return a list of its exit status, standard output and standard error."
     (unwind-protect
         (with-temp-buffer
           (let* ((default-directory directory)
-                 (coding-system-for-read 'utf-8)
-                 (coding-system-for-write 'utf-8)
+                 (coding-system-for-read 'utf-8-unix)
+                 (coding-system-for-write 'utf-8-unix)
                  (status (apply #'process-file "git" nil (list t stderr-file) nil args)))
             (list status
                   (buffer-string)

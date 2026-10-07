@@ -273,15 +273,33 @@
       ;; UW-1 §Minimal guarantee: Turn record changes into code
       (assert-equal head (trf-test-head root)))))
 
+(deftest trf-record-changes-commit-refused-by-a-hook-that-stages ()
+  "When a hook stages an edit and refuses the commit, the index is as it was and git's refusal is signalled."
+  (let* ((root trf-record-changes-test-root)
+         (hook (expand-file-name ".git/hooks/pre-commit" root)))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")))
+    (trf-test-write-files
+     root '((".git/hooks/pre-commit"
+             . "#!/bin/sh\necho more >> docs/features/f-1-order.org\ngit add docs/features/f-1-order.org\necho 'pre-commit refuses' >&2\nexit 1\n")))
+    (set-file-modes hook #o755)
+    (let ((head (trf-test-head root))
+          (status (trf-test-git root "status" "--porcelain"))
+          (refusal (condition-case err
+                       (progn (trf-record-changes-commit root (trf-record-changes root)) nil)
+                     (error (error-message-string err)))))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-match "pre-commit refuses" refusal)
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-equal status (trf-test-git root "status" "--porcelain"))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-equal head (trf-test-head root)))))
+
 (deftest trf-record-changes-commit-first-commit ()
   "In a target product with no commit yet, the record changes make the first commit."
   (delete-directory trf-record-changes-test-root t)
-  (let ((root (file-name-as-directory (make-temp-file "trf-target-" t))))
-    (setq trf-record-changes-test-root root)
-    (trf-test-write-files root (cons (cons "AGENTS.md" trf-test-agents-md) trf-test-records))
-    (trf-test-git root "init" "--quiet" "--initial-branch=main")
-    (trf-test-git root "config" "user.email" "record.keeper@example.com")
-    (trf-test-git root "config" "user.name" "Record Keeper")
+  (let ((root (setq trf-record-changes-test-root
+                    (trf-test-make-target-product nil t))))
     (let ((commit (trf-record-changes-commit root (trf-record-changes root))))
       ;; F-1 §Rules: Ask the IDE to implement the record changes
       (assert-equal (trf-test-head root) commit)

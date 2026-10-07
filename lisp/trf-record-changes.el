@@ -96,10 +96,11 @@
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-record-changes-commit (root changes)
   "Commit CHANGES in ROOT and nothing else; return the commit they are in."
-  (let* ((head (trf-git-ref-commit root "HEAD"))
-         (paths (mapcar (lambda (change) (plist-get change :path)) changes))
-         (untracked (when paths (trf-record-changes--untracked root paths))))
-    (when paths
+  (if (null changes)
+      (trf-git-ref-commit root "HEAD")
+    (let* ((head (trf-git-ref-commit root "HEAD"))
+           (paths (mapcar (lambda (change) (plist-get change :path)) changes))
+           (untracked (trf-record-changes--untracked root paths)))
       (when untracked
         (apply #'trf-record-changes--git root "add" "--" untracked))
       (condition-case err
@@ -115,9 +116,11 @@
                    "--" uncommitted))
         (error
          (when untracked
-           (apply #'trf-record-changes--git root "rm" "--cached" "--quiet" "--" untracked))
-         (signal (car err) (cdr err)))))
-    (trf-git-ref-commit root "HEAD")))
+           (ignore-errors
+             (apply #'trf-record-changes--git root
+                    "rm" "--cached" "--force" "--quiet" "--" untracked)))
+         (signal (car err) (cdr err))))
+      (trf-git-ref-commit root "HEAD"))))
 
 (provide 'trf-record-changes)
 ;;; trf-record-changes.el ends here

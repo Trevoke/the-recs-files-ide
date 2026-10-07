@@ -37,8 +37,9 @@
       (make-directory (file-name-directory path) t)
       (with-temp-file path (insert (cdr file))))))
 
-(defun trf-test-make-target-product (&optional files)
-  "Create a committed target product holding AGENTS.md and FILES; return its root."
+(defun trf-test-make-target-product (&optional files no-commit)
+  "Create a target product holding AGENTS.md and FILES; return its root.
+Commit them unless NO-COMMIT."
   (let ((root (file-name-as-directory (make-temp-file "trf-target-" t))))
     (condition-case err
         (progn
@@ -47,8 +48,9 @@
           (trf-test-git root "init" "--quiet" "--initial-branch=main")
           (trf-test-git root "config" "user.email" "record.keeper@example.com")
           (trf-test-git root "config" "user.name" "Record Keeper")
-          (trf-test-git root "add" "--all")
-          (trf-test-git root "commit" "--quiet" "--message" "Start"))
+          (unless no-commit
+            (trf-test-git root "add" "--all")
+            (trf-test-git root "commit" "--quiet" "--message" "Start")))
       (error
        (delete-directory root t)
        (signal (car err) (cdr err))))
