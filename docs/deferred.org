@@ -7,6 +7,10 @@ no identifier here is reserved, and nothing may cite this file.
 
 Returns to UW-1 as extension 4a, "An answer changes a record", when written.
 
+To redesign when taken up: written for one machine that stops, reassesses the
+implementation plan and resumes. The implementation workflow is now three
+machines, and reassessing the plan presumably falls to the planning machine.
+
 - Scope :: the IDE (black-box)
 - Level :: user goal
 - Primary actor :: record keeper
@@ -18,7 +22,7 @@ Returns to UW-1 as extension 4a, "An answer changes a record", when written.
 
 ** Precondition
 
-The implementing machine is implementing record changes (UW-1 Turn record changes into code).
+The implementation workflow is running on record changes (UW-1 Turn record changes into code).
 
 ** Minimal guarantee
 
@@ -26,23 +30,23 @@ The work done so far is kept.
 
 ** Success guarantee
 
-The implementing machine implements against the amended records.
+The implementation workflow implements against the amended records.
 
 ** Trigger
 
-An answer to the implementing machine's question changes a record.
+An answer to the implementation workflow's question changes a record.
 
 ** Main success scenario
 
-1. Implementing machine stops implementing.
+1. The implementation workflow stops.
 2. Record keeper amends the record.
 3. IDE adds the amended record to the record changes.
-4. Implementing machine assesses whether the implementation plan holds for the record changes;
+4. The implementation workflow assesses whether the implementation plan holds for the record changes;
    it holds.
-5. Implementing machine resumes implementing.
+5. The implementation workflow resumes.
 
 ** Extensions
 
-- 4a. The implementation plan no longer holds :: implementing machine
-  makes a new implementation plan for the same goal from the record changes; continues at
+- 4a. The implementation plan no longer holds :: the implementation
+  workflow makes a new implementation plan for the same goal from the record changes; continues at
   step 5.

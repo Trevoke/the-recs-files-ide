@@ -32,9 +32,10 @@ The record keeper asks to implement the record changes.
 
 1. Record keeper asks the IDE to implement the record changes.
 2. IDE shows the record changes; record keeper confirms.
-3. IDE has the implementing machine implement the record changes, apart from the codebase.
-4. Implementing machine asks the record keeper what the records do not settle;
-   record keeper answers.
+3. IDE runs the implementation workflow on the record changes, apart from the
+   codebase.
+4. A machine of the implementation workflow asks the record keeper what the
+   records do not settle; record keeper answers.
 5. IDE has the reconciliation assessor assess, for each of the record changes, whether the
    codebase is reconciled with it, by the tests that cite it.
 6. IDE shows the record implementation report.
@@ -46,9 +47,9 @@ The record keeper asks to implement the record changes.
 - *a. Record keeper abandons :: IDE keeps the work in progress; nothing reaches
   the codebase.
 - 2a. There are no record changes :: IDE says so; the use case ends.
-- 3a. Implementing machine stops before finishing :: IDE keeps the work in
-  progress and shows the record keeper why; record keeper has the implementing
-  machine start again on it, at step 3.
+- 3a. A machine of the implementation workflow stops before finishing :: IDE
+  keeps the work in progress and shows the record keeper why; record keeper has
+  that machine start again on it, at step 3.
 - 5a. A record change has no test citing it :: the record implementation report
   shows it untested.
 - 5b. Reconciliation assessor cannot assess :: the record implementation report
@@ -56,5 +57,6 @@ The record keeper asks to implement the record changes.
 - 6a. Record keeper rejects the record implementation report :: IDE keeps the
   work in progress; the use case ends in failure, and the record keeper amends
   records and starts again.
-- 7a. The codebase has moved since step 3 :: IDE does not bring the work into
-  the codebase until the work is brought up to date with it.
+- 7a. The codebase has moved since step 3 :: IDE runs the implementation
+  workflow again to bring the work up to date with the codebase; continues at
+  step 5.
