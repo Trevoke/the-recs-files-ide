@@ -379,6 +379,24 @@ Assert MSG-4 is given with git's reason, and the status and HEAD are unchanged."
   (trf-record-changes-test-commit-with-stale-index-lock
    '(("docs/vision.org" . "#+TITLE: Vision\n\nMore.\n"))))
 
+(defun trf-record-changes-test-file-bytes (file)
+  "Return FILE's bytes."
+  (with-temp-buffer
+    (set-buffer-multibyte nil)
+    (insert-file-contents-literally file)
+    (buffer-string)))
+
+(defun trf-record-changes-test-git-stderr (root &rest args)
+  "Return what git prints to standard error, trimmed, when run with ARGS in ROOT."
+  (let ((stderr-file (make-temp-file "trf-test-stderr-")))
+    (unwind-protect
+        (let ((default-directory root))
+          (apply #'call-process "git" nil (list nil stderr-file) nil args)
+          (string-trim (with-temp-buffer
+                         (insert-file-contents stderr-file)
+                         (buffer-string))))
+      (delete-file stderr-file))))
+
 (deftest trf-record-changes-commit-refused-with-a-corrupt-index ()
   "With a corrupt index, the record changes are not committed and MSG-4 is given with git's output."
   (let* ((root trf-record-changes-test-root)
@@ -387,24 +405,21 @@ Assert MSG-4 is given with git's reason, and the status and HEAD are unchanged."
     (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")))
     (let ((changes (trf-record-changes root))
           (head (trf-test-head root)))
-      (call-process "truncate" nil nil nil "-s" "10" index)
-      (let ((corrupt (with-temp-buffer
-                       (set-buffer-multibyte nil)
-                       (insert-file-contents-literally index)
-                       (buffer-string)))
+      (let ((coding-system-for-write 'no-conversion))
+        (write-region (substring (trf-record-changes-test-file-bytes index) 0 10)
+                      nil index nil 'silent))
+      (let ((corrupt (trf-record-changes-test-file-bytes index))
+            (reason (trf-record-changes-test-git-stderr root "ls-files"))
             (refusal (condition-case err
                          (progn (trf-record-changes-commit root changes) nil)
                        (error err))))
         ;; UW-1 §Extensions: Turn record changes into code
         ;; MSG-4: Record changes could not be committed
-        (assert-equal '(user-error
-                        "The record changes could not be committed:\nfatal: .git/index: index file smaller than expected")
+        (assert-equal (list 'user-error
+                            (concat "The record changes could not be committed:\n" reason))
                       refusal)
         ;; UW-1 §Minimal guarantee: Turn record changes into code
-        (assert-equal corrupt (with-temp-buffer
-                                (set-buffer-multibyte nil)
-                                (insert-file-contents-literally index)
-                                (buffer-string)))
+        (assert-equal corrupt (trf-record-changes-test-file-bytes index))
         ;; UW-1 §Minimal guarantee: Turn record changes into code
         (assert-equal head (trf-test-head root))))))
 
