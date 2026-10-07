@@ -242,7 +242,9 @@ how this project does it. With both, two agents may write at once; with only
 the index, the second is testing the first's code and nothing says so.
 
 This project tests its elisp with e-unit, run through elk: `elk test` from the
-root of the worktree under test, with mock-fs where a test needs a file system.
+root of the worktree under test. A test that needs files and no git uses
+mock-fs; a test that runs git builds a real temporary repository and deletes it
+afterwards.
 elk takes the project root from the nearest `Elkfile` above the directory it
 runs in, and installs test dependencies under that root's `.elk/deps/`, so a
 worktree's tests load that worktree's code and dependencies.
