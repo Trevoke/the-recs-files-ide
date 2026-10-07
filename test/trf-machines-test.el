@@ -43,11 +43,37 @@
   "The reconciliation assessor is told to show untested record changes and why it cannot assess."
   (let ((text (trf-machines-instructions (trf-machines-reconciliation-assessor)
                                          trf-machines-test-changes)))
+    ;; UW-1 §Main success scenario: Turn record changes into code
+    (assert-match "For each of the record changes, find the tests that cite it, run them, and assess whether the codebase is reconciled with it\\." text)
     ;; UW-1 §Extensions: Turn record changes into code
-    (assert-match "untested" text)
+    (assert-match "a record change that no test cites is shown as untested\\." text)
     ;; UW-1 §Extensions: Turn record changes into code
-    (assert-match "cannot assess" text)
-    (assert-match "write \\.trf/record-implementation-report\\.org" text)))
+    (assert-match "If you cannot assess at all, say so and why under every record change\\." text)))
+
+(deftest trf-machines-reconciliation-assessor-writes-only-the-report ()
+  "The reconciliation assessor's handoff file is the record implementation report and nothing else."
+  (let ((text (trf-machines-instructions (trf-machines-reconciliation-assessor)
+                                         trf-machines-test-changes)))
+    (assert-match "The record implementation report is \\.trf/record-implementation-report\\.org; change no other file\\." text)
+    (assert-match "write \\.trf/record-implementation-report\\.org as your last act\\." text)
+    (assert-nil (string-match-p "naming what you produced" text))))
+
+(deftest trf-machines-skills-are-customizable ()
+  "A machine uses the skill the record keeper configured, taken literally."
+  (let* ((trf-machines-skills '((brainstorming . "my-brainstorming")
+                                (planning . "my-%s-plans")
+                                (executing . "my-executing")))
+         (text (trf-machines-instructions (nth 1 (trf-machines-implementation-workflow))
+                                          trf-machines-test-changes)))
+    (assert-match "Use the my-%s-plans skill" text)))
+
+(deftest trf-machines-instructions-say-paths-are-relative-to-the-working-tree ()
+  "Every machine is told once that paths are relative to the root of its working tree."
+  (dolist (machine (cons (trf-machines-reconciliation-assessor)
+                         (trf-machines-implementation-workflow)))
+    (let ((text (trf-machines-instructions machine trf-machines-test-changes)))
+      (assert-equal 2 (length (split-string
+                               text "Paths are relative to the root of your working tree\\."))))))
 
 (provide 'trf-machines-test)
 ;;; trf-machines-test.el ends here
