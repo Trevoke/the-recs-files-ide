@@ -84,9 +84,19 @@
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-record-changes-commit (root changes)
   "Commit CHANGES in ROOT and nothing else; return the commit they are in."
-  (let ((coding-system-for-read 'utf-8)
-        (coding-system-for-write 'utf-8)
-        (paths (mapcar (lambda (change) (plist-get change :path)) changes)))
+  (let* ((coding-system-for-read 'utf-8)
+         (coding-system-for-write 'utf-8)
+         (indexed (when changes
+                    (split-string (apply #'trf-git root "ls-files" "-z" "--"
+                                         (mapcar (lambda (change) (plist-get change :path))
+                                                 changes))
+                                  "\0" t)))
+         (changes (seq-filter (lambda (change)
+                                (let ((path (plist-get change :path)))
+                                  (or (member path indexed)
+                                      (file-exists-p (expand-file-name path root)))))
+                              changes))
+         (paths (mapcar (lambda (change) (plist-get change :path)) changes)))
     (when paths
       (apply #'trf-git root "add" "--all" "--" paths)
       (unless (string-empty-p (apply #'trf-git root "diff" "--cached" "--name-only" "-z"
