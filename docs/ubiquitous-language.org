@@ -9,7 +9,7 @@ Each term is defined within its bounded context, as named in the vision.
 - projection :: the records of one form, such as the user workflows or the
   message catalog.
 - record keeper :: the person who creates, edits and maintains the records.
-- record changes :: the edits to records not yet implemented.
+- record changes :: the edits to records and to the vision not yet implemented.
 - target product :: the product the records are about.
 
 * Implementation
