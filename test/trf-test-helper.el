@@ -30,35 +30,53 @@
         (error "git %S: %s" args (buffer-string)))
       (buffer-string))))
 
-(defun trf-test-git-may-fail (directory &rest args)
-  "Run git with ARGS in DIRECTORY; return its exit status."
+(defun trf-test-git-expecting (directory expected &rest args)
+  "Run git with ARGS in DIRECTORY; signal unless it exits with status EXPECTED."
   (with-temp-buffer
-    (let ((default-directory directory)
-          (process-environment (cons "GIT_EDITOR=true" process-environment)))
-      (apply #'call-process "git" nil t nil args))))
+    (let* ((default-directory directory)
+           (process-environment (cons "GIT_EDITOR=true" process-environment))
+           (status (apply #'call-process "git" nil t nil args)))
+      (unless (eq status expected)
+        (error "git %S exited %s, not %s: %s" args status expected (buffer-string))))))
 
 (defun trf-test-diverge (root)
-  "Commit conflicting edits to src/widget.el in ROOT, on main and on a branch \"other\"."
+  "Commit conflicting edits to src/widget.el in ROOT, on main and on a branch \"other\".
+\"other\" then adds src/other.el in a commit of its own."
   (trf-test-git root "checkout" "--quiet" "-b" "other")
   (trf-test-write-files root '(("src/widget.el" . "(provide 'widget) ; other\n")))
   (trf-test-git root "commit" "--quiet" "--all" "--message" "Other")
+  (trf-test-write-files root '(("src/other.el" . "(provide 'other)\n")))
+  (trf-test-git root "add" "src/other.el")
+  (trf-test-git root "commit" "--quiet" "--message" "Other file")
   (trf-test-git root "checkout" "--quiet" "main")
   (trf-test-write-files root '(("src/widget.el" . "(provide 'widget) ; main\n")))
   (trf-test-git root "commit" "--quiet" "--all" "--message" "Main"))
 
 (defconst trf-test-operations
-  '((merge "merge" "other")
-    (rebase "rebase" "other")
-    (rebase-apply "rebase" "--apply" "other")
-    (cherry-pick "cherry-pick" "other")
-    (revert "revert" "--no-commit" "HEAD")
-    (bisect "bisect" "start"))
-  "Each operation git leaves in progress, and the git arguments that start it in a diverged ROOT.")
+  '((merge "You have unmerged paths\\." (1 "merge" "other"))
+    (rebase "^interactive rebase in progress" (1 "rebase" "other"))
+    (rebase-apply "^rebase in progress" (1 "rebase" "--apply" "other"))
+    (cherry-pick "You are currently cherry-picking" (1 "cherry-pick" "other~1"))
+    (cherry-pick-sequence "Cherry-pick currently in progress"
+                          (1 "cherry-pick" "other~1" "other")
+                          (0 "checkout" "other~1" "--" "src/widget.el")
+                          (0 "commit" "--quiet"))
+    (revert "You are currently reverting" (0 "revert" "--no-commit" "HEAD"))
+    (bisect "You are currently bisecting" (0 "bisect" "start")))
+  "Each operation git leaves in progress: what git status says of it, and the
+git commands, each with the exit status it gives, that leave it in a diverged ROOT.")
 
 (defun trf-test-leave-in-progress (root operation)
-  "Leave OPERATION, a key of `trf-test-operations', in progress in ROOT."
-  (trf-test-diverge root)
-  (apply #'trf-test-git-may-fail root (cdr (assq operation trf-test-operations))))
+  "Leave OPERATION, a key of `trf-test-operations', in progress in ROOT.
+Signal unless git then says it is in progress."
+  (pcase-let ((`(,banner . ,commands) (cdr (assq operation trf-test-operations))))
+    (trf-test-diverge root)
+    (dolist (command commands)
+      (apply #'trf-test-git-expecting root (car command) (cdr command)))
+    (let ((status (let ((process-environment (cons "LC_ALL=C" process-environment)))
+                    (trf-test-git root "status"))))
+      (unless (string-match-p banner status)
+        (error "git status does not say %s is in progress: %s" operation status)))))
 
 (defun trf-test-write-files (root files)
   "Write FILES, an alist of (path . content), under ROOT."

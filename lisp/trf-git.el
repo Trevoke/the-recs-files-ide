@@ -62,17 +62,17 @@ or its standard output when that is empty."
       (string-trim stdout))))
 
 (defconst trf-git--operation-files
-  '("MERGE_HEAD" "rebase-merge" "rebase-apply" "CHERRY_PICK_HEAD" "REVERT_HEAD" "BISECT_LOG")
+  '("MERGE_HEAD" "rebase-merge" "rebase-apply" "CHERRY_PICK_HEAD" "REVERT_HEAD"
+    "sequencer" "BISECT_LOG" "BISECT_START")
   "The files a merge, rebase, cherry-pick, revert or bisect in progress leaves.")
 
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-git-operation-in-progress-p (root)
   "Return non-nil when ROOT is mid merge, rebase, cherry-pick, revert or bisect."
-  (let ((git-dir (file-name-as-directory
-                  (expand-file-name (string-trim (trf-git root "rev-parse" "--git-dir"))
-                                    root))))
-    (seq-some (lambda (file) (file-exists-p (expand-file-name file git-dir)))
-              trf-git--operation-files)))
+  (seq-some #'file-exists-p
+            (apply #'trf-git-lines root "rev-parse" "--path-format=absolute"
+                   (mapcan (lambda (file) (list "--git-path" file))
+                           trf-git--operation-files))))
 
 (provide 'trf-git)
 ;;; trf-git.el ends here

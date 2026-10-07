@@ -102,6 +102,11 @@
   ;; UW-1 §Extensions: Turn record changes into code
   (assert-true (trf-git-test-in-progress 'cherry-pick)))
 
+(deftest trf-git-operation-in-progress-p-cherry-pick-sequence ()
+  "A multi-commit cherry-pick paused between its commits is an operation in progress."
+  ;; UW-1 §Extensions: Turn record changes into code
+  (assert-true (trf-git-test-in-progress 'cherry-pick-sequence)))
+
 (deftest trf-git-operation-in-progress-p-revert ()
   "An uncommitted revert is an operation in progress."
   ;; UW-1 §Extensions: Turn record changes into code
