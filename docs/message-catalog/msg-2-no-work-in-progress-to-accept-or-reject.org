@@ -1,0 +1,3 @@
+* MSG-2 No work in progress to accept or reject
+
+Text: There is no work in progress here to accept or reject.

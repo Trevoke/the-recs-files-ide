@@ -5,3 +5,4 @@ something goes wrong. Tests assert this text, so it changes here before it
 changes in code.
 
 - MSG-1 :: [[./message-catalog/msg-1-no-record-changes-to-implement.org][No record changes to implement]]
+- MSG-2 :: [[./message-catalog/msg-2-no-work-in-progress-to-accept-or-reject.org][No work in progress to accept or reject]]
