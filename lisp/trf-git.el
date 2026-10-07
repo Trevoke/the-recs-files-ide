@@ -3,6 +3,8 @@
 (require 'seq)
 (require 'subr-x)
 
+(define-error 'trf-git-error "Git failed")
+
 (defun trf-git--run (directory args)
   "Run git with ARGS in DIRECTORY.
 Return a list of its exit status, standard output and standard error."
@@ -26,22 +28,22 @@ Return a list of its exit status, standard output and standard error."
 
 (defun trf-git (directory &rest args)
   "Run git with ARGS in DIRECTORY and return its standard output.
-When git fails, signal an error whose message is git's standard error,
+When git fails, signal `trf-git-error' carrying git's standard error,
 or its standard output when that is empty."
   (pcase-let ((`(,status ,stdout ,stderr) (trf-git--run directory args)))
     (unless (eq status 0)
-      (error "%s" (trf-git--output stdout stderr)))
+      (signal 'trf-git-error (list (trf-git--output stdout stderr))))
     stdout))
 
 (defun trf-git-check (directory &rest args)
   "Run git with ARGS in DIRECTORY; return t when it exits 0, nil when it exits 1.
-On any other exit, signal an error whose message is git's standard error,
+On any other exit, signal `trf-git-error' carrying git's standard error,
 or its standard output when that is empty."
   (pcase-let ((`(,status ,stdout ,stderr) (trf-git--run directory args)))
     (pcase status
       (0 t)
       (1 nil)
-      (_ (error "%s" (trf-git--output stdout stderr))))))
+      (_ (signal 'trf-git-error (list (trf-git--output stdout stderr)))))))
 
 (defun trf-git-lines (directory &rest args)
   "Run git with ARGS in DIRECTORY and return its non-empty output lines."

@@ -1,5 +1,6 @@
 ;;; trf-record-changes-test.el --- Tests for trf-record-changes -*- lexical-binding: t; -*-
 
+(require 'cl-lib)
 (require 'e-unit)
 (require 'trf-test-helper)
 (require 'trf-record-changes)
@@ -406,6 +407,38 @@ Assert MSG-4 is given with git's reason, and the status and HEAD are unchanged."
                                 (buffer-string)))
         ;; UW-1 §Minimal guarantee: Turn record changes into code
         (assert-equal head (trf-test-head root))))))
+
+(defun trf-record-changes-test-commit-interrupted (condition)
+  "Commit a new record change, signalling CONDITION once it is staged.
+Return what was signalled, and the status before and after."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")))
+    (let* ((changes (trf-record-changes root))
+           (status (trf-test-git root "status" "--porcelain"))
+           (signalled (condition-case err
+                          (cl-letf (((symbol-function 'trf-record-changes--commit-message)
+                                     (lambda (_changes) (signal (car condition) (cdr condition)))))
+                            (trf-record-changes-commit root changes)
+                            nil)
+                        ((debug error quit) err))))
+      (list signalled status (trf-test-git root "status" "--porcelain")))))
+
+(deftest trf-record-changes-commit-resignals-an-error-that-is-not-git-s ()
+  "An error that is not git's is signalled unchanged, after the staging is rolled back."
+  (pcase-let ((`(,signalled ,status-before ,status-after)
+               (trf-record-changes-test-commit-interrupted '(error "Not git's"))))
+    (assert-equal '(error "Not git's") signalled)
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    (assert-equal status-before status-after)))
+
+(deftest trf-record-changes-commit-rolls-back-on-quit ()
+  "A quit while committing leaves nothing staged."
+  (pcase-let ((`(,signalled ,status-before ,status-after)
+               (trf-record-changes-test-commit-interrupted '(quit))))
+    (assert-equal '(quit) signalled)
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    (assert-equal status-before status-after)))
 
 (deftest trf-record-changes-commit-first-commit ()
   "In a target product with no commit yet, the record changes make the first commit."

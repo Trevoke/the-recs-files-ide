@@ -22,8 +22,8 @@
                           " 2>&1 >/dev/null")))))
 
 (deftest trf-git-signals-on-failure ()
-  "trf-git signals an error whose message is git's own output when git fails."
-  (assert-equal (list 'error (trf-git-test-stderr "rev-parse" "no-such-ref"))
+  "trf-git signals trf-git-error carrying git's own output when git fails."
+  (assert-equal (list 'trf-git-error (trf-git-test-stderr "rev-parse" "no-such-ref"))
                 (condition-case err
                     (progn (trf-git trf-git-test-root "rev-parse" "no-such-ref") nil)
                   (error err))))
@@ -37,7 +37,7 @@
     (trf-test-git trf-git-test-root "commit" "--quiet" "--message" "Other work")
     (assert-nil (trf-git-check trf-git-test-root "merge-base" "--is-ancestor"
                                (trf-test-head trf-git-test-root) head))
-    (assert-equal (list 'error (trf-git-test-stderr "merge-base" "--is-ancestor"
+    (assert-equal (list 'trf-git-error (trf-git-test-stderr "merge-base" "--is-ancestor"
                                                     "no-such-ref" head))
                   (condition-case err
                       (progn (trf-git-check trf-git-test-root "merge-base" "--is-ancestor"
