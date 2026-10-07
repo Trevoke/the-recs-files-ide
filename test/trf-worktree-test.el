@@ -80,5 +80,68 @@
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-equal base (string-trim (trf-test-git root "rev-parse" "refs/recs/implemented")))))
 
+(deftest trf-worktree-create-keeps-an-exclude-without-a-final-newline ()
+  "An exclude file not ending in a newline keeps its last line intact."
+  (let* ((root trf-worktree-test-root)
+         (exclude (expand-file-name ".git/info/exclude" root)))
+    (make-directory (file-name-directory exclude) t)
+    (with-temp-file exclude (insert "*.log"))
+    (trf-worktree-create root (trf-test-head root))
+    (let ((lines (with-temp-buffer
+                   (insert-file-contents exclude)
+                   (split-string (buffer-string) "\n" t))))
+      (assert-true (member "*.log" lines))
+      (assert-true (member "/.worktrees/" lines)))
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    (assert-equal "" (trf-test-git root "status" "--porcelain"))))
+
+(deftest trf-worktree-create-normalizes-the-root ()
+  "The worktree records its root as an absolute directory name."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create (directory-file-name root) (trf-test-head root))))
+    (assert-equal root (trf-worktree-root directory))))
+
+(deftest trf-worktree-of-is-nil-outside-any-worktree ()
+  "A file of the target product itself is in no worktree."
+  (let ((root trf-worktree-test-root))
+    (trf-worktree-create root (trf-test-head root))
+    (assert-nil (trf-worktree-of (expand-file-name "docs/vision.org" root)))))
+
+(deftest trf-worktree-accept-from-a-detached-worktree ()
+  "Accepting merges the work even once the worktree is checked out detached."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root))))
+    (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; built\n")))
+    (trf-test-git directory "commit" "--quiet" "--all" "--message" "Build")
+    (trf-test-git directory "checkout" "--quiet" "--detach")
+    (trf-worktree-accept directory)
+    ;; UW-1 §Main success scenario: Turn record changes into code
+    (assert-equal "(provide 'widget) ; built\n"
+                  (with-temp-buffer
+                    (insert-file-contents (expand-file-name "src/widget.el" root))
+                    (buffer-string)))))
+
+(deftest trf-worktree-accept-that-conflicts-leaves-the-codebase-unchanged ()
+  "An accept whose merge conflicts signals and leaves the codebase as it was."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root))))
+    (trf-test-write-files directory '(("src/gadget.el" . "(provide 'gadget) ; work\n")))
+    (trf-test-git directory "add" "--all")
+    (trf-test-git directory "commit" "--quiet" "--message" "Build")
+    (trf-test-write-files root '(("src/gadget.el" . "(provide 'gadget) ; other\n")))
+    (trf-test-git root "add" "--all")
+    (trf-test-git root "commit" "--quiet" "--message" "Other work")
+    (let ((head (trf-test-head root))
+          (status (trf-test-git root "status" "--porcelain")))
+      (assert-raises 'error (trf-worktree-accept directory))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-nil (file-exists-p (expand-file-name ".git/MERGE_HEAD" root)))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-equal head (trf-test-head root))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-equal status (trf-test-git root "status" "--porcelain"))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-equal "" (trf-test-git root "for-each-ref" "refs/recs/")))))
+
 (provide 'trf-worktree-test)
 ;;; trf-worktree-test.el ends here

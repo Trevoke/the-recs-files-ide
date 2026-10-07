@@ -11,43 +11,55 @@
                   (string-trim (trf-git root "rev-parse" "--path-format=absolute"
                                         "--git-common-dir")))))
     (make-directory (file-name-directory exclude) t)
-    (unless (and (file-exists-p exclude)
-                 (with-temp-buffer
-                   (insert-file-contents exclude)
-                   (re-search-forward (concat "^" (regexp-quote pattern) "$") nil t)))
-      (with-temp-buffer
+    (with-temp-buffer
+      (when (file-exists-p exclude)
+        (insert-file-contents exclude))
+      (goto-char (point-min))
+      (unless (re-search-forward (concat "^" (regexp-quote pattern) "$") nil t)
+        (goto-char (point-max))
+        (unless (or (bobp) (eq (char-before) ?\n))
+          (insert "\n"))
         (insert pattern "\n")
-        (append-to-file (point-min) (point-max) exclude)))))
+        (let ((coding-system-for-write 'utf-8-unix))
+          (write-region (point-min) (point-max) exclude))))))
 
 (defun trf-worktree--write (directory file content)
   "Write CONTENT to FILE under DIRECTORY's .trf/."
-  (with-temp-file (expand-file-name (concat ".trf/" file) directory)
-    (insert content "\n")))
+  (let ((coding-system-for-write 'utf-8-unix))
+    (with-temp-file (expand-file-name (concat ".trf/" file) directory)
+      (insert content "\n"))))
 
 (defun trf-worktree--read (directory file)
   "Return the content of FILE under DIRECTORY's .trf/."
   (with-temp-buffer
-    (insert-file-contents (expand-file-name (concat ".trf/" file) directory))
+    (let ((coding-system-for-read 'utf-8-unix))
+      (insert-file-contents (expand-file-name (concat ".trf/" file) directory)))
     (string-trim (buffer-string))))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-worktree-create (root commit)
   "Create a worktree of ROOT starting from COMMIT; return its directory."
-  (let* ((name (make-temp-name (format-time-string "trf-%Y%m%d-%H%M%S-")))
+  (let* ((root (file-name-as-directory (expand-file-name root)))
+         (name (make-temp-name (format-time-string "trf-%Y%m%d-%H%M%S-")))
+         (branch (concat "trf/" name))
          (directory (file-name-as-directory
                      (expand-file-name (concat ".worktrees/" name) root))))
     (trf-worktree--exclude root "/.worktrees/")
     (trf-worktree--exclude root "/.trf/")
-    (trf-git root "worktree" "add" "--quiet" "-b" (concat "trf/" name) directory commit)
+    (trf-git root "worktree" "add" "--quiet" "-b" branch directory commit)
     (make-directory (expand-file-name ".trf/" directory) t)
     (trf-worktree--write directory "root" root)
     (trf-worktree--write directory "base" commit)
+    (trf-worktree--write directory "branch" branch)
     directory))
 
 (defun trf-worktree-of (file)
   "Return the worktree holding FILE, or nil."
-  (when-let* ((directory (locate-dominating-file file ".trf")))
+  (when-let* ((directory (locate-dominating-file
+                          file
+                          (lambda (directory)
+                            (file-regular-p (expand-file-name ".trf/root" directory))))))
     (file-name-as-directory (expand-file-name directory))))
 
 (defun trf-worktree-root (directory)
@@ -57,6 +69,10 @@
 (defun trf-worktree-base (directory)
   "Return the commit of the record changes the worktree DIRECTORY started from."
   (trf-worktree--read directory "base"))
+
+(defun trf-worktree-branch (directory)
+  "Return the branch the worktree DIRECTORY was created on."
+  (trf-worktree--read directory "branch"))
 
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-worktree-codebase-moved-p (directory)
@@ -68,9 +84,13 @@
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-worktree-accept (directory)
   "Bring DIRECTORY's work into the codebase and mark its record changes implemented."
-  (let ((root (trf-worktree-root directory))
-        (branch (string-trim (trf-git directory "branch" "--show-current"))))
-    (trf-git root "merge" "--quiet" "--no-ff" "--no-edit" branch)
+  (let ((root (trf-worktree-root directory)))
+    (condition-case err
+        (trf-git root "merge" "--quiet" "--no-ff" "--no-edit"
+                 (trf-worktree-branch directory))
+      (error
+       (ignore-errors (trf-git root "merge" "--abort"))
+       (signal (car err) (cdr err))))
     (trf-git root "update-ref" trf-record-changes-implemented-ref
              (trf-worktree-base directory))))
 
