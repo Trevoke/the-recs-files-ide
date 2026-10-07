@@ -47,7 +47,7 @@
 (defun trf-record-changes (root)
   "Return the record changes of the target product at ROOT, by path."
   (when-let* ((paths (append (trf-project-record-directories root)
-                             (ensure-list (trf-project-vision-path root)))))
+                             (trf-project-single-file-paths root))))
     (let* ((coding-system-for-read 'utf-8)
            (coding-system-for-write 'utf-8)
            (base (trf-record-changes--base root))

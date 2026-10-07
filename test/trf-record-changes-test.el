@@ -13,10 +13,12 @@
   (trf-test-git trf-record-changes-test-root "update-ref" "refs/recs/implemented" "HEAD"))
 
 (deftest trf-record-changes-all-records-before-any-implementation ()
-  "With nothing implemented, every record and the vision are record changes; other files are not."
+  "With nothing implemented, every record, the vision and the ubiquitous language are record changes; other files are not."
   ;; F-1 §Takes: Ask the IDE to implement the record changes
   (assert-equal
-   '((:path "docs/user-workflows/uw-1-order-a-widget.org" :status added
+   '((:path "docs/ubiquitous-language.org" :status added
+      :identifier nil :title "Ubiquitous Language")
+     (:path "docs/user-workflows/uw-1-order-a-widget.org" :status added
       :identifier "UW-1" :title "Order a widget")
      (:path "docs/vision.org" :status added :identifier nil :title "Vision"))
    (trf-record-changes trf-record-changes-test-root)))
@@ -172,6 +174,17 @@
     (assert-equal head (trf-record-changes-commit root (trf-record-changes root)))
     ;; F-1 §Rules: Ask the IDE to implement the record changes
     (assert-equal head (trf-test-head root))))
+
+(deftest trf-record-changes-ubiquitous-language-edit ()
+  "An edit to the ubiquitous language is a record change."
+  (trf-record-changes-test-mark-implemented)
+  (trf-test-write-files trf-record-changes-test-root
+                        '(("docs/ubiquitous-language.org"
+                           . "#+TITLE: Ubiquitous Language\n\n* Records\n\n- widget :: a thing a buyer orders twice.\n")))
+  ;; F-1 §Takes: Ask the IDE to implement the record changes
+  (assert-equal '((:path "docs/ubiquitous-language.org" :status modified
+                   :identifier nil :title "Ubiquitous Language"))
+                (trf-record-changes trf-record-changes-test-root)))
 
 (defun trf-record-changes-test-commit-deletion ()
   (let ((root trf-record-changes-test-root))

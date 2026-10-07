@@ -8,6 +8,7 @@
 (defconst trf-test-agents-md
   (concat
    "- **Vision** — `docs/vision.org`, a single file\n"
+   "- **Ubiquitous language** — `docs/ubiquitous-language.org`\n"
    "- **User workflows** (UW-n) — `docs/user-workflows.org`\n"
    "- **Features** (F-n) — `docs/features.org`\n"
    "\n"
@@ -15,6 +16,8 @@
 
 (defconst trf-test-records
   '(("docs/vision.org" . "#+TITLE: Vision\n\nWhat it is for.\n")
+    ("docs/ubiquitous-language.org"
+     . "#+TITLE: Ubiquitous Language\n\n* Records\n\n- widget :: a thing a buyer orders.\n")
     ("docs/user-workflows.org" . "#+TITLE: User Workflows\n\n- UW-1 :: Order a widget\n")
     ("docs/user-workflows/uw-1-order-a-widget.org" . "* UW-1 Order a widget\n\n1. Buyer orders.\n")
     ("src/widget.el" . "(provide 'widget)\n")))

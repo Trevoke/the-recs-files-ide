@@ -6,7 +6,7 @@
 (require 'trf-project)
 
 (deftest trf-project-record-directories-reads-agents-md ()
-  "Each projection but the vision has a directory of its records."
+  "Each projection but the vision and the ubiquitous language has a directory of its records."
   (with-mock-fs `(("/target/AGENTS.md" . ,trf-test-agents-md))
     (assert-equal '("docs/user-workflows/" "docs/features/")
                   (trf-project-record-directories (mock-fs-path "/target/")))))
@@ -16,16 +16,16 @@
   (with-mock-fs '(("/target/" . nil))
     (assert-nil (trf-project-record-directories (mock-fs-path "/target/")))))
 
-(deftest trf-project-vision-path-reads-agents-md ()
-  "The vision is the file AGENTS.md names for the Vision projection."
+(deftest trf-project-single-file-paths-reads-agents-md ()
+  "The vision and the ubiquitous language are the files AGENTS.md names for them."
   (with-mock-fs `(("/target/AGENTS.md" . ,trf-test-agents-md))
-    (assert-equal "docs/vision.org"
-                  (trf-project-vision-path (mock-fs-path "/target/")))))
+    (assert-equal '("docs/vision.org" "docs/ubiquitous-language.org")
+                  (trf-project-single-file-paths (mock-fs-path "/target/")))))
 
-(deftest trf-project-vision-path-without-vision ()
-  "A target product whose AGENTS.md names no Vision projection has no vision."
+(deftest trf-project-single-file-paths-without-vision-or-ubiquitous-language ()
+  "A target product whose AGENTS.md names neither the vision nor the ubiquitous language has neither file."
   (with-mock-fs '(("/target/AGENTS.md" . "- **Features** (F-n) — `docs/features.org`\n"))
-    (assert-nil (trf-project-vision-path (mock-fs-path "/target/")))))
+    (assert-nil (trf-project-single-file-paths (mock-fs-path "/target/")))))
 
 (deftest trf-project-root-finds-agents-md ()
   "The target product's root is the directory holding AGENTS.md."

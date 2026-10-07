@@ -10,6 +10,13 @@
 (defconst trf-project--vision-name "Vision"
   "The name AGENTS.md gives the vision's projection.")
 
+(defconst trf-project--ubiquitous-language-name "Ubiquitous language"
+  "The name AGENTS.md gives the ubiquitous language's projection.")
+
+(defconst trf-project--single-file-names
+  (list trf-project--vision-name trf-project--ubiquitous-language-name)
+  "The names AGENTS.md gives the projections kept in a single file.")
+
 (defun trf-project-root (&optional directory)
   "Return the root of the target product holding DIRECTORY, or nil."
   (when-let* ((root (locate-dominating-file (or directory default-directory)
@@ -29,15 +36,20 @@ STEM is the projection's file relative to ROOT, without \".org\"."
           (push (cons (match-string 1) (match-string 2)) projections))))
     (nreverse projections)))
 
-(defun trf-project-vision-path (root)
-  "Return the vision's file named by ROOT's AGENTS.md, relative to ROOT, or nil."
-  (when-let* ((vision (assoc trf-project--vision-name (trf-project--projections root))))
-    (concat (cdr vision) ".org")))
+(defun trf-project-single-file-paths (root)
+  "Return the files of the vision and the ubiquitous language named by ROOT's AGENTS.md.
+Each is relative to ROOT; a file AGENTS.md does not name is left out."
+  (let ((projections (trf-project--projections root)))
+    (delq nil (mapcar (lambda (name)
+                        (when-let* ((projection (assoc name projections)))
+                          (concat (cdr projection) ".org")))
+                      trf-project--single-file-names))))
 
 (defun trf-project-record-directories (root)
   "Return the directory of each projection's records, relative to ROOT."
   (mapcar (lambda (projection) (concat (cdr projection) "/"))
-          (seq-remove (lambda (projection) (equal (car projection) trf-project--vision-name))
+          (seq-remove (lambda (projection)
+                        (member (car projection) trf-project--single-file-names))
                       (trf-project--projections root))))
 
 (provide 'trf-project)
