@@ -2,3 +2,4 @@
 .worktrees/
 .elk/
 vendor/
+*.elc

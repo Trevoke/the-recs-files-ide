@@ -1,0 +1,38 @@
+;;; Elkfile --- elk configuration for trf -*- lexical-binding: t; -*-
+
+(elk-project
+ :name "trf"
+ :version "0.1.0"
+ :source-dirs '("lisp/")
+ :test-dirs '("test/"))
+
+(elk-add-to-load-path "lisp/")
+(elk-add-to-load-path "test/")
+
+(elk-test-deps
+ '((e-unit :git "https://codeberg.org/Trevoke/e-unit.el" :branch "congruence")
+   (mock-fs :git "https://codeberg.org/Trevoke/mock-fs.el" :branch "congruence")
+   (shell-maker :git "https://github.com/xenodium/shell-maker" :tag "v0.97.5")
+   (acp :git "https://github.com/xenodium/acp.el" :tag "v0.15.1")
+   (agent-shell :git "https://github.com/xenodium/agent-shell" :tag "v0.86.2")))
+
+(elk-set 'clean-patterns '("lisp/*.elc" "test/*.elc"))
+
+(elk-task test
+  "Run trf's e-unit suite"
+  :scope test
+  :args (pattern)
+  :action (lambda (&rest args)
+            (require 'e-unit)
+            (e-unit-initialize)
+            (let* ((test-dir (expand-file-name "test/" (elk--project-root)))
+                   (pattern (plist-get args :pattern))
+                   (results (if pattern
+                                (e-unit-run-pattern pattern test-dir)
+                              (e-unit-run-directory test-dir))))
+              (when-let* ((failed (cl-remove-if-not
+                                   (lambda (r) (memq (plist-get r :status) '(fail error)))
+                                   results)))
+                (error "elk: %d tests failed" (length failed))))))
+
+;;; Elkfile ends here
