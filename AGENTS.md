@@ -30,6 +30,7 @@ the borrowing can be checked:
 - Ubiquitous language — `docs/knowledge-base/evans-ubiquitous-language.org`
 - Architectural decisions — `docs/knowledge-base/nygard-architecture-decision-records.org`
 - User workflows — `docs/knowledge-base/cockburn-use-cases.org`
+- Machine and device — `docs/knowledge-base/nist-machine-and-device.org`
 
 ## Creating/updating a record
 
@@ -239,6 +240,12 @@ worktree's tests read the main tree's modules, reporting green or red for code
 the run never touched. Close that the way the ecosystem allows — record here
 how this project does it. With both, two agents may write at once; with only
 the index, the second is testing the first's code and nothing says so.
+
+This project tests its elisp with e-unit, run through elk: `elk test` from the
+root of the worktree under test, with mock-fs where a test needs a file system.
+elk takes the project root from the nearest `Elkfile` above the directory it
+runs in, and installs test dependencies under that root's `.elk/deps/`, so a
+worktree's tests load that worktree's code and dependencies.
 
 A worktree sits under a directory `.gitignore` holds. It is a second checkout of
 this project: the same file names, the same shapes, and no appearance in any
