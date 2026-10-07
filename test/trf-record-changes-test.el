@@ -214,5 +214,47 @@
       ;; F-1 §Rules: Ask the IDE to implement the record changes
       (assert-equal "" (trf-test-git root "status" "--porcelain")))))
 
+(deftest trf-record-changes-commit-removed-record ()
+  "A record removed with git rm and not committed is committed as a deletion."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-git root "rm" "--quiet" "docs/user-workflows/uw-1-order-a-widget.org")
+    (let ((commit (trf-record-changes-commit root (trf-record-changes root))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "D\tdocs/user-workflows/uw-1-order-a-widget.org\n"
+                    (trf-test-git root "show" "--name-status" "--format=" commit))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "" (trf-test-git root "status" "--porcelain")))))
+
+(deftest trf-record-changes-commit-removed-record-beside-an-edit ()
+  "A record removed with git rm is committed with an edit to another record."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-git root "rm" "--quiet" "docs/user-workflows/uw-1-order-a-widget.org")
+    (trf-test-write-files root '(("docs/vision.org" . "#+TITLE: Vision\n\nMore.\n")))
+    (let ((commit (trf-record-changes-commit root (trf-record-changes root))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal (concat "D\tdocs/user-workflows/uw-1-order-a-widget.org\n"
+                            "M\tdocs/vision.org\n")
+                    (trf-test-git root "show" "--name-status" "--format=" commit))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "" (trf-test-git root "status" "--porcelain")))))
+
+(deftest trf-record-changes-commit-names-only-what-it-holds ()
+  "Beside a record change already committed, the message names only the uncommitted ones."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")))
+    (trf-test-git root "add" "docs/features/f-1-order.org")
+    (trf-test-git root "commit" "--quiet" "--message" "Add F-1")
+    (trf-test-write-files root '(("docs/vision.org" . "#+TITLE: Vision\n\nMore.\n")))
+    (let ((commit (trf-record-changes-commit root (trf-record-changes root))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "docs/vision.org\n"
+                    (trf-test-git root "show" "--name-only" "--format=" commit))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "Record changes\n\n- Vision\n"
+                    (trf-test-git root "log" "-1" "--format=format:%B")))))
+
 (provide 'trf-record-changes-test)
 ;;; trf-record-changes-test.el ends here

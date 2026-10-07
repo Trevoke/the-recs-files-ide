@@ -86,23 +86,22 @@
   "Commit CHANGES in ROOT and nothing else; return the commit they are in."
   (let* ((coding-system-for-read 'utf-8)
          (coding-system-for-write 'utf-8)
-         (indexed (when changes
-                    (split-string (apply #'trf-git root "ls-files" "-z" "--"
-                                         (mapcar (lambda (change) (plist-get change :path))
-                                                 changes))
-                                  "\0" t)))
-         (changes (seq-filter (lambda (change)
-                                (let ((path (plist-get change :path)))
-                                  (or (member path indexed)
-                                      (file-exists-p (expand-file-name path root)))))
-                              changes))
-         (paths (mapcar (lambda (change) (plist-get change :path)) changes)))
-    (when paths
-      (apply #'trf-git root "add" "--all" "--" paths)
-      (unless (string-empty-p (apply #'trf-git root "diff" "--cached" "--name-only" "-z"
-                                     "HEAD" "--" paths))
-        (apply #'trf-git root "commit" "--quiet" "--only" "--message"
-               (trf-record-changes--commit-message changes) "--" paths)))
+         (paths (mapcar (lambda (change) (plist-get change :path)) changes))
+         (untracked (when paths
+                      (split-string (apply #'trf-git root "ls-files" "-z" "--others"
+                                           "--exclude-standard" "--" paths)
+                                    "\0" t))))
+    (when untracked
+      (apply #'trf-git root "add" "--" untracked))
+    (when-let* ((uncommitted (when paths
+                               (split-string (apply #'trf-git root "diff" "--name-only" "-z"
+                                                    "--no-renames" "HEAD" "--" paths)
+                                             "\0" t))))
+      (apply #'trf-git root "commit" "--quiet" "--only" "--message"
+             (trf-record-changes--commit-message
+              (seq-filter (lambda (change) (member (plist-get change :path) uncommitted))
+                          changes))
+             "--" uncommitted))
     (string-trim (trf-git root "rev-parse" "HEAD"))))
 
 (provide 'trf-record-changes)
