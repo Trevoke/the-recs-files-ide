@@ -4,24 +4,40 @@
 (require 'trf-machines)
 
 (defcustom trf-ai-program-config nil
-  "The agent-shell config of the AI program the IDE runs as machines.
-When nil, the record keeper picks one through agent-shell."
+  "The AI program the IDE runs as machines.
+It is a config alist from `agent-shell-agent-configs'.  When nil, the record keeper picks one through agent-shell."
   :type 'sexp
   :group 'trf)
 
-(defun trf-session--config ()
+(defun trf-session-config ()
+  "Return `trf-ai-program-config', or ask the record keeper for one.
+The record keeper picks it through agent-shell."
   (or trf-ai-program-config
       (agent-shell-select-config :prompt "AI program for the machines: ")))
 
+(defun trf-session--handoff-text (handoff)
+  (with-temp-buffer
+    (insert-file-contents handoff)
+    (buffer-string)))
+
 ;; ADR-2 §Decision: Talk to machines over ACP
-(defun trf-session-run (machine directory instructions on-finished on-stopped)
-  "Run MACHINE in DIRECTORY with INSTRUCTIONS; return its session buffer.
-Call ON-FINISHED with the handoff file's text once MACHINE writes it.
-Call ON-STOPPED, with the session buffer displayed, if the session fails first."
+(defun trf-session-run (machine directory config instructions on-finished on-stopped)
+  "Run MACHINE in DIRECTORY with the AI program CONFIG and INSTRUCTIONS.
+Return its session buffer.  MACHINE's handoff file is deleted before the
+session starts.  Call ON-FINISHED with the handoff file's text at the end
+of the first turn in which the handoff file exists.  Call ON-STOPPED, with
+the session buffer displayed, if the session fails before then.  If the
+session's buffer is killed first, call neither."
   (let* ((default-directory directory)
          (handoff (expand-file-name (trf-machines-handoff-file machine) directory))
-         (buffer (agent-shell-start :config (trf-session--config)))
-         (over nil))
+         (buffer (progn
+                   (when (file-exists-p handoff) (delete-file handoff))
+                   (let ((agent-shell-session-strategy 'new))
+                     (agent-shell-start :config config))))
+         (over nil)
+         (finish (lambda ()
+                   (let ((text (trf-session--handoff-text handoff)))
+                     (run-at-time 0 nil on-finished text)))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'init-finished
      :on-event (lambda (_event)
@@ -32,17 +48,16 @@ Call ON-STOPPED, with the session buffer displayed, if the session fails first."
      :on-event (lambda (_event)
                  (when (and (not over) (file-exists-p handoff))
                    (setq over t)
-                   (funcall on-finished
-                            (with-temp-buffer
-                              (insert-file-contents handoff)
-                              (buffer-string))))))
+                   (funcall finish))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'error
      :on-event (lambda (_event)
                  (unless over
                    (setq over t)
-                   (when (buffer-live-p buffer) (display-buffer buffer))
-                   (funcall on-stopped))))
+                   (if (file-exists-p handoff)
+                       (funcall finish)
+                     (when (buffer-live-p buffer) (display-buffer buffer))
+                     (run-at-time 0 nil on-stopped)))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'clean-up
      :on-event (lambda (_event) (setq over t)))
