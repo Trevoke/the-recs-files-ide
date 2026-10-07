@@ -13,15 +13,17 @@
     (make-directory (file-name-directory exclude) t)
     (with-temp-buffer
       (when (file-exists-p exclude)
-        (insert-file-contents exclude))
+        (insert-file-contents-literally exclude))
       (goto-char (point-min))
-      (unless (re-search-forward (concat "^" (regexp-quote pattern) "$") nil t)
-        (goto-char (point-max))
-        (unless (or (bobp) (eq (char-before) ?\n))
-          (insert "\n"))
-        (insert pattern "\n")
-        (let ((coding-system-for-write 'utf-8-unix))
-          (write-region (point-min) (point-max) exclude))))))
+      (unless (re-search-forward (concat "^" (regexp-quote pattern) "\r?$") nil t)
+        (let ((separator (if (or (= (point-min) (point-max))
+                                 (eq (char-before (point-max)) ?\n))
+                             ""
+                           "\n")))
+          (erase-buffer)
+          (insert separator pattern "\n")
+          (let ((coding-system-for-write 'utf-8-unix))
+            (append-to-file (point-min) (point-max) exclude)))))))
 
 (defun trf-worktree--write (directory file content)
   "Write CONTENT to FILE under DIRECTORY's .trf/."
@@ -79,17 +81,19 @@
   "Return non-nil when the codebase has moved since DIRECTORY's base."
   (not (trf-git-check directory "merge-base" "--is-ancestor"
                       (trf-git-ref-commit (trf-worktree-root directory) "HEAD")
-                      "HEAD")))
+                      (trf-worktree-branch directory))))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-worktree-accept (directory)
   "Bring DIRECTORY's work into the codebase and mark its record changes implemented."
-  (let ((root (trf-worktree-root directory)))
+  (let* ((root (trf-worktree-root directory))
+         (merging (trf-git-ref-commit root "MERGE_HEAD")))
     (condition-case err
         (trf-git root "merge" "--quiet" "--no-ff" "--no-edit"
                  (trf-worktree-branch directory))
       (error
-       (ignore-errors (trf-git root "merge" "--abort"))
+       (when (and (not merging) (trf-git-ref-commit root "MERGE_HEAD"))
+         (ignore-errors (trf-git root "merge" "--abort")))
        (signal (car err) (cdr err))))
     (trf-git root "update-ref" trf-record-changes-implemented-ref
              (trf-worktree-base directory))))

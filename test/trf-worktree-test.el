@@ -62,6 +62,9 @@
     (assert-true (trf-worktree-codebase-moved-p directory))
     (trf-test-git directory "merge" "--quiet" "--no-edit" "main")
     ;; UW-1 §Extensions: Turn record changes into code
+    (assert-nil (trf-worktree-codebase-moved-p directory))
+    (trf-test-git directory "checkout" "--quiet" "--detach" "HEAD^")
+    ;; UW-1 §Extensions: Turn record changes into code
     (assert-nil (trf-worktree-codebase-moved-p directory))))
 
 (deftest trf-worktree-accept-brings-the-work-in ()
@@ -142,6 +145,45 @@
       (assert-equal status (trf-test-git root "status" "--porcelain"))
       ;; UW-1 §Minimal guarantee: Turn record changes into code
       (assert-equal "" (trf-test-git root "for-each-ref" "refs/recs/")))))
+
+(deftest trf-worktree-create-appends-to-the-exclude-as-it-is ()
+  "Create appends to the exclude file, leaving its line endings as they were."
+  (let* ((root trf-worktree-test-root)
+         (exclude (expand-file-name ".git/info/exclude" root)))
+    (make-directory (file-name-directory exclude) t)
+    (let ((coding-system-for-write 'no-conversion))
+      (with-temp-file exclude (insert "*.log\r\n")))
+    (trf-worktree-create root (trf-test-head root))
+    (assert-equal "*.log\r\n/.worktrees/\n/.trf/\n"
+                  (with-temp-buffer
+                    (insert-file-contents-literally exclude)
+                    (buffer-string)))))
+
+(deftest trf-worktree-accept-leaves-the-record-keepers-merge-alone ()
+  "Accept while the record keeper is mid-merge signals and keeps that merge."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root))))
+    (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; built\n")))
+    (trf-test-git directory "commit" "--quiet" "--all" "--message" "Build")
+    (trf-test-git root "checkout" "--quiet" "-b" "side")
+    (trf-test-write-files root '(("src/gadget.el" . "(provide 'gadget) ; side\n")))
+    (trf-test-git root "add" "--all")
+    (trf-test-git root "commit" "--quiet" "--message" "Side")
+    (trf-test-git root "checkout" "--quiet" "main")
+    (trf-test-write-files root '(("src/gadget.el" . "(provide 'gadget) ; main\n")))
+    (trf-test-git root "add" "--all")
+    (trf-test-git root "commit" "--quiet" "--message" "Main")
+    (ignore-errors (trf-test-git root "merge" "--quiet" "side"))
+    (trf-test-write-files root '(("src/gadget.el" . "(provide 'gadget) ; resolved\n")))
+    (trf-test-git root "add" "src/gadget.el")
+    (assert-raises 'error (trf-worktree-accept directory))
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    (assert-true (file-exists-p (expand-file-name ".git/MERGE_HEAD" root)))
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    (assert-equal "(provide 'gadget) ; resolved\n"
+                  (trf-test-git root "show" ":src/gadget.el"))
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    (assert-equal "" (trf-test-git root "for-each-ref" "refs/recs/"))))
 
 (provide 'trf-worktree-test)
 ;;; trf-worktree-test.el ends here
