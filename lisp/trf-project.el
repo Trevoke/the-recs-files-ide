@@ -1,10 +1,11 @@
 ;;; trf-project.el --- The target product's projections -*- lexical-binding: t; -*-
 
+(require 'seq)
 (require 'subr-x)
 
 (defconst trf-project--projection-regexp
-  "^- \\*\\*[^*\n]+\\*\\*[^`\n]*`\\([^`\n]+\\)\\.org`"
-  "A projection line of AGENTS.md; group 1 is its file without \".org\".")
+  "^- \\*\\*\\([^*\n]+\\)\\*\\*[^`\n]*`\\([^`\n]+\\)\\.org`"
+  "A projection line of AGENTS.md; group 1 is its name, group 2 its file without \".org\".")
 
 (defun trf-project-root (&optional directory)
   "Return the root of the target product holding DIRECTORY, or nil."
@@ -12,20 +13,30 @@
                                             "AGENTS.md")))
     (file-name-as-directory (expand-file-name root))))
 
-(defun trf-project-projection-paths (root)
-  "Return the projection paths named by ROOT's AGENTS.md, relative to ROOT.
-Each projection gives its file, then the directory of its records."
+(defun trf-project--projections (root)
+  "Return (NAME . STEM) for each projection named by ROOT's AGENTS.md.
+STEM is the projection's file relative to ROOT, without \".org\"."
   (let ((agents-md (expand-file-name "AGENTS.md" root))
-        paths)
+        projections)
     (when (file-exists-p agents-md)
       (with-temp-buffer
         (insert-file-contents agents-md)
         (goto-char (point-min))
         (while (re-search-forward trf-project--projection-regexp nil t)
-          (let ((stem (match-string 1)))
-            (push (concat stem ".org") paths)
-            (push (concat stem "/") paths)))))
-    (nreverse paths)))
+          (push (cons (match-string 1) (match-string 2)) projections))))
+    (nreverse projections)))
+
+(defun trf-project-vision-path (root)
+  "Return the vision's file named by ROOT's AGENTS.md, relative to ROOT, or nil."
+  (when-let* ((vision (assoc "Vision" (trf-project--projections root))))
+    (concat (cdr vision) ".org")))
+
+(defun trf-project-record-directories (root)
+  "Return the directory of each projection's records, relative to ROOT.
+The vision has no records."
+  (mapcar (lambda (projection) (concat (cdr projection) "/"))
+          (seq-remove (lambda (projection) (equal (car projection) "Vision"))
+                      (trf-project--projections root))))
 
 (provide 'trf-project)
 ;;; trf-project.el ends here
