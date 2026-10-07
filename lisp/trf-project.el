@@ -32,8 +32,7 @@ STEM is the projection's file relative to ROOT, without \".org\"."
     (concat (cdr vision) ".org")))
 
 (defun trf-project-record-directories (root)
-  "Return the directory of each projection's records, relative to ROOT.
-The vision has no records."
+  "Return the directory of each projection's records, relative to ROOT."
   (mapcar (lambda (projection) (concat (cdr projection) "/"))
           (seq-remove (lambda (projection) (equal (car projection) "Vision"))
                       (trf-project--projections root))))

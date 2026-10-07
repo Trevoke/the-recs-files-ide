@@ -95,7 +95,7 @@
                 (let ((case-fold-search nil))
                   (trf-record-changes trf-record-changes-test-root))))
 
-(deftest trf-record-changes-not-an-index-edit ()
+(deftest trf-record-changes-not-a-projection-file-edit ()
   "An edit to a projection's file is not a record change."
   (trf-record-changes-test-mark-implemented)
   (trf-test-write-files trf-record-changes-test-root
