@@ -1,0 +1,7 @@
+#+TITLE: Message Catalog
+
+Each entry holds the exact text the IDE gives when it refuses something or
+something goes wrong. Tests assert this text, so it changes here before it
+changes in code.
+
+- MSG-1 :: [[./message-catalog/msg-1-no-record-changes-to-implement.org][No record changes to implement]]
