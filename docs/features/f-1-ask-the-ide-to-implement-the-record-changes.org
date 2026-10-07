@@ -10,9 +10,10 @@ from the codebase.
 
 - The IDE shows the record changes, and implements them only once the record
   keeper confirms them.
-- On confirmation, the IDE commits the record changes and nothing else, in one
-  commit naming each by its identifier, where it has one, and its title; the
-  implementation workflow starts from that commit.
+- On confirmation, the IDE commits the record changes, and the projection files
+  listing them, and nothing else, in one commit naming each record change by
+  its identifier, where it has one, and its title; the implementation workflow
+  starts from that commit.
 - When the record changes are already committed, the IDE commits nothing, and
   the implementation workflow starts from the latest commit.
 - When there are no record changes, the IDE gives MSG-1: No record changes to

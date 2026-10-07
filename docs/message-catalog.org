@@ -6,3 +6,7 @@ changes in code.
 
 - MSG-1 :: [[./message-catalog/msg-1-no-record-changes-to-implement.org][No record changes to implement]]
 - MSG-2 :: [[./message-catalog/msg-2-no-work-in-progress-to-accept-or-reject.org][No work in progress to accept or reject]]
+- MSG-3 :: [[./message-catalog/msg-3-finish-the-merge-or-rebase-first.org][Finish the merge or rebase first]]
+- MSG-4 :: [[./message-catalog/msg-4-record-changes-could-not-be-committed.org][Record changes could not be committed]]
+- MSG-5 :: [[./message-catalog/msg-5-work-cannot-be-brought-into-the-codebase.org][Work cannot be brought into the codebase]]
+- MSG-6 :: [[./message-catalog/msg-6-codebase-is-not-on-the-works-branch.org][Codebase is not on the work's branch]]
