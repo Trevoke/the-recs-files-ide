@@ -13,6 +13,8 @@ from the codebase.
 - On confirmation, the IDE commits the record changes and nothing else, in one
   commit naming each by its identifier and title; the implementation workflow
   starts from that commit.
+- When the record changes are already committed, the IDE commits nothing, and
+  the implementation workflow starts from the latest commit.
 - When there are no record changes, the IDE gives MSG-1: No record changes to
   implement.
 
