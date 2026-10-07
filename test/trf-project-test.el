@@ -27,6 +27,7 @@
 
 (deftest trf-project-root-is-expanded ()
   "The target product's root is an expanded directory name."
+  (make-directory (expand-file-name ".cache/" "~/") t)
   (let ((root (file-name-as-directory
                (make-temp-file (expand-file-name "trf-root-test-" "~/.cache/") t))))
     (unwind-protect
