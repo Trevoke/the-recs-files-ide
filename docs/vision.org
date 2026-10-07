@@ -17,5 +17,5 @@ The domain is a target product's records and the reconciliation of its codebase
 with them.
 
 - Records :: the record keeper's work on the records.
-- Implementation :: agents turning record changes into code, and the record
+- Implementation :: machines turning record changes into code, and the record
   implementation report on whether the codebase is reconciled with them.

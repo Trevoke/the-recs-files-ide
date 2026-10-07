@@ -12,7 +12,7 @@
 
 ** Precondition
 
-The target product keeps records; an agent is configured.
+The target product keeps records; the IDE has an AI program to run as machines.
 
 ** Minimal guarantee
 
@@ -32,10 +32,10 @@ The record keeper asks to implement the record changes.
 
 1. Record keeper asks the IDE to implement the record changes.
 2. IDE shows the record changes; record keeper confirms.
-3. IDE has an agent implement the record changes, apart from the codebase.
-4. Agent asks the record keeper what the records do not settle; record keeper
-   answers.
-5. IDE has a second agent assess, for each of the record changes, whether the
+3. IDE has the implementing machine implement the record changes, apart from the codebase.
+4. Implementing machine asks the record keeper what the records do not settle;
+   record keeper answers.
+5. IDE has the reconciliation assessor assess, for each of the record changes, whether the
    codebase is reconciled with it, by the tests that cite it.
 6. IDE shows the record implementation report.
 7. Record keeper accepts; IDE brings the work into the codebase, and the record

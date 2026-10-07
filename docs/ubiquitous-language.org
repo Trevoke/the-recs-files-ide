@@ -14,7 +14,8 @@ Each term is defined within its bounded context, as named in the vision.
 
 * Implementation
 
-- implementation plan :: an agent's steps for turning record changes into code.
+- implementation plan :: the implementing machine's steps for turning record
+  changes into code.
 - record implementation report :: for each of the record changes, the tests that
   cite it and their results.
 - reconciled :: the codebase is reconciled with a record when the truth of the
@@ -22,3 +23,12 @@ Each term is defined within its bounded context, as named in the vision.
 - implemented :: said of record changes once the record keeper has accepted
   their record implementation report into the codebase.
 - codebase :: the target product's code that the record keeper has accepted.
+- machine :: an AI program the IDE has put to one kind of work, through the
+  instructions it gives and the devices it permits.
+- device :: a tool a machine uses, such as the shell, the file system, the test
+  runner or a skill.
+- implementing machine :: the machine that turns record changes into code,
+  following an implementation plan.
+- reconciliation assessor :: the machine that assesses whether the codebase is
+  reconciled with each of the record changes, and writes the record
+  implementation report.

@@ -18,7 +18,7 @@ Returns to UW-1 as extension 4a, "An answer changes a record", when written.
 
 ** Precondition
 
-An agent is implementing record changes (UW-1 Turn record changes into code).
+The implementing machine is implementing record changes (UW-1 Turn record changes into code).
 
 ** Minimal guarantee
 
@@ -26,23 +26,23 @@ The work done so far is kept.
 
 ** Success guarantee
 
-The agent implements against the amended records.
+The implementing machine implements against the amended records.
 
 ** Trigger
 
-An answer to the agent's question changes a record.
+An answer to the implementing machine's question changes a record.
 
 ** Main success scenario
 
-1. Agent stops implementing.
+1. Implementing machine stops implementing.
 2. Record keeper amends the record.
 3. IDE adds the amended record to the record changes.
-4. Agent assesses whether the implementation plan holds for the record changes;
+4. Implementing machine assesses whether the implementation plan holds for the record changes;
    it holds.
-5. Agent resumes implementing.
+5. Implementing machine resumes implementing.
 
 ** Extensions
 
-- 4a. The implementation plan no longer holds :: agent makes a new
-  implementation plan for the same goal from the record changes; continues at
+- 4a. The implementation plan no longer holds :: implementing machine
+  makes a new implementation plan for the same goal from the record changes; continues at
   step 5.
