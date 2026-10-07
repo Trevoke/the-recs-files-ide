@@ -440,6 +440,21 @@ Return what was signalled, and the status before and after."
     ;; UW-1 §Minimal guarantee: Turn record changes into code
     (assert-equal status-before status-after)))
 
+(deftest trf-record-changes-commit-refused-without-a-reason ()
+  "When git refuses the commit and gives no reason, MSG-4 is given alone."
+  (let* ((root trf-record-changes-test-root)
+         (hook (expand-file-name ".git/hooks/pre-commit" root)))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")
+                                 (".git/hooks/pre-commit" . "#!/bin/sh\nexit 1\n")))
+    (set-file-modes hook #o755)
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-4: Record changes could not be committed
+    (assert-equal '(user-error "The record changes could not be committed:")
+                  (condition-case err
+                      (progn (trf-record-changes-commit root (trf-record-changes root)) nil)
+                    (error err)))))
+
 (deftest trf-record-changes-commit-first-commit ()
   "In a target product with no commit yet, the record changes make the first commit."
   (delete-directory trf-record-changes-test-root t)

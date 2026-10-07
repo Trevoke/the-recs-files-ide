@@ -177,7 +177,10 @@ Return the commit they are in."
                 (setq committed t))
             (trf-git-error
              ;; UW-1 §Extensions: Turn record changes into code
-             (user-error "%s\n%s" trf-record-changes-not-committed-message (cadr err))))
+             (user-error "%s" (string-join (seq-remove #'string-empty-p
+                                                       (list trf-record-changes-not-committed-message
+                                                             (cadr err)))
+                                           "\n"))))
         (unless committed
           (trf-record-changes--unstage root untracked)))))
   (trf-git-ref-commit root "HEAD"))
