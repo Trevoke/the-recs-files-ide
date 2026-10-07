@@ -88,7 +88,8 @@ Read before executing any task, in this order:
 
 ## Cataloged-Text Ordering
 
-Task 8 touches cataloged text (MSG-1: No record changes to implement).
+Task 8 touches cataloged text (MSG-1: No record changes to implement); Task 9
+touches MSG-2 (the refusal outside any work in progress).
 
 1. The catalog record's wording is settled: it is, as of commit `4579005`.
 2. The failing test asserts the record's exact current text, character for
@@ -618,14 +619,9 @@ commit naming each by its identifier and title")
 - Modify: `lisp/trf-record-changes.el`
 - Modify: `test/trf-record-changes-test.el`
 
-**Open point — STOP before Step 3 and ask the user.** When every record change
-is already committed (the record keeper committed them before asking), there is
-nothing left for "one commit holding the record changes" to hold. F-1 does not
-say what happens then. Proposed: no commit is made, and the implementation
-workflow starts from HEAD. That is a reading of F-1 the record keeper has not
-agreed to; get the answer and, if it changes F-1, have it written through
-recs-writing-records before writing the code. The tests below assume the
-proposal; adjust them to the answer.
+When every record change is already committed, F-1 §Rules says the IDE
+commits nothing and the implementation workflow starts from the latest commit;
+the third test below asserts that rule (cite `F-1 §Rules` above it).
 
 **Step 1: Write the failing tests** (append):
 
@@ -1437,12 +1433,12 @@ are what the ref points at.
   (kill-buffer))
 ```
 
-Two things in this step need deciding before writing them, so STOP and ask:
+Two notes on this step:
 
-1. `"Not in a worktree of the IDE"` is IDE-authored refusal text. It needs a
-   message-catalog record (MSG-2) agreed with the user first, per
-   Cataloged-Text Ordering — or the commands can simply do nothing outside a
-   worktree. Ask which.
+1. Outside any work in progress the IDE refuses with MSG-2 (see
+   `docs/message-catalog/`). Replace the `user-error` text above with the
+   record's exact text, in a `defconst` with a pointer line, and add a test
+   asserting it for both commands. If MSG-2 is not in the catalog yet, STOP.
 2. The record changes for the rerun: the worktree's base commit holds them, so
    `trf-record-changes--between` must list the records changed between
    `refs/recs/implemented` (or the empty tree) and the base. Write it in
@@ -1511,7 +1507,7 @@ IDE's own directory, then trf:
 Check `package-vc-install`'s signature in Emacs 30 (`C-h f package-vc-install`)
 before relying on the REV argument; STOP if it differs.
 
-The key bindings are a proposal; confirm them with the user before committing.
+The key bindings are agreed with the user.
 
 **Step 3: Write `bin/trf`** and `chmod +x bin/trf`:
 
