@@ -28,5 +28,17 @@
                 (trf-git-ref-commit trf-git-test-root "HEAD"))
   (assert-nil (trf-git-ref-commit trf-git-test-root "refs/recs/implemented")))
 
+(deftest trf-git-returns-stdout-only ()
+  "trf-git returns git's standard output without its standard error."
+  (assert-equal ""
+                (trf-git trf-git-test-root "-c" "advice.detachedHead=true"
+                         "checkout" (trf-test-head trf-git-test-root))))
+
+(deftest trf-git-fixture-has-no-hooks ()
+  "A target product made by the fixture holds only git's sample hooks."
+  (assert-nil (seq-remove (lambda (file) (string-suffix-p ".sample" file))
+                          (directory-files (expand-file-name ".git/hooks/" trf-git-test-root)
+                                           nil directory-files-no-dot-files-regexp))))
+
 (provide 'trf-git-test)
 ;;; trf-git-test.el ends here

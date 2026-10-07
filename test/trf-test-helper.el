@@ -2,6 +2,9 @@
 
 (require 'subr-x)
 
+(setenv "GIT_CONFIG_GLOBAL" "/dev/null")
+(setenv "GIT_CONFIG_NOSYSTEM" "1")
+
 (defconst trf-test-agents-md
   (concat
    "- **Vision** — `docs/vision.org`, a single file\n"
@@ -34,13 +37,18 @@
 (defun trf-test-make-target-product (&optional files)
   "Create a committed target product holding AGENTS.md and FILES; return its root."
   (let ((root (file-name-as-directory (make-temp-file "trf-target-" t))))
-    (trf-test-write-files root (cons (cons "AGENTS.md" trf-test-agents-md)
-                                     (or files trf-test-records)))
-    (trf-test-git root "init" "--quiet" "--initial-branch=main")
-    (trf-test-git root "config" "user.email" "record.keeper@example.com")
-    (trf-test-git root "config" "user.name" "Record Keeper")
-    (trf-test-git root "add" "--all")
-    (trf-test-git root "commit" "--quiet" "--message" "Start")
+    (condition-case err
+        (progn
+          (trf-test-write-files root (cons (cons "AGENTS.md" trf-test-agents-md)
+                                           (or files trf-test-records)))
+          (trf-test-git root "init" "--quiet" "--initial-branch=main")
+          (trf-test-git root "config" "user.email" "record.keeper@example.com")
+          (trf-test-git root "config" "user.name" "Record Keeper")
+          (trf-test-git root "add" "--all")
+          (trf-test-git root "commit" "--quiet" "--message" "Start"))
+      (error
+       (delete-directory root t)
+       (signal (car err) (cdr err))))
     root))
 
 (defun trf-test-head (root)
