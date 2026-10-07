@@ -94,31 +94,58 @@
           "\n"))
 
 ;; F-1 §Rules: Ask the IDE to implement the record changes
+(defun trf-record-changes--projection-files (root paths)
+  "Return the projection files in ROOT whose records directory holds one of PATHS."
+  (delq nil (mapcar (lambda (projection)
+                      (when (seq-some (lambda (path) (string-prefix-p (cdr projection) path))
+                                      paths)
+                        (car projection)))
+                    (trf-project-projection-files root))))
+
+(defun trf-record-changes--add-untracked (root paths)
+  "Add the files under PATHS in ROOT that git does not track; return them."
+  (let ((untracked (trf-record-changes--untracked root paths)))
+    (when untracked
+      (apply #'trf-record-changes--git root "add" "--" untracked))
+    untracked))
+
+(defun trf-record-changes--uncommitted (root head paths)
+  "Return those of PATHS in ROOT that differ from HEAD."
+  (when paths
+    (apply #'trf-record-changes--git-paths root
+         "diff" "--name-only" "-z" "--no-renames"
+         (or head (trf-record-changes--empty-tree root))
+         "--" paths)))
+
+;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-record-changes-commit (root changes)
-  "Commit CHANGES in ROOT and nothing else; return the commit they are in."
+  "Commit CHANGES in ROOT and the projection files listing them, and nothing else.
+Return the commit they are in."
   (if (null changes)
       (trf-git-ref-commit root "HEAD")
-    (let* ((head (trf-git-ref-commit root "HEAD"))
-           (paths (mapcar (lambda (change) (plist-get change :path)) changes))
-           (untracked (trf-record-changes--untracked root paths)))
-      (when untracked
-        (apply #'trf-record-changes--git root "add" "--" untracked))
+    (let ((head (trf-git-ref-commit root "HEAD"))
+          added)
       (condition-case err
-          (when-let* ((uncommitted (apply #'trf-record-changes--git-paths root
-                                          "diff" "--name-only" "-z" "--no-renames"
-                                          (or head (trf-record-changes--empty-tree root))
-                                          "--" paths)))
-            (apply #'trf-record-changes--git root "commit" "--quiet" "--only" "--message"
-                   (trf-record-changes--commit-message
-                    (seq-filter (lambda (change)
-                                  (member (plist-get change :path) uncommitted))
-                                changes))
-                   "--" uncommitted))
+          (let* ((paths (mapcar (lambda (change) (plist-get change :path)) changes))
+                 (_ (setq added (trf-record-changes--add-untracked root paths)))
+                 (uncommitted (trf-record-changes--uncommitted root head paths))
+                 (projection-files (trf-record-changes--projection-files root uncommitted))
+                 (_ (setq added (append added (trf-record-changes--add-untracked
+                                               root projection-files)))))
+            (when uncommitted
+              (apply #'trf-record-changes--git root "commit" "--quiet" "--only" "--message"
+                     (trf-record-changes--commit-message
+                      (seq-filter (lambda (change)
+                                    (member (plist-get change :path) uncommitted))
+                                  changes))
+                     "--" (append uncommitted
+                                  (trf-record-changes--uncommitted
+                                   root head projection-files)))))
         (error
-         (when untracked
+         (when added
            (ignore-errors
              (apply #'trf-record-changes--git root
-                    "rm" "--cached" "--force" "--quiet" "--" untracked)))
+                    "rm" "--cached" "--force" "--quiet" "--" added)))
          (signal (car err) (cdr err))))
       (trf-git-ref-commit root "HEAD"))))
 

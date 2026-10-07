@@ -16,6 +16,13 @@
   (with-mock-fs '(("/target/" . nil))
     (assert-nil (trf-project-record-directories (mock-fs-path "/target/")))))
 
+(deftest trf-project-projection-files-reads-agents-md ()
+  "Each projection with a directory of records has its file, beside that directory."
+  (with-mock-fs `(("/target/AGENTS.md" . ,trf-test-agents-md))
+    (assert-equal '(("docs/user-workflows.org" . "docs/user-workflows/")
+                    ("docs/features.org" . "docs/features/"))
+                  (trf-project-projection-files (mock-fs-path "/target/")))))
+
 (deftest trf-project-vision-and-ubiquitous-language-paths-reads-agents-md ()
   "The vision and the ubiquitous language are the files AGENTS.md names for them."
   (with-mock-fs `(("/target/AGENTS.md" . ,trf-test-agents-md))

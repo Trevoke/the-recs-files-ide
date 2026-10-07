@@ -118,7 +118,7 @@
                 (trf-record-changes trf-record-changes-test-root)))
 
 (deftest trf-record-changes-commit-holds-only-the-record-changes ()
-  "The commit holds the record changes and leaves other edits uncommitted."
+  "The commit holds the record changes and the projection files listing them, and leaves other edits uncommitted."
   (trf-record-changes-test-mark-implemented)
   (trf-test-write-files trf-record-changes-test-root
                         '(("docs/user-workflows/uw-1-order-a-widget.org"
@@ -132,11 +132,44 @@
     ;; F-1 §Rules: Ask the IDE to implement the record changes
     (assert-equal (trf-test-head root) commit)
     ;; F-1 §Rules: Ask the IDE to implement the record changes
-    (assert-equal "docs/user-workflows/uw-1-order-a-widget.org\n"
+    (assert-equal "docs/user-workflows.org\ndocs/user-workflows/uw-1-order-a-widget.org\n"
                   (trf-test-git root "show" "--name-only" "--format=" commit))
     ;; F-1 §Rules: Ask the IDE to implement the record changes
-    (assert-equal " M docs/user-workflows.org\nM  src/widget.el\n"
+    (assert-equal "M  src/widget.el\n"
                   (trf-test-git root "status" "--porcelain"))))
+
+(deftest trf-record-changes-commit-new-record-with-its-projection-file ()
+  "A new record and its projection file's new line make one commit, whose message names only the record."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files
+     root '(("docs/features/f-1-order.org" . "* F-1 Order\n")
+            ("docs/features.org" . "#+TITLE: Features\n\n- F-1 :: Order\n")))
+    (let ((commit (trf-record-changes-commit root (trf-record-changes root))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "docs/features.org\ndocs/features/f-1-order.org\n"
+                    (trf-test-git root "show" "--name-only" "--format=" commit))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "Record changes\n\n- F-1 Order\n"
+                    (trf-test-git root "log" "-1" "--format=format:%B"))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "" (trf-test-git root "status" "--porcelain")))))
+
+(deftest trf-record-changes-commit-leaves-a-projection-file-listing-none-of-them ()
+  "A projection file edit with no record change of that projection is left uncommitted."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files
+     root '(("docs/features/f-1-order.org" . "* F-1 Order\n")
+            ("docs/user-workflows.org"
+             . "#+TITLE: User Workflows\n\n- UW-1 :: Order two widgets\n")))
+    (let ((commit (trf-record-changes-commit root (trf-record-changes root))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "docs/features/f-1-order.org\n"
+                    (trf-test-git root "show" "--name-only" "--format=" commit))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal " M docs/user-workflows.org\n"
+                    (trf-test-git root "status" "--porcelain")))))
 
 (deftest trf-record-changes-commit-names-each-record-change ()
   "The commit message names each record change by identifier, where it has one, and title."
@@ -305,6 +338,7 @@
       (assert-equal (trf-test-head root) commit)
       ;; F-1 §Rules: Ask the IDE to implement the record changes
       (assert-equal (concat "docs/ubiquitous-language.org\n"
+                            "docs/user-workflows.org\n"
                             "docs/user-workflows/uw-1-order-a-widget.org\n"
                             "docs/vision.org\n")
                     (trf-test-git root "show" "--name-only" "--format=" commit)))))

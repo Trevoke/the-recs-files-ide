@@ -45,13 +45,20 @@ Each is relative to ROOT; a file AGENTS.md does not name is left out."
                           (concat (cdr projection) ".org")))
                       trf-project--vision-and-ubiquitous-language-names))))
 
-(defun trf-project-record-directories (root)
-  "Return the directory of each projection's records, relative to ROOT."
-  (mapcar (lambda (projection) (concat (cdr projection) "/"))
+(defun trf-project-projection-files (root)
+  "Return (FILE . DIRECTORY) for each projection with a directory of its records.
+FILE is the projection's file and DIRECTORY the directory of its records,
+each relative to ROOT."
+  (mapcar (lambda (projection)
+            (cons (concat (cdr projection) ".org") (concat (cdr projection) "/")))
           (seq-remove (lambda (projection)
                         (member-ignore-case (car projection)
                                             trf-project--vision-and-ubiquitous-language-names))
                       (trf-project--projections root))))
+
+(defun trf-project-record-directories (root)
+  "Return the directory of each projection's records, relative to ROOT."
+  (mapcar #'cdr (trf-project-projection-files root)))
 
 (provide 'trf-project)
 ;;; trf-project.el ends here
