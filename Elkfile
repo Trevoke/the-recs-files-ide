@@ -30,6 +30,8 @@
                    (results (if pattern
                                 (e-unit-run-pattern pattern test-dir)
                               (e-unit-run-directory test-dir))))
+              (when (and pattern (null results))
+                (error "elk: no tests match %s" pattern))
               (when-let* ((failed (cl-remove-if-not
                                    (lambda (r) (memq (plist-get r :status) '(fail error)))
                                    results)))
