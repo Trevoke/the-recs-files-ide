@@ -11,6 +11,10 @@
 (defconst trf-record-changes-operation-in-progress-message
   "The target product is in the middle of a merge or rebase; finish it first.")
 
+;; MSG-4: Record changes could not be committed
+(defconst trf-record-changes-not-committed-message
+  "The record changes could not be committed:")
+
 (defun trf-record-changes--empty-tree (root)
   "Return the tree holding nothing in ROOT."
   (string-trim (trf-git root "hash-object" "-t" "tree" "/dev/null")))
@@ -121,6 +125,12 @@
          (or head (trf-record-changes--empty-tree root))
          "--" paths)))
 
+(defun trf-record-changes--unstage (root paths)
+  "Remove PATHS from ROOT's index, keeping them on disk."
+  (when paths
+    (ignore-errors
+      (apply #'trf-record-changes--git root "rm" "--cached" "--force" "--quiet" "--" paths))))
+
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-record-changes-commit (root changes)
   "Commit CHANGES in ROOT and the projection files listing them, and nothing else.
@@ -131,7 +141,8 @@ Return the commit they are in."
   (if (null changes)
       (trf-git-ref-commit root "HEAD")
     (let ((head (trf-git-ref-commit root "HEAD"))
-          added)
+          added
+          refusal)
       (condition-case err
           (let* ((paths (mapcar (lambda (change) (plist-get change :path)) changes))
                  (_ (setq added (trf-record-changes--add-untracked root paths)))
@@ -140,20 +151,31 @@ Return the commit they are in."
                  (_ (setq added (append added (trf-record-changes--add-untracked
                                                root projection-files)))))
             (when uncommitted
-              (apply #'trf-record-changes--git root "commit" "--quiet" "--only" "--message"
-                     (trf-record-changes--commit-message
-                      (seq-filter (lambda (change)
-                                    (member (plist-get change :path) uncommitted))
-                                  changes))
-                     "--" (append uncommitted
-                                  (trf-record-changes--uncommitted
-                                   root head projection-files)))))
+              (pcase-let ((`(,status ,stdout ,stderr)
+                           (trf-git--run
+                            root
+                            (append (list "--literal-pathspecs" "commit" "--quiet" "--only"
+                                          "--message"
+                                          (trf-record-changes--commit-message
+                                           (seq-filter (lambda (change)
+                                                         (member (plist-get change :path)
+                                                                 uncommitted))
+                                                       changes))
+                                          "--")
+                                    uncommitted
+                                    (trf-record-changes--uncommitted
+                                     root head projection-files)))))
+                (unless (eq status 0)
+                  (setq refusal (string-trim (if (string-empty-p (string-trim stderr))
+                                                 stdout
+                                               stderr)))))))
         (error
-         (when added
-           (ignore-errors
-             (apply #'trf-record-changes--git root
-                    "rm" "--cached" "--force" "--quiet" "--" added)))
+         (trf-record-changes--unstage root added)
          (signal (car err) (cdr err))))
+      (when refusal
+        (trf-record-changes--unstage root added)
+        ;; UW-1 §Extensions: Turn record changes into code
+        (user-error "%s\n%s" trf-record-changes-not-committed-message refusal))
       (trf-git-ref-commit root "HEAD"))))
 
 (provide 'trf-record-changes)
