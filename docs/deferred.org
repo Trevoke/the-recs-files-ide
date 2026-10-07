@@ -1,0 +1,48 @@
+#+TITLE: Deferred
+
+Drafts agreed in conversation and waiting their turn. Nothing here is a record:
+no identifier here is reserved, and nothing may cite this file.
+
+* Amend a record during implementation (user workflow)
+
+Returns to UW-1 as extension 4a, "An answer changes a record", when written.
+
+- Scope :: the IDE (black-box)
+- Level :: user goal
+- Primary actor :: record keeper
+
+** Stakeholders and interests
+
+- Record keeper :: the codebase is reconciled with the record as amended.
+- Target product :: no record changes without the record keeper's say.
+
+** Precondition
+
+An agent is implementing record changes (UW-1 Turn record changes into code).
+
+** Minimal guarantee
+
+The work done so far is kept.
+
+** Success guarantee
+
+The agent implements against the amended records.
+
+** Trigger
+
+An answer to the agent's question changes a record.
+
+** Main success scenario
+
+1. Agent stops implementing.
+2. Record keeper amends the record.
+3. IDE adds the amended record to the record changes.
+4. Agent assesses whether the implementation plan holds for the record changes;
+   it holds.
+5. Agent resumes implementing.
+
+** Extensions
+
+- 4a. The implementation plan no longer holds :: agent makes a new
+  implementation plan for the same goal from the record changes; continues at
+  step 5.

@@ -1,0 +1,24 @@
+#+TITLE: Ubiquitous Language
+
+Each term is defined within its bounded context, as named in the vision.
+
+* Records
+
+- record :: one decision important to the delivery or maintenance of the target
+  product, under a unique identifier, in words the record keeper has agreed to.
+- projection :: the records of one form, such as the user workflows or the
+  message catalog.
+- record keeper :: the person who creates, edits and maintains the records.
+- record changes :: the edits to records not yet implemented.
+- target product :: the product the records are about.
+
+* Implementation
+
+- implementation plan :: an agent's steps for turning record changes into code.
+- record implementation report :: for each of the record changes, the tests that
+  cite it and their results.
+- reconciled :: the codebase is reconciled with a record when the truth of the
+  record is reflected in the codebase.
+- implemented :: said of record changes once the record keeper has accepted
+  their record implementation report into the codebase.
+- codebase :: the target product's code that the record keeper has accepted.
