@@ -7,10 +7,22 @@
 
 (defconst trf-record-changes-implemented-ref "refs/recs/implemented")
 
+(defun trf-record-changes--empty-tree (root)
+  "Return the tree holding nothing in ROOT."
+  (string-trim (trf-git root "hash-object" "-t" "tree" "/dev/null")))
+
 (defun trf-record-changes--base (root)
   "Return what ROOT's record changes are measured from."
   (or (trf-git-ref-commit root trf-record-changes-implemented-ref)
-      (string-trim (trf-git root "hash-object" "-t" "tree" "/dev/null"))))
+      (trf-record-changes--empty-tree root)))
+
+(defun trf-record-changes--git (root &rest args)
+  "Run git with ARGS in ROOT, reading each pathspec as a literal path."
+  (apply #'trf-git root "--literal-pathspecs" args))
+
+(defun trf-record-changes--git-paths (root &rest args)
+  "Run git with ARGS in ROOT, reading each pathspec as a literal path; return its paths."
+  (apply #'trf-git-paths root "--literal-pathspecs" args))
 
 (defun trf-record-changes--heading (text path)
   "Return (IDENTIFIER . TITLE) for the record TEXT at PATH."
@@ -37,7 +49,8 @@
 
 (defun trf-record-changes--untracked (root paths)
   "Return the files under PATHS in ROOT that git does not track."
-  (apply #'trf-git-paths root "ls-files" "-z" "--others" "--exclude-standard" "--" paths))
+  (apply #'trf-record-changes--git-paths root
+         "ls-files" "-z" "--others" "--exclude-standard" "--" paths))
 
 (defun trf-record-changes--pairs (fields)
   "Return the alternating status and path FIELDS as (PATH . STATUS) pairs."
@@ -54,7 +67,7 @@
                              (trf-project-vision-and-ubiquitous-language-paths root))))
     (let* ((base (trf-record-changes--base root))
            (changed (trf-record-changes--pairs
-                     (apply #'trf-git-paths root "diff" "--name-status" "-z"
+                     (apply #'trf-record-changes--git-paths root "diff" "--name-status" "-z"
                             "--no-renames" base "--" paths)))
            (untracked (mapcar (lambda (path) (cons path "A"))
                               (trf-record-changes--untracked root paths)))
@@ -83,19 +96,28 @@
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-record-changes-commit (root changes)
   "Commit CHANGES in ROOT and nothing else; return the commit they are in."
-  (let* ((paths (mapcar (lambda (change) (plist-get change :path)) changes))
+  (let* ((head (trf-git-ref-commit root "HEAD"))
+         (paths (mapcar (lambda (change) (plist-get change :path)) changes))
          (untracked (when paths (trf-record-changes--untracked root paths))))
-    (when untracked
-      (apply #'trf-git root "add" "--" untracked))
-    (when-let* ((uncommitted (when paths
-                               (apply #'trf-git-paths root "diff" "--name-only" "-z"
-                                      "--no-renames" "HEAD" "--" paths))))
-      (apply #'trf-git root "commit" "--quiet" "--only" "--message"
-             (trf-record-changes--commit-message
-              (seq-filter (lambda (change) (member (plist-get change :path) uncommitted))
-                          changes))
-             "--" uncommitted))
-    (string-trim (trf-git root "rev-parse" "HEAD"))))
+    (when paths
+      (when untracked
+        (apply #'trf-record-changes--git root "add" "--" untracked))
+      (condition-case err
+          (when-let* ((uncommitted (apply #'trf-record-changes--git-paths root
+                                          "diff" "--name-only" "-z" "--no-renames"
+                                          (or head (trf-record-changes--empty-tree root))
+                                          "--" paths)))
+            (apply #'trf-record-changes--git root "commit" "--quiet" "--only" "--message"
+                   (trf-record-changes--commit-message
+                    (seq-filter (lambda (change)
+                                  (member (plist-get change :path) uncommitted))
+                                changes))
+                   "--" uncommitted))
+        (error
+         (when untracked
+           (apply #'trf-record-changes--git root "rm" "--cached" "--quiet" "--" untracked))
+         (signal (car err) (cdr err)))))
+    (trf-git-ref-commit root "HEAD")))
 
 (provide 'trf-record-changes)
 ;;; trf-record-changes.el ends here

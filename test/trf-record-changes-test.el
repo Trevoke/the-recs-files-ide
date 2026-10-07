@@ -256,5 +256,69 @@
       (assert-equal "Record changes\n\n- Vision\n"
                     (trf-test-git root "log" "-1" "--format=format:%B")))))
 
+(deftest trf-record-changes-commit-refused-leaves-the-index ()
+  "When git refuses the commit, the index is as it was before."
+  (let* ((root trf-record-changes-test-root)
+         (hook (expand-file-name ".git/hooks/pre-commit" root)))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")
+                                 ("docs/vision.org" . "#+TITLE: Vision\n\nMore.\n")))
+    (trf-test-write-files root '((".git/hooks/pre-commit" . "#!/bin/sh\nexit 1\n")))
+    (set-file-modes hook #o755)
+    (let ((head (trf-test-head root))
+          (status (trf-test-git root "status" "--porcelain")))
+      (assert-raises 'error (trf-record-changes-commit root (trf-record-changes root)))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-equal status (trf-test-git root "status" "--porcelain"))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-equal head (trf-test-head root)))))
+
+(deftest trf-record-changes-commit-first-commit ()
+  "In a target product with no commit yet, the record changes make the first commit."
+  (delete-directory trf-record-changes-test-root t)
+  (let ((root (file-name-as-directory (make-temp-file "trf-target-" t))))
+    (setq trf-record-changes-test-root root)
+    (trf-test-write-files root (cons (cons "AGENTS.md" trf-test-agents-md) trf-test-records))
+    (trf-test-git root "init" "--quiet" "--initial-branch=main")
+    (trf-test-git root "config" "user.email" "record.keeper@example.com")
+    (trf-test-git root "config" "user.name" "Record Keeper")
+    (let ((commit (trf-record-changes-commit root (trf-record-changes root))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal (trf-test-head root) commit)
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal (concat "docs/ubiquitous-language.org\n"
+                            "docs/user-workflows/uw-1-order-a-widget.org\n"
+                            "docs/vision.org\n")
+                    (trf-test-git root "show" "--name-only" "--format=" commit)))))
+
+(deftest trf-record-changes-commit-without-record-changes ()
+  "Without record changes, nothing is committed, whatever else has changed."
+  (let* ((root trf-record-changes-test-root)
+         (head (trf-test-head root)))
+    (trf-test-write-files root '(("src/widget.el" . "(provide 'widget) ; edited\n")
+                                 ("src/gadget.el" . "(provide 'gadget)\n")))
+    (let ((status (trf-test-git root "status" "--porcelain")))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal head (trf-record-changes-commit root nil))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal status (trf-test-git root "status" "--porcelain")))))
+
+(deftest trf-record-changes-commit-record-path-is-literal ()
+  "A record change whose path reads as a pattern commits only itself."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-[ab].org" . "* F-1 Order\n")
+                                 ("docs/features/f-a.org" . "* F-2 Pay\n")))
+    (let ((commit (trf-record-changes-commit
+                   root (seq-filter (lambda (change)
+                                      (equal (plist-get change :path) "docs/features/f-[ab].org"))
+                                    (trf-record-changes root)))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "docs/features/f-[ab].org\n"
+                    (trf-test-git root "show" "--name-only" "--format=" commit))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "?? docs/features/f-a.org\n"
+                    (trf-test-git root "status" "--porcelain")))))
+
 (provide 'trf-record-changes-test)
 ;;; trf-record-changes-test.el ends here
