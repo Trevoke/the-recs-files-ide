@@ -1,0 +1,5 @@
+* MSG-5 Work cannot be brought into the codebase
+
+Text: The work cannot be brought into the codebase:
+
+Followed by: the reason the target product gave.

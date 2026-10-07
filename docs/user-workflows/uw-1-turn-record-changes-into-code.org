@@ -48,6 +48,12 @@ The record keeper asks to implement the record changes.
   the codebase.
 - 2a. There are no record changes :: IDE gives MSG-1: No record changes to
   implement; the use case ends.
+- 2b. The target product is in the middle of a merge, rebase, cherry-pick,
+  revert or bisect :: IDE gives MSG-3: Finish the merge or rebase first; the use
+  case ends.
+- 2c. The record changes cannot be committed :: IDE gives MSG-4: Record changes
+  could not be committed, with the reason the target product gave; the use case
+  ends.
 - 3a. A machine of the implementation workflow stops before finishing :: IDE
   keeps the work in progress and shows the record keeper why; record keeper has
   that machine start again on it, at step 3.
@@ -61,3 +67,11 @@ The record keeper asks to implement the record changes.
 - 7a. The codebase has moved since step 3 :: IDE runs the implementation
   workflow again to bring the work up to date with the codebase; continues at
   step 5.
+- 7b. The work cannot be brought into the codebase :: IDE gives MSG-5: Work
+  cannot be brought into the codebase, with the reason the target product gave;
+  IDE keeps the work in progress and leaves the codebase as it was.
+- 7c. The codebase is not on the branch the work started from :: IDE gives
+  MSG-6: Codebase is not on the work's branch; IDE keeps the work in progress.
+- 7d. The target product is in the middle of a merge, rebase, cherry-pick,
+  revert or bisect :: IDE gives MSG-3: Finish the merge or rebase first; IDE
+  keeps the work in progress.
