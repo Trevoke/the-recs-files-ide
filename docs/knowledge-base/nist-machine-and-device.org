@@ -1,0 +1,62 @@
+#+TITLE: The NIST Machine and Device — Reference
+#+STARTUP: overview
+
+Not a project document. This records what the source material actually says, so
+that when the project borrows a term we can check the borrowing. Copied, in the
+parts this project uses, from the reference entry kept in the Stone project
+(=stone/docs/knowledge-base/nist-automated-facility-taxonomy.org=), which read
+the sources listed at the end; the quotations are that entry's.
+
+*What it establishes.* NIST's manufacturing control projects describe a
+hierarchy of controllers, in which a supervisor commands its subordinates and
+they report status back. At the bottom of that hierarchy sits a pair: a
+controller that decides how a command is carried out, and the commercial device
+it drives. The project borrows *machine* for the controller and *device* for
+what it drives.
+
+* A hierarchy of controllers: command down, status up
+
+Jackson and Jones (1987): control flow is strictly vertical and only between
+adjacent neighbours; each module decomposes its supervisor's command into
+procedures it executes itself plus subcommands to its subordinates, repeated
+down to primitive actions at the lowest level; status feedback from
+subordinates closes the loop at each level. A module's goals "must be
+consistent with those set by the module's supervisor and they must commit the
+entire subordinate structure to a unified and coordinated course of action"
+(§3.3).
+
+* The equipment level is a controller plus a device
+
+AMRF's lowest level, Jackson and Jones (1987) §2.3: front-end systems tied to
+individual commercial machines. The controller translates the workstation's
+commands into tasks the vendor-supplied controller understands, and monitors
+execution through the hardware's sensors. So the equipment /level/ is a pair:
+a controller plus a device with its own vendor controller beneath it.
+
+MSI keeps the pair (NISTIR 4626, NISTIR 4682): an equipment controller runs
+tasks on one device, one task at a time; what is inside it is out of scope.
+
+* What the project takes
+
+- Machine :: the controller of the pair: what decides how a command is
+  carried out.
+- Device :: what the machine drives to carry it out.
+- Command down, status up :: the IDE commands a machine, and the machine
+  reports back.
+
+The levels above the equipment level (workstation, cell, shop, facility) are
+not borrowed.
+
+* Sources
+
+As read by the Stone entry:
+
+- Jackson, R. and Jones, A. (1987), /Hierarchical Decision-Making in the
+  Factory of the Future/, NBSIR 87-3511.
+  https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=821434
+- Senehi, M., Wallace, S., Barkmeyer, E., Ray, S. and Wallace, E. (1991),
+  /Manufacturing Systems Integration Control Entity Interface Document/,
+  NISTIR 4626. https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=821506
+- Senehi, M., Barkmeyer, E., Ray, S. and Wallace, E. (1991), /Manufacturing
+  Systems Integration Initial Architecture Document/, NISTIR 4682.
+  https://nvlpubs.nist.gov/nistpubs/Legacy/IR/nistir4682.pdf
