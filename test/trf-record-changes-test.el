@@ -104,5 +104,73 @@
   ;; F-1 §Takes: Ask the IDE to implement the record changes
   (assert-nil (trf-record-changes trf-record-changes-test-root)))
 
+(deftest trf-record-changes-commit-holds-only-the-record-changes ()
+  "The commit holds the record changes and leaves other edits uncommitted."
+  (trf-record-changes-test-mark-implemented)
+  (trf-test-write-files trf-record-changes-test-root
+                        '(("docs/user-workflows/uw-1-order-a-widget.org"
+                           . "* UW-1 Order a widget\n\n1. Buyer orders twice.\n")
+                          ("docs/user-workflows.org"
+                           . "#+TITLE: User Workflows\n\n- UW-1 :: Order two widgets\n")
+                          ("src/widget.el" . "(provide 'widget) ; edited\n")))
+  (trf-test-git trf-record-changes-test-root "add" "src/widget.el")
+  (let* ((root trf-record-changes-test-root)
+         (commit (trf-record-changes-commit root (trf-record-changes root))))
+    (assert-equal (trf-test-head root) commit)
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    (assert-equal "docs/user-workflows/uw-1-order-a-widget.org\n"
+                  (trf-test-git root "show" "--name-only" "--format=" commit))
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    (assert-equal " M docs/user-workflows.org\nM  src/widget.el\n"
+                  (trf-test-git root "status" "--porcelain"))))
+
+(deftest trf-record-changes-commit-names-each-record-change ()
+  "The commit message names each record change by identifier, where it has one, and title."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")
+                                 ("docs/vision.org" . "#+TITLE: Vision\n\nMore.\n")))
+    (trf-record-changes-commit root (trf-record-changes root))
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    (assert-equal "Record changes\n\n- F-1 Order\n- Vision\n"
+                  (trf-test-git root "log" "-1" "--format=format:%B"))))
+
+(deftest trf-record-changes-commit-deleted-record ()
+  "A deleted record is committed as a deletion."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (delete-file (expand-file-name "docs/user-workflows/uw-1-order-a-widget.org" root))
+    (let ((commit (trf-record-changes-commit root (trf-record-changes root))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "D\tdocs/user-workflows/uw-1-order-a-widget.org\n"
+                    (trf-test-git root "show" "--name-status" "--format=" commit))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "" (trf-test-git root "status" "--porcelain")))))
+
+(deftest trf-record-changes-commit-record-with-non-ascii-name ()
+  "A record whose file name is not ASCII is committed under its own path."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-2-café.org" . "* F-2 Café\n")))
+    (let ((commit (trf-record-changes-commit root (trf-record-changes root))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "docs/features/f-2-café.org\0"
+                    (decode-coding-string
+                     (trf-test-git root "show" "--name-only" "-z" "--format=" commit)
+                     'utf-8))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "Record changes\n\n- F-2 Café\n"
+                    (decode-coding-string (trf-test-git root "log" "-1" "--format=format:%B")
+                                          'utf-8)))))
+
+(deftest trf-record-changes-commit-when-already-committed ()
+  "When the record changes are already committed, no commit is made."
+  (let* ((root trf-record-changes-test-root)
+         (head (trf-test-head root)))
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    (assert-equal head (trf-record-changes-commit root (trf-record-changes root)))
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    (assert-equal head (trf-test-head root))))
+
 (provide 'trf-record-changes-test)
 ;;; trf-record-changes-test.el ends here

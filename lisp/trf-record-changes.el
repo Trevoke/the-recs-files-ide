@@ -70,5 +70,30 @@
                 (trf-record-changes--describe root base (car entry) (cdr entry)))
               (sort entries (lambda (a b) (string< (car a) (car b))))))))
 
+(defun trf-record-changes--commit-message (changes)
+  "Return the commit message naming each of CHANGES."
+  (concat "Record changes\n\n"
+          (mapconcat (lambda (change)
+                       (concat "- " (string-join
+                                     (delq nil (list (plist-get change :identifier)
+                                                     (plist-get change :title)))
+                                     " ")))
+                     changes "\n")
+          "\n"))
+
+;; F-1 §Rules: Ask the IDE to implement the record changes
+(defun trf-record-changes-commit (root changes)
+  "Commit CHANGES in ROOT and nothing else; return the commit they are in."
+  (let ((coding-system-for-read 'utf-8)
+        (coding-system-for-write 'utf-8)
+        (paths (mapcar (lambda (change) (plist-get change :path)) changes)))
+    (when paths
+      (apply #'trf-git root "add" "--all" "--" paths)
+      (unless (string-empty-p (apply #'trf-git root "diff" "--cached" "--name-only" "-z"
+                                     "HEAD" "--" paths))
+        (apply #'trf-git root "commit" "--quiet" "--only" "--message"
+               (trf-record-changes--commit-message changes) "--" paths)))
+    (string-trim (trf-git root "rev-parse" "HEAD"))))
+
 (provide 'trf-record-changes)
 ;;; trf-record-changes.el ends here
