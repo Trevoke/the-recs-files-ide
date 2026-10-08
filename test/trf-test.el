@@ -269,5 +269,173 @@ DIRECTORY defaults to `trf-test-root'."
       (assert-equal (expand-file-name ".worktrees/" trf-test-root)
                     (file-name-directory (directory-file-name (nth 1 (car runs))))))))
 
+(defun trf-test-implemented-worktree ()
+  "Implement `trf-test-record-change' with machines finishing at once; return the worktree."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let (runs)
+    (trf-test-with-machines runs 'now
+      (trf-test-implement))
+    (nth 1 (car runs))))
+
+(defun trf-test-report-file (directory)
+  (expand-file-name ".trf/record-implementation-report.org" directory))
+
+(defun trf-test-from-file (file command)
+  "Run COMMAND from FILE's buffer, running no machine; return what it signals."
+  (cl-letf (((symbol-function 'trf-session-config) (lambda () (error "Asked for a config")))
+            ((symbol-function 'trf-session-run) (lambda (&rest _) (error "Ran a machine"))))
+    (with-current-buffer (find-file-noselect file)
+      (condition-case err
+          (progn (funcall command) nil)
+        (error err)))))
+
+(defun trf-test-state (directory)
+  "Return the codebase's HEAD, status and refs/recs/, and the work in progress in DIRECTORY."
+  (list (trf-test-head trf-test-root)
+        (trf-test-git trf-test-root "status" "--porcelain")
+        (trf-test-git trf-test-root "for-each-ref" "refs/recs/")
+        (file-directory-p directory)
+        (trf-test-head directory)
+        (trf-test-git directory "status" "--porcelain")))
+
+(defun trf-test-build (directory)
+  "Commit an edit to src/widget.el in the worktree DIRECTORY."
+  (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; built\n")))
+  (trf-test-git directory "commit" "--quiet" "--all" "--message" "Build"))
+
+(deftest trf-accept-outside-work-in-progress ()
+  "Outside any work in progress, accepting gives MSG-2."
+  ;; MSG-2: No work in progress to accept or reject
+  (assert-equal '(user-error "There is no work in progress here to accept or reject.")
+                (trf-test-from-file (expand-file-name "docs/vision.org" trf-test-root)
+                                    #'trf-accept-record-implementation-report)))
+
+(deftest trf-reject-outside-work-in-progress ()
+  "Outside any work in progress, rejecting gives MSG-2."
+  ;; MSG-2: No work in progress to accept or reject
+  (assert-equal '(user-error "There is no work in progress here to accept or reject.")
+                (trf-test-from-file (expand-file-name "docs/vision.org" trf-test-root)
+                                    #'trf-reject-record-implementation-report)))
+
+(deftest trf-accept-brings-the-work-in ()
+  "Accepting brings the work into the codebase, and the record changes are implemented."
+  (let* ((directory (trf-test-implemented-worktree))
+         (base (trf-test-head trf-test-root)))
+    (trf-test-build directory)
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; UW-1 §Main success scenario: Turn record changes into code
+    (assert-equal "(provide 'widget) ; built\n"
+                  (with-temp-buffer
+                    (insert-file-contents (expand-file-name "src/widget.el" trf-test-root))
+                    (buffer-string)))
+    ;; UW-1 §Success guarantee: Turn record changes into code
+    (assert-equal base (string-trim (trf-test-git trf-test-root "rev-parse"
+                                                  "refs/recs/implemented")))
+    ;; UW-1 §Success guarantee: Turn record changes into code
+    (assert-nil (trf-record-changes trf-test-root))))
+
+(deftest trf-accept-mid-merge ()
+  "Mid merge, accepting gives MSG-3 and keeps the work in progress."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-leave-in-progress trf-test-root 'merge)
+    (let ((state (trf-test-state directory)))
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; MSG-3: Finish the merge or rebase first
+      (assert-equal '(user-error
+                      "The target product is in the middle of a merge or rebase; finish it first.")
+                    (trf-test-from-file (trf-test-report-file directory)
+                                        #'trf-accept-record-implementation-report))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal state (trf-test-state directory)))))
+
+(deftest trf-accept-on-another-branch ()
+  "With the codebase on another branch, accepting gives MSG-6 and keeps the work in progress."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-build directory)
+    (trf-test-git trf-test-root "checkout" "--quiet" "-b" "side")
+    (let ((state (trf-test-state directory)))
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; MSG-6: Codebase is not on the work's branch
+      (assert-equal '(user-error "The codebase is not on the branch this work started from.")
+                    (trf-test-from-file (trf-test-report-file directory)
+                                        #'trf-accept-record-implementation-report))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal state (trf-test-state directory)))))
+
+(deftest trf-accept-on-a-detached-codebase ()
+  "With the codebase detached, accepting gives MSG-6 and keeps the work in progress."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-build directory)
+    (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
+    (let ((state (trf-test-state directory)))
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; MSG-6: Codebase is not on the work's branch
+      (assert-equal '(user-error "The codebase is not on the branch this work started from.")
+                    (trf-test-from-file (trf-test-report-file directory)
+                                        #'trf-accept-record-implementation-report))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal state (trf-test-state directory)))))
+
+(deftest trf-accept-refused-by-the-target-product ()
+  "When the work cannot be brought in, accepting gives MSG-5 with git's reason and changes nothing."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-build directory)
+    (trf-test-write-files trf-test-root '(("src/widget.el" . "(provide 'widget) ; local\n")))
+    (let* ((state (trf-test-state directory))
+           (refusal (trf-test-from-file (trf-test-report-file directory)
+                                        #'trf-accept-record-implementation-report)))
+      (assert-equal 'user-error (car refusal))
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; MSG-5: Work cannot be brought into the codebase
+      (assert-true (string-prefix-p "The work cannot be brought into the codebase:\n"
+                                    (cadr refusal)))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-match "src/widget\\.el" (cadr refusal))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal state (trf-test-state directory)))))
+
+(deftest trf-accept-on-a-moved-codebase-reruns ()
+  "On a moved codebase, accepting runs the implementation workflow and the assessor again, and brings nothing in."
+  (let ((directory (trf-test-implemented-worktree))
+        runs)
+    (trf-test-write-files trf-test-root '(("src/other.el" . "(provide 'other)\n")))
+    (trf-test-git trf-test-root "add" "--all")
+    (trf-test-git trf-test-root "commit" "--quiet" "--message" "Other work")
+    (let ((state (trf-test-state directory))
+          (asked 0))
+      (trf-test-with-machines runs 'now
+        (cl-letf (((symbol-function 'trf-session-config)
+                   (lambda () (cl-incf asked) trf-test-config)))
+          (with-current-buffer (find-file-noselect (trf-test-report-file directory))
+            (trf-accept-record-implementation-report))))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal '("brainstorming machine" "planning machine" "executing machine"
+                      "reconciliation assessor")
+                    (mapcar #'car runs))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal (make-list 4 directory) (mapcar (lambda (run) (nth 1 run)) runs))
+      (assert-equal 1 asked)
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-match "The codebase has moved since this work started; bring the work up to date with it\\."
+                    (nth 3 (car runs)))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-match "^- F-1 Order (added): docs/features/f-1-order\\.org$" (nth 3 (car runs)))
+      ;; UW-1 §Main success scenario: Turn record changes into code
+      (assert-true (trf-test-report-shown-p))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-equal state (trf-test-state directory)))))
+
+(deftest trf-reject-keeps-the-work ()
+  "Rejecting closes the report and keeps the work in progress; nothing is implemented."
+  (let* ((directory (trf-test-implemented-worktree))
+         (state (trf-test-state directory)))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-reject-record-implementation-report))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-nil (find-buffer-visiting (trf-test-report-file directory)))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal state (trf-test-state directory))))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here
