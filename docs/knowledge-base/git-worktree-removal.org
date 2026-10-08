@@ -1,0 +1,88 @@
+#+TITLE: Removing a Git Worktree — Reference
+#+STARTUP: overview
+
+Not a project document. This records how git behaves when a worktree and its
+branch are removed, as established by a run of git 2.54.0 on 2026-10-08.
+
+*What it establishes.* =git worktree remove= removes a worktree whose only
+untracked files are excluded through =info/exclude= or ignored through
+=.gitignore=, and refuses one holding untracked files that are not ignored, or
+modified tracked files, unless given =--force=. =git branch -d= refuses a branch
+while a worktree has it checked out, and deletes it once that worktree is
+removed.
+
+* git worktree remove removes a worktree holding only excluded or ignored files
+
+In the run below, the worktrees =excluded= (a =.trf/= directory excluded
+through =info/exclude=) and =ignored= (a =.trf/= directory and a =build.log=
+matching =.gitignore=) are removed, exit 0.
+
+* git worktree remove refuses a worktree holding untracked or modified files
+
+In the run below, the worktrees =untracked= (an untracked =new.el=) and
+=modified= (an edit to the tracked =.gitignore=) are refused, exit 128, with
+"contains modified or untracked files, use --force to delete it", and stay in
+=git worktree list=.
+
+* git branch -d refuses a branch checked out in a worktree
+
+In the run below, =git branch -d trf/excluded= is refused, exit 1, while the
+worktree =excluded= has the branch checked out, and deletes it once that
+worktree is removed.
+
+* The run
+
+Run with =bash kb-run.sh <empty directory>=; the temporary directory is shown
+as =<tmp>=.
+
+#+begin_src sh
+set -u
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@b GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@b
+cd "$1"
+git --version
+git init --quiet --initial-branch=main root && cd root
+echo '*.log' > .gitignore && git add .gitignore && git commit --quiet --message init
+echo '/.trf/' >> .git/info/exclude
+for case in excluded ignored untracked modified; do
+  git worktree add --quiet -b "trf/$case" "../$case" HEAD
+  mkdir ../$case/.trf && echo state > ../$case/.trf/root
+done
+echo log > ../ignored/build.log
+echo new > ../untracked/new.el
+echo '*.tmp' >> ../modified/.gitignore
+echo '$ git branch -d trf/excluded'
+git branch -d trf/excluded; echo "exit $?"
+for case in excluded ignored untracked modified; do
+  echo "\$ git worktree remove ../$case"
+  git worktree remove "../$case"; echo "exit $?"
+done
+echo '$ git branch -d trf/excluded'
+git branch -d trf/excluded; echo "exit $?"
+echo '$ git worktree list'
+git worktree list | sed 's|/.*/root |<tmp>/root |; s|/.*/\([a-z]*\) |<tmp>/\1 |'
+#+end_src
+
+#+begin_example
+git version 2.54.0
+$ git branch -d trf/excluded
+error: cannot delete branch 'trf/excluded' used by worktree at '<tmp>/excluded'
+exit 1
+$ git worktree remove ../excluded
+exit 0
+$ git worktree remove ../ignored
+exit 0
+$ git worktree remove ../untracked
+fatal: '../untracked' contains modified or untracked files, use --force to delete it
+exit 128
+$ git worktree remove ../modified
+fatal: '../modified' contains modified or untracked files, use --force to delete it
+exit 128
+$ git branch -d trf/excluded
+Deleted branch trf/excluded (was a56422d).
+exit 0
+$ git worktree list
+<tmp>/root      a56422d [main]
+<tmp>/modified  a56422d [trf/modified]
+<tmp>/untracked a56422d [trf/untracked]
+#+end_example

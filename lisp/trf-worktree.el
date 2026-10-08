@@ -127,6 +127,9 @@
     (trf-worktree-mark-implemented directory)))
 
 ;; F-2 §Produces: Accept or reject the record implementation report
+;; docs/knowledge-base/git-worktree-removal.org §git worktree remove removes a worktree holding only excluded or ignored files
+;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding untracked or modified files
+;; docs/knowledge-base/git-worktree-removal.org §git branch -d refuses a branch checked out in a worktree
 (defun trf-worktree-remove (directory)
   "Remove the worktree DIRECTORY and its branch from its root."
   (let ((root (trf-worktree-root directory))
