@@ -44,8 +44,8 @@ or the name of the machine that stops instead of finishing."
            (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
                      ((symbol-function 'trf-session-run)
                       (lambda (directory config instructions on-finished on-stopped)
-                        (let ((name (progn (string-match "\\`You are the \\([^.]+\\)\\." instructions)
-                                           (match-string 1 instructions))))
+                        (let ((name (when (string-match "\\`You are the \\([^.]+\\)\\." instructions)
+                                      (match-string 1 instructions))))
                           (setq ,runs (append ,runs (list (list name directory config
                                                                 instructions))))
                           (if (equal ,finishing name)
@@ -1232,6 +1232,7 @@ Every other call to `trf-git' runs git."
       (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                       #'trf-accept-record-implementation-report)))
     ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding a modified buffer's lock file
+    ;; docs/knowledge-base/git-worktree-removal.org §An exclude pattern starting with # is written with a backslash
     (assert-equal "" (trf-test-git trf-test-root "ls-files" "src/.#widget.el" "src/#widget.el#"))
     (assert-nil (file-exists-p directory))
     (with-current-buffer buffer

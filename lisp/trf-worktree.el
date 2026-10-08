@@ -43,9 +43,10 @@
 ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding a modified buffer's lock file
 ;; docs/knowledge-base/git-worktree-removal.org §An exclude pattern starting with # is written with a backslash
 (defun trf-worktree--exclude-emacs-files (root)
-  "Make git in ROOT ignore Emacs lock and auto-save files."
+  "Make git in ROOT ignore Emacs lock, auto-save and backup files."
   (trf-worktree--exclude root ".#*")
-  (trf-worktree--exclude root "\\#*#"))
+  (trf-worktree--exclude root "\\#*#")
+  (trf-worktree--exclude root "*~"))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; F-1 §Rules: Ask the IDE to implement the record changes

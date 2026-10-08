@@ -200,7 +200,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
                               (when (buffer-live-p buffer)
                                 (kill-buffer buffer))
                               (buffer-live-p buffer))
-                            (gethash key trf--session-buffers))))
+                            (delete-dups (copy-sequence (gethash key trf--session-buffers))))))
       (if kept
           (puthash key kept trf--session-buffers)
         (remhash key trf--session-buffers)))
