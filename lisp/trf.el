@@ -52,7 +52,6 @@
   "Signal a `user-error' unless ROOT is on the primary git branch."
   (let ((primary (trf--primary-git-branch root)))
     (unless (and (stringp primary)
-                 (not (string-empty-p primary))
                  (equal primary (trf-git-current-branch root)))
       ;; MSG-8: Target product is not on the primary git branch
       (user-error "%s\n%s" trf-not-on-the-primary-git-branch-message primary))))

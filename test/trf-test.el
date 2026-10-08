@@ -77,17 +77,18 @@ DIRECTORY defaults to `trf-test-root'."
       (error err))))
 
 (defun trf-test-assert-implement-refuses (refusal &optional implement)
-  "Assert IMPLEMENT gives REFUSAL, asking nothing and leaving HEAD, status and .worktrees as they were.
+  "Assert IMPLEMENT gives REFUSAL, asking nothing and changing nothing.
+The target product's head, status and worktrees stay as they were.
 IMPLEMENT defaults to `trf-test-implement'."
   (let ((head (trf-test-head trf-test-root))
         (status (trf-test-git trf-test-root "status" "--porcelain"))
-        (worktrees (file-exists-p (expand-file-name ".worktrees" trf-test-root))))
+        (worktrees (trf-test-git trf-test-root "worktree" "list" "--porcelain")))
     (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) (error "Asked to confirm")))
               ((symbol-function 'trf-session-config) (lambda () (error "Asked for a config"))))
       (assert-equal refusal (funcall (or implement #'trf-test-implement))))
     (assert-equal head (trf-test-head trf-test-root))
     (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))
-    (assert-equal worktrees (file-exists-p (expand-file-name ".worktrees" trf-test-root)))))
+    (assert-equal worktrees (trf-test-git trf-test-root "worktree" "list" "--porcelain"))))
 
 (deftest trf-implement-without-record-changes ()
   "With no record changes the IDE gives MSG-1 and does nothing else."
@@ -762,6 +763,9 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
                                       (format "((nil . ((eval . (write-region \"\" nil %S)))))\n"
                                               marker))))
     (let ((enable-local-variables :all))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      ;; MSG-1: No record changes to implement
       (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement.")))
     (assert-nil (file-exists-p marker))))
 
@@ -769,6 +773,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
   "On main, when the target product's .dir-locals.el names an empty string, the primary git branch stays main."
   (trf-test-write-primary-git-branch trf-test-root "")
   ;; F-1 §Rules: Ask the IDE to implement the record changes
+  ;; UW-1 §Minimal guarantee: Turn record changes into code
   ;; MSG-1: No record changes to implement
   (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement.")))
 
