@@ -2,8 +2,9 @@
 
 Takes: the record implementation report of a work in progress.
 
-Produces: on accept, the work brought into the codebase and the record changes
-implemented; on reject, the work in progress kept.
+Produces: on accept, the work brought into the codebase, the record changes
+implemented, and the work in progress removed; on reject, the work in progress
+kept.
 
 ** Rules
 
