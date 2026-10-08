@@ -24,10 +24,23 @@
   "Return the tree holding nothing in ROOT."
   (string-trim (trf-git root "hash-object" "-t" "tree" "/dev/null")))
 
-(defun trf-record-changes--base (root)
-  "Return what ROOT's record changes are measured from."
+(defun trf-record-changes-from (root)
+  "Return what ROOT's record changes are measured from: the implemented records, or the empty tree."
   (or (trf-git-ref-commit root trf-record-changes-implemented-ref)
       (trf-record-changes--empty-tree root)))
+
+(defun trf-record-changes-reason (output)
+  "Return git's OUTPUT, or the text saying it gave no reason when OUTPUT is empty."
+  (if (string-empty-p output)
+      trf-record-changes-no-reason-message
+    output))
+
+;; UW-1 §Extensions: Turn record changes into code
+(defun trf-record-changes-refuse-operation-in-progress (root)
+  "Give MSG-3 when ROOT is mid merge, rebase, cherry-pick, revert or bisect."
+  (when (trf-git-operation-in-progress-p root)
+    ;; MSG-3: Finish the merge or rebase first
+    (user-error "%s" trf-record-changes-operation-in-progress-message)))
 
 (defun trf-record-changes--git (root &rest args)
   "Run git with ARGS in ROOT, reading each pathspec as a literal path."
@@ -78,40 +91,50 @@ Read PATH as COMMIT holds it, or from disk when COMMIT is nil."
     (nreverse pairs)))
 
 ;; F-1 §Takes: Ask the IDE to implement the record changes
+(defun trf-record-changes--record-paths (root)
+  "Return the paths in ROOT that hold records."
+  (append (trf-project-record-directories root)
+          (trf-project-vision-and-ubiquitous-language-paths root)))
+
+(defun trf-record-changes--describe-each (root base entries &optional commit)
+  "Return the record changes for ENTRIES, (PATH . STATUS) pairs in ROOT measured from BASE, by path.
+Read each as COMMIT holds it, or from disk when COMMIT is nil."
+  (mapcar (lambda (entry)
+            (trf-record-changes--describe root base (car entry) (cdr entry) commit))
+          (sort entries (lambda (a b) (string< (car a) (car b))))))
+
+(defun trf-record-changes--diff (root paths &rest commits)
+  "Return the (PATH . STATUS) pairs of PATHS in ROOT that differ between COMMITS."
+  (trf-record-changes--pairs
+   (apply #'trf-record-changes--git-paths root "diff" "--name-status" "-z" "--no-renames"
+          (append commits (cons "--" paths)))))
+
+;; F-1 §Takes: Ask the IDE to implement the record changes
 (defun trf-record-changes (root)
   "Return the record changes of the target product at ROOT, by path."
-  (when-let* ((paths (append (trf-project-record-directories root)
-                             (trf-project-vision-and-ubiquitous-language-paths root))))
-    (let* ((base (trf-record-changes--base root))
-           (changed (trf-record-changes--pairs
-                     (apply #'trf-record-changes--git-paths root "diff" "--name-status" "-z"
-                            "--no-renames" base "--" paths)))
+  (when-let* ((paths (trf-record-changes--record-paths root)))
+    (let* ((base (trf-record-changes-from root))
+           (changed (trf-record-changes--diff root paths base))
            (untracked (mapcar (lambda (path) (cons path "A"))
-                              (trf-record-changes--untracked root paths)))
-           (entries (append (mapcar (lambda (entry)
-                                      (if (assoc (car entry) untracked)
-                                          (cons (car entry) "M")
-                                        entry))
-                                    changed)
-                            (seq-remove (lambda (entry) (assoc (car entry) changed))
-                                        untracked))))
-      (mapcar (lambda (entry)
-                (trf-record-changes--describe root base (car entry) (cdr entry)))
-              (sort entries (lambda (a b) (string< (car a) (car b))))))))
+                              (trf-record-changes--untracked root paths))))
+      (trf-record-changes--describe-each
+       root base
+       (append (mapcar (lambda (entry)
+                         (if (assoc (car entry) untracked)
+                             (cons (car entry) "M")
+                           entry))
+                       changed)
+               (seq-remove (lambda (entry) (assoc (car entry) changed))
+                           untracked))))))
 
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-record-changes-in-commit (root from commit)
   "Return the record changes of the target product at ROOT as COMMIT holds them, by path.
-Measure them from the commit FROM, or from nothing when FROM is nil."
-  (when-let* ((paths (append (trf-project-record-directories root)
-                             (trf-project-vision-and-ubiquitous-language-paths root))))
+Measure them from FROM, a commit or tree; when FROM is nil, from the empty tree."
+  (when-let* ((paths (trf-record-changes--record-paths root)))
     (let ((base (or from (trf-record-changes--empty-tree root))))
-      (mapcar (lambda (entry)
-                (trf-record-changes--describe root base (car entry) (cdr entry) commit))
-              (sort (trf-record-changes--pairs
-                     (apply #'trf-record-changes--git-paths root "diff" "--name-status" "-z"
-                            "--no-renames" base commit "--" paths))
-                    (lambda (a b) (string< (car a) (car b))))))))
+      (trf-record-changes--describe-each
+       root base (trf-record-changes--diff root paths base commit) commit))))
 
 (defun trf-record-changes--commit-message (changes)
   "Return the commit message naming each of CHANGES."
@@ -182,9 +205,7 @@ UNTRACKED are the files among them that git does not track."
 (defun trf-record-changes-commit (root changes)
   "Commit CHANGES in ROOT and the projection files listing them, and nothing else.
 Return the commit they are in."
-  ;; UW-1 §Extensions: Turn record changes into code
-  (when (trf-git-operation-in-progress-p root)
-    (user-error "%s" trf-record-changes-operation-in-progress-message))
+  (trf-record-changes-refuse-operation-in-progress root)
   (when changes
     (let ((paths (trf-record-changes--paths changes))
           (head (trf-git-ref-commit root "HEAD"))
@@ -200,9 +221,7 @@ Return the commit they are in."
             (trf-git-error
              ;; UW-1 §Extensions: Turn record changes into code
              (user-error "%s\n%s" trf-record-changes-not-committed-message
-                         (if (string-empty-p (cadr err))
-                             trf-record-changes-no-reason-message
-                           (cadr err)))))
+                         (trf-record-changes-reason (cadr err)))))
         (when (equal head (trf-git-ref-commit root "HEAD"))
           (trf-record-changes--unstage root untracked)))))
   (trf-git-ref-commit root "HEAD"))

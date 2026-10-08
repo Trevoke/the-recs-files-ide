@@ -228,12 +228,32 @@
       (assert-equal implemented (trf-worktree-from directory)))))
 
 (deftest trf-worktree-create-before-any-implementation ()
-  "A worktree started before anything is implemented records nothing to measure from."
+  "A worktree started before anything is implemented records the empty tree to measure from."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root)))
+         (empty-tree (string-trim (trf-test-git root "hash-object" "-t" "tree" "/dev/null"))))
+    (assert-equal empty-tree (trf-worktree-test-read directory "from"))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal empty-tree (trf-worktree-from directory))))
+
+(deftest trf-worktree-from-unknown ()
+  "A worktree without a record of what its record changes were measured from gives nil."
   (let ((directory (trf-worktree-create trf-worktree-test-root
                                         (trf-test-head trf-worktree-test-root))))
-    (assert-nil (file-exists-p (expand-file-name ".trf/from" directory)))
-    ;; UW-1 §Extensions: Turn record changes into code
+    (delete-file (expand-file-name ".trf/from" directory))
     (assert-nil (trf-worktree-from directory))))
+
+(deftest trf-worktree-brought-in ()
+  "The work is brought in once the worktree's branch, holding work, is in the codebase."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root))))
+    (assert-nil (trf-worktree-brought-in-p directory))
+    (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; built\n")))
+    (trf-test-git directory "commit" "--quiet" "--all" "--message" "Build")
+    (assert-nil (trf-worktree-brought-in-p directory))
+    (trf-test-git root "merge" "--quiet" "--no-ff" "--no-edit" (trf-worktree-branch directory))
+    ;; UW-1 §Main success scenario: Turn record changes into code
+    (assert-true (trf-worktree-brought-in-p directory))))
 
 (provide 'trf-worktree-test)
 ;;; trf-worktree-test.el ends here

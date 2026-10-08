@@ -51,7 +51,7 @@
   "Create a worktree of ROOT starting from COMMIT; return its directory."
   (let* ((root (file-name-as-directory (expand-file-name root)))
          (root-branch (trf-worktree--root-branch-now root))
-         (from (trf-git-ref-commit root trf-record-changes-implemented-ref))
+         (from (trf-record-changes-from root))
          (name (make-temp-name (format-time-string "trf-%Y%m%d-%H%M%S-")))
          (branch (concat "trf/" name))
          (directory (file-name-as-directory
@@ -65,8 +65,7 @@
     (trf-worktree--write directory "branch" branch)
     (when root-branch
       (trf-worktree--write directory "root-branch" root-branch))
-    (when from
-      (trf-worktree--write directory "from" from))
+    (trf-worktree--write directory "from" from)
     directory))
 
 (defun trf-worktree-of (file)
@@ -87,7 +86,7 @@
 
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-worktree-from (directory)
-  "Return the commit DIRECTORY's record changes were measured from, or nil for nothing."
+  "Return the commit or tree DIRECTORY's record changes were measured from, or nil when unknown."
   (when (file-exists-p (expand-file-name ".trf/from" directory))
     (trf-worktree--read directory "from")))
 
@@ -110,6 +109,20 @@
                       (trf-worktree-branch directory))))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
+(defun trf-worktree-brought-in-p (directory)
+  "Return non-nil when DIRECTORY's branch holds work and the codebase holds that branch."
+  (let ((root (trf-worktree-root directory))
+        (branch (trf-worktree-branch directory)))
+    (and (not (equal (trf-git-ref-commit root branch) (trf-worktree-base directory)))
+         (trf-git-check root "merge-base" "--is-ancestor" branch "HEAD"))))
+
+;; UW-1 §Success guarantee: Turn record changes into code
+(defun trf-worktree-mark-implemented (directory)
+  "Mark DIRECTORY's record changes implemented."
+  (trf-git (trf-worktree-root directory) "update-ref" trf-record-changes-implemented-ref
+           (trf-worktree-base directory)))
+
+;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-worktree-accept (directory)
   "Bring DIRECTORY's work into the codebase and mark its record changes implemented."
   (let* ((root (trf-worktree-root directory))
@@ -122,8 +135,7 @@
          (ignore-errors (trf-git root "merge" "--abort")))
        (signal (if (eq (car err) 'trf-git-error) 'trf-worktree-merge-failed (car err))
                (cdr err))))
-    (trf-git root "update-ref" trf-record-changes-implemented-ref
-             (trf-worktree-base directory))))
+    (trf-worktree-mark-implemented directory)))
 
 (provide 'trf-worktree)
 ;;; trf-worktree.el ends here

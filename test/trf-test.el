@@ -447,7 +447,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
       (with-current-buffer (find-file-noselect (trf-test-report-file directory))
         (trf-accept-record-implementation-report)))
     (let ((instructions (nth 3 (car runs))))
-      (string-match "The record changes:\n\\(\\(?:- .*\n\\)*\\)" instructions)
+      (assert-true (string-match "The record changes:\n\\(\\(?:- .*\n\\)*\\)" instructions))
       (match-string 1 instructions))))
 
 (deftest trf-accept-reruns-on-the-record-changes-it-started-with-after-later-work-is-accepted ()
@@ -553,7 +553,66 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
                     (insert-file-contents (expand-file-name "src/widget.el" trf-test-root))
                     (buffer-string)))
     ;; F-2 §Rules: Accept or reject the record implementation report
-    (assert-true (file-directory-p directory))))
+    (assert-true (file-directory-p directory))
+    (let ((head (trf-test-head trf-test-root)))
+      (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                      #'trf-accept-record-implementation-report))
+      ;; UW-1 §Success guarantee: Turn record changes into code
+      (assert-equal (trf-worktree-base directory)
+                    (string-trim (trf-test-git trf-test-root "rev-parse"
+                                               "refs/recs/implemented")))
+      ;; UW-1 §Main success scenario: Turn record changes into code
+      (assert-equal head (trf-test-head trf-test-root)))))
+
+(defun trf-test-widget ()
+  (with-temp-buffer
+    (insert-file-contents (expand-file-name "src/widget.el" trf-test-root))
+    (buffer-string)))
+
+(deftest trf-accept-from-another-file-of-the-work ()
+  "Accepting from any file of the work in progress brings the work in."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-build directory)
+    (assert-nil (trf-test-from-file (expand-file-name "src/widget.el" directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-equal (trf-worktree-base directory)
+                  (string-trim (trf-test-git trf-test-root "rev-parse" "refs/recs/implemented")))))
+
+(deftest trf-reject-from-another-file-of-the-work ()
+  "Rejecting from any file of the work in progress closes the report and keeps the work."
+  (let* ((directory (trf-test-implemented-worktree))
+         (state (trf-test-state directory))
+         (file (expand-file-name "src/widget.el" directory)))
+    (assert-nil (trf-test-from-file file #'trf-reject-record-implementation-report))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-nil (find-buffer-visiting (trf-test-report-file directory)))
+    (assert-true (find-buffer-visiting file))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-equal state (trf-test-state directory))))
+
+(deftest trf-accept-after-the-rerun-brings-the-work-in ()
+  "Once the rerun has brought the work up to date with the codebase, accepting brings it in."
+  (let ((directory (trf-test-implemented-worktree))
+        runs)
+    (trf-test-build directory)
+    (trf-test-write-files trf-test-root '(("src/other.el" . "(provide 'other)\n")))
+    (trf-test-git trf-test-root "add" "--all")
+    (trf-test-git trf-test-root "commit" "--quiet" "--message" "Other work")
+    (trf-test-with-machines runs 'now
+      (with-current-buffer (find-file-noselect (trf-test-report-file directory))
+        (trf-accept-record-implementation-report)))
+    (assert-equal 4 (length runs))
+    (trf-test-git directory "merge" "--quiet" "--no-edit" "main")
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; UW-1 §Main success scenario: Turn record changes into code
+    (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
+    ;; UW-1 §Success guarantee: Turn record changes into code
+    (assert-equal (trf-worktree-base directory)
+                  (string-trim (trf-test-git trf-test-root "rev-parse" "refs/recs/implemented")))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here
