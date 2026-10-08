@@ -1046,8 +1046,24 @@ Every other call to `trf-git' runs git."
       (setq default-directory trf-test-root))
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
-    ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-nil (get-buffer trf-test-machine-buffer-name))))
+
+(deftest trf-accept-moves-session-buffers-it-did-not-start-to-the-root ()
+  "Accepting moves to the root a session buffer in the worktree that the IDE did not start since it last started."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-build directory)
+    (clrhash trf--session-buffers)
+    (with-current-buffer (get-buffer trf-test-machine-buffer-name)
+      (setq default-directory directory))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-true (get-buffer trf-test-machine-buffer-name))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-equal (file-name-as-directory trf-test-root)
+                  (buffer-local-value 'default-directory
+                                      (get-buffer trf-test-machine-buffer-name)))))
 
 (deftest trf-accept-stops-when-the-record-keeper-keeps-a-modified-buffer ()
   "When the record keeper keeps a modified buffer of the work, accepting stops; accepting again removes it."

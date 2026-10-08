@@ -82,7 +82,7 @@
     (special-mode)
     (display-buffer (current-buffer))))
 
-;; F-2 §Produces: Accept or reject the record implementation report
+;; F-2 §Rules: Accept or reject the record implementation report
 (defvar trf--session-buffers (make-hash-table :test #'equal)
   "The machines' session buffers, keyed by the worktree they work in.")
 
@@ -187,6 +187,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       (with-current-buffer buffer
         (set-buffer-modified-p nil))
       (kill-buffer buffer))
+    ;; F-2 §Rules: Accept or reject the record implementation report
     (dolist (buffer (gethash key trf--session-buffers))
       (when (buffer-live-p buffer)
         (kill-buffer buffer)))
