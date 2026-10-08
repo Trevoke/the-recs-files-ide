@@ -76,37 +76,44 @@ DIRECTORY defaults to `trf-test-root'."
         (progn (trf-implement-record-changes) nil)
       (error err))))
 
-(deftest trf-implement-without-record-changes ()
-  "With no record changes the IDE gives MSG-1 and does nothing else."
-  (let ((head (trf-test-head trf-test-root)))
+(defun trf-test-assert-implement-refuses (refusal &optional implement)
+  "Assert IMPLEMENT gives REFUSAL, asking nothing and leaving HEAD, status and .worktrees as they were.
+IMPLEMENT defaults to `trf-test-implement'."
+  (let ((head (trf-test-head trf-test-root))
+        (status (trf-test-git trf-test-root "status" "--porcelain"))
+        (worktrees (file-exists-p (expand-file-name ".worktrees" trf-test-root))))
     (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) (error "Asked to confirm")))
               ((symbol-function 'trf-session-config) (lambda () (error "Asked for a config"))))
-      ;; F-1 §Rules: Ask the IDE to implement the record changes
-      ;; MSG-1: No record changes to implement
-      (assert-equal '(user-error "There are no record changes to implement.")
-                    (trf-test-implement)))
-    ;; UW-1 §Minimal guarantee: Turn record changes into code
-    (assert-equal head (trf-test-head trf-test-root))))
+      (assert-equal refusal (funcall (or implement #'trf-test-implement))))
+    (assert-equal head (trf-test-head trf-test-root))
+    (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))
+    (assert-equal worktrees (file-exists-p (expand-file-name ".worktrees" trf-test-root)))))
+
+(deftest trf-implement-without-record-changes ()
+  "With no record changes the IDE gives MSG-1 and does nothing else."
+  ;; F-1 §Rules: Ask the IDE to implement the record changes
+  ;; UW-1 §Minimal guarantee: Turn record changes into code
+  ;; MSG-1: No record changes to implement
+  (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement.")))
 
 (deftest trf-implement-mid-merge-without-record-changes ()
   "Mid merge, the IDE gives MSG-3 even when there are no record changes."
   (trf-test-leave-in-progress trf-test-root 'merge)
   ;; UW-1 §Extensions: Turn record changes into code
   ;; MSG-3: Finish the merge or rebase first
-  (assert-equal '(user-error
-                  "The target product is in the middle of a merge or rebase; finish it first.")
-                (trf-test-implement)))
+  (trf-test-assert-implement-refuses
+   '(user-error
+     "The target product is in the middle of a merge or rebase; finish it first.")))
 
 (deftest trf-implement-mid-merge-with-record-changes ()
   "Mid merge, the IDE gives MSG-3 and asks nothing."
   (trf-test-leave-in-progress trf-test-root 'merge)
   (trf-test-write-files trf-test-root (list trf-test-record-change))
-  (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) (error "Asked to confirm"))))
-    ;; UW-1 §Extensions: Turn record changes into code
-    ;; MSG-3: Finish the merge or rebase first
-    (assert-equal '(user-error
-                    "The target product is in the middle of a merge or rebase; finish it first.")
-                  (trf-test-implement))))
+  ;; UW-1 §Extensions: Turn record changes into code
+  ;; MSG-3: Finish the merge or rebase first
+  (trf-test-assert-implement-refuses
+   '(user-error
+     "The target product is in the middle of a merge or rebase; finish it first.")))
 
 (deftest trf-implement-shows-the-record-changes ()
   "The record changes are shown before the record keeper is asked to confirm."
@@ -305,6 +312,13 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
         (trf-test-head directory)
         (trf-test-git directory "status" "--porcelain")))
 
+(defun trf-test-assert-accept-refuses (directory refusal)
+  "Assert accepting from DIRECTORY's report gives REFUSAL and leaves the codebase and DIRECTORY as they were."
+  (let ((state (trf-test-state directory)))
+    (assert-equal refusal (trf-test-from-file (trf-test-report-file directory)
+                                              #'trf-accept-record-implementation-report))
+    (assert-equal state (trf-test-state directory))))
+
 (defun trf-test-build (directory)
   "Commit an edit to src/widget.el in the worktree DIRECTORY."
   (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; built\n")))
@@ -343,43 +357,34 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
   "Mid merge, accepting gives MSG-3 and keeps the work in progress."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-leave-in-progress trf-test-root 'merge)
-    (let ((state (trf-test-state directory)))
-      ;; UW-1 §Extensions: Turn record changes into code
-      ;; MSG-3: Finish the merge or rebase first
-      (assert-equal '(user-error
-                      "The target product is in the middle of a merge or rebase; finish it first.")
-                    (trf-test-from-file (trf-test-report-file directory)
-                                        #'trf-accept-record-implementation-report))
-      ;; UW-1 §Extensions: Turn record changes into code
-      (assert-equal state (trf-test-state directory)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-3: Finish the merge or rebase first
+    (trf-test-assert-accept-refuses
+     directory
+     '(user-error
+       "The target product is in the middle of a merge or rebase; finish it first."))))
 
 (deftest trf-accept-on-another-branch ()
   "With the codebase on another branch, accepting gives MSG-8 and keeps the work in progress."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-git trf-test-root "checkout" "--quiet" "-b" "side")
-    (let ((state (trf-test-state directory)))
-      ;; UW-1 §Extensions: Turn record changes into code
-      ;; MSG-8: Target product is not on the primary git branch
-      (assert-equal '(user-error "The target product is not on the primary git branch:\nmain")
-                    (trf-test-from-file (trf-test-report-file directory)
-                                        #'trf-accept-record-implementation-report))
-      ;; UW-1 §Extensions: Turn record changes into code
-      (assert-equal state (trf-test-state directory)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-8: Target product is not on the primary git branch
+    (trf-test-assert-accept-refuses
+     directory
+     '(user-error "The target product is not on the primary git branch:\nmain"))))
 
 (deftest trf-accept-on-a-detached-codebase ()
   "With the codebase detached, accepting gives MSG-8 and keeps the work in progress."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
-    (let ((state (trf-test-state directory)))
-      ;; UW-1 §Extensions: Turn record changes into code
-      ;; MSG-8: Target product is not on the primary git branch
-      (assert-equal '(user-error "The target product is not on the primary git branch:\nmain")
-                    (trf-test-from-file (trf-test-report-file directory)
-                                        #'trf-accept-record-implementation-report))
-      ;; UW-1 §Extensions: Turn record changes into code
-      (assert-equal state (trf-test-state directory)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-8: Target product is not on the primary git branch
+    (trf-test-assert-accept-refuses
+     directory
+     '(user-error "The target product is not on the primary git branch:\nmain"))))
 
 (deftest trf-accept-refused-by-the-target-product ()
   "When the work cannot be brought in, accepting gives MSG-5 with git's reason and changes nothing."
@@ -506,28 +511,20 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
 (deftest trf-implement-git-fails-checking-for-an-operation-in-progress ()
   "When git fails checking for a merge or rebase, implementing gives MSG-7 with git's output."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
-  (let ((head (trf-test-head trf-test-root))
-        (status (trf-test-git trf-test-root "status" "--porcelain")))
-    (trf-test-failing-git 'trf-git-operation-in-progress-p "fatal: broken"
-      ;; F-1 §Rules: Ask the IDE to implement the record changes
-      ;; MSG-7: Git could not do what the IDE asked
-      (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: broken")
-                    (trf-test-implement)))
-    (assert-equal head (trf-test-head trf-test-root))
-    (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))))
+  ;; F-1 §Rules: Ask the IDE to implement the record changes
+  ;; MSG-7: Git could not do what the IDE asked
+  (trf-test-assert-implement-refuses
+   '(user-error "Git could not do what the IDE asked:\nfatal: broken")
+   (lambda () (trf-test-failing-git 'trf-git-operation-in-progress-p "fatal: broken" (trf-test-implement)))))
 
 (deftest trf-implement-git-fails-without-a-reason ()
   "When git fails reading the record changes and says nothing, implementing gives MSG-7 with no reason given."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
-  (let ((head (trf-test-head trf-test-root))
-        (status (trf-test-git trf-test-root "status" "--porcelain")))
-    (trf-test-failing-git 'trf-record-changes ""
-      ;; F-1 §Rules: Ask the IDE to implement the record changes
-      ;; MSG-7: Git could not do what the IDE asked
-      (assert-equal '(user-error "Git could not do what the IDE asked:\nNo reason given.")
-                    (trf-test-implement)))
-    (assert-equal head (trf-test-head trf-test-root))
-    (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))))
+  ;; F-1 §Rules: Ask the IDE to implement the record changes
+  ;; MSG-7: Git could not do what the IDE asked
+  (trf-test-assert-implement-refuses
+   '(user-error "Git could not do what the IDE asked:\nNo reason given.")
+   (lambda () (trf-test-failing-git 'trf-record-changes "" (trf-test-implement)))))
 
 (deftest trf-implement-git-fails-creating-the-worktree ()
   "When git fails creating the worktree, implementing gives MSG-7 and keeps the record changes' commit."
@@ -634,28 +631,16 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
   "On a detached codebase, the IDE gives MSG-8, asks nothing, commits nothing and starts no work."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
-  (let ((head (trf-test-head trf-test-root))
-        (status (trf-test-git trf-test-root "status" "--porcelain")))
-    (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) (error "Asked to confirm")))
-              ((symbol-function 'trf-session-config) (lambda () (error "Asked for a config"))))
-      ;; UW-1 §Extensions: Turn record changes into code
-      ;; MSG-8: Target product is not on the primary git branch
-      (assert-equal '(user-error "The target product is not on the primary git branch:\nmain")
-                    (trf-test-implement)))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-equal head (trf-test-head trf-test-root))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-nil (file-exists-p (expand-file-name ".worktrees" trf-test-root)))))
+  ;; UW-1 §Extensions: Turn record changes into code
+  ;; MSG-8: Target product is not on the primary git branch
+  (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain")))
 
 (deftest trf-implement-on-a-detached-codebase-gives-msg-8-before-msg-1 ()
   "On a detached codebase without record changes, the IDE gives MSG-8 rather than MSG-1."
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
   ;; UW-1 §Extensions: Turn record changes into code
   ;; MSG-8: Target product is not on the primary git branch
-  (assert-equal '(user-error "The target product is not on the primary git branch:\nmain")
-                (trf-test-implement)))
+  (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain")))
 
 (deftest trf-implement-mid-rebase-gives-msg-3-before-msg-8 ()
   "Mid rebase, with the codebase detached, the IDE gives MSG-3 rather than MSG-8."
@@ -663,41 +648,34 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
   (assert-equal "" (trf-test-git trf-test-root "branch" "--show-current"))
   ;; UW-1 §Extensions: Turn record changes into code
   ;; MSG-3: Finish the merge or rebase first
-  (assert-equal '(user-error
-                  "The target product is in the middle of a merge or rebase; finish it first.")
-                (trf-test-implement)))
+  (trf-test-assert-implement-refuses
+   '(user-error
+     "The target product is in the middle of a merge or rebase; finish it first.")))
 
 (deftest trf-implement-on-another-branch ()
   "On another branch, the IDE gives MSG-8, asks nothing, commits nothing and starts no work."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-git trf-test-root "checkout" "--quiet" "-b" "side")
-  (let ((head (trf-test-head trf-test-root))
-        (status (trf-test-git trf-test-root "status" "--porcelain")))
-    (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) (error "Asked to confirm")))
-              ((symbol-function 'trf-session-config) (lambda () (error "Asked for a config"))))
-      ;; UW-1 §Extensions: Turn record changes into code
-      ;; MSG-8: Target product is not on the primary git branch
-      (assert-equal '(user-error "The target product is not on the primary git branch:\nmain")
-                    (trf-test-implement)))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-equal head (trf-test-head trf-test-root))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-nil (file-exists-p (expand-file-name ".worktrees" trf-test-root)))))
+  ;; UW-1 §Extensions: Turn record changes into code
+  ;; MSG-8: Target product is not on the primary git branch
+  (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain")))
 
-(defun trf-test-name-the-primary-git-branch (branch)
-  "Name BRANCH the primary git branch in the target product's .dir-locals.el, committed on main."
-  (trf-test-write-files trf-test-root
+(defun trf-test-write-primary-git-branch (directory value)
+  "Write a .dir-locals.el in DIRECTORY setting `trf-primary-git-branch' to VALUE."
+  (trf-test-write-files directory
                         (list (cons ".dir-locals.el"
                                     (format "((nil . ((trf-primary-git-branch . %S))))\n"
-                                            branch))))
+                                            value)))))
+
+(defun trf-test-commit-primary-git-branch ()
+  "Commit the target product's .dir-locals.el."
   (trf-test-git trf-test-root "add" ".dir-locals.el")
   (trf-test-git trf-test-root "commit" "--quiet" "--message" "Primary git branch"))
 
 (deftest trf-implement-on-the-primary-git-branch-the-target-product-names ()
   "On the primary git branch the target product names, the IDE runs the implementation workflow."
-  (trf-test-name-the-primary-git-branch "trunk")
+  (trf-test-write-primary-git-branch trf-test-root "trunk")
+  (trf-test-commit-primary-git-branch)
   (trf-test-git trf-test-root "checkout" "--quiet" "-b" "trunk")
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (let (runs)
@@ -708,28 +686,26 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
 
 (deftest trf-implement-on-main-when-the-target-product-names-another-primary-git-branch ()
   "On main, when the target product names another primary git branch, the IDE gives MSG-8 with it."
-  (trf-test-name-the-primary-git-branch "trunk")
+  (trf-test-write-primary-git-branch trf-test-root "trunk")
+  (trf-test-commit-primary-git-branch)
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   ;; UW-1 §Extensions: Turn record changes into code
   ;; MSG-8: Target product is not on the primary git branch
-  (assert-equal '(user-error "The target product is not on the primary git branch:\ntrunk")
-                (trf-test-implement)))
+  (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\ntrunk")))
 
 (deftest trf-accept-on-main-when-the-target-product-names-another-primary-git-branch ()
   "On main, when the target product names another primary git branch, accepting gives MSG-8 with it."
-  (trf-test-name-the-primary-git-branch "trunk")
+  (trf-test-write-primary-git-branch trf-test-root "trunk")
+  (trf-test-commit-primary-git-branch)
   (trf-test-git trf-test-root "checkout" "--quiet" "-b" "trunk")
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-git trf-test-root "checkout" "--quiet" "main")
-    (let ((state (trf-test-state directory)))
-      ;; UW-1 §Extensions: Turn record changes into code
-      ;; MSG-8: Target product is not on the primary git branch
-      (assert-equal '(user-error "The target product is not on the primary git branch:\ntrunk")
-                    (trf-test-from-file (trf-test-report-file directory)
-                                        #'trf-accept-record-implementation-report))
-      ;; UW-1 §Extensions: Turn record changes into code
-      (assert-equal state (trf-test-state directory)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-8: Target product is not on the primary git branch
+    (trf-test-assert-accept-refuses
+     directory
+     '(user-error "The target product is not on the primary git branch:\ntrunk"))))
 
 (deftest trf-accept-off-the-primary-git-branch-once-the-codebase-has-moved ()
   "Off the primary git branch, once the codebase has moved, accepting gives MSG-8 and reruns nothing."
@@ -739,46 +715,73 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
     (trf-test-git trf-test-root "add" "--all")
     (trf-test-git trf-test-root "commit" "--quiet" "--message" "Other work")
     (trf-test-git trf-test-root "checkout" "--quiet" "-b" "side")
-    (let ((state (trf-test-state directory)))
-      ;; UW-1 §Extensions: Turn record changes into code
-      ;; MSG-8: Target product is not on the primary git branch
-      (assert-equal '(user-error "The target product is not on the primary git branch:\nmain")
-                    (trf-test-from-file (trf-test-report-file directory)
-                                        #'trf-accept-record-implementation-report))
-      ;; UW-1 §Extensions: Turn record changes into code
-      (assert-equal state (trf-test-state directory)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-8: Target product is not on the primary git branch
+    (trf-test-assert-accept-refuses
+     directory
+     '(user-error "The target product is not on the primary git branch:\nmain"))))
 
 (deftest trf-accept-mid-rebase-off-the-primary-git-branch-gives-msg-3-before-msg-8 ()
   "Mid rebase, with the codebase detached, accepting gives MSG-3 rather than MSG-8."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-leave-in-progress trf-test-root 'rebase)
     (assert-equal "" (trf-test-git trf-test-root "branch" "--show-current"))
-    (let ((state (trf-test-state directory)))
-      ;; UW-1 §Extensions: Turn record changes into code
-      ;; MSG-3: Finish the merge or rebase first
-      (assert-equal '(user-error
-                      "The target product is in the middle of a merge or rebase; finish it first.")
-                    (trf-test-from-file (trf-test-report-file directory)
-                                        #'trf-accept-record-implementation-report))
-      ;; UW-1 §Extensions: Turn record changes into code
-      (assert-equal state (trf-test-state directory)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-3: Finish the merge or rebase first
+    (trf-test-assert-accept-refuses
+     directory
+     '(user-error
+       "The target product is in the middle of a merge or rebase; finish it first."))))
 
 (deftest trf-accept-reads-the-primary-git-branch-from-the-target-product-root ()
   "When the work in progress and the target product name different primary git branches, accepting reads the target product's."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
+    (trf-test-write-primary-git-branch trf-test-root "trunk")
+    (trf-test-write-primary-git-branch directory "main")
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-8: Target product is not on the primary git branch
+    (trf-test-assert-accept-refuses
+     directory
+     '(user-error "The target product is not on the primary git branch:\ntrunk"))))
+
+(deftest trf-implement-detached-when-the-target-product-names-no-primary-git-branch ()
+  "Detached, when the target product's .dir-locals.el names nil, the IDE still gives MSG-8."
+  (trf-test-write-primary-git-branch trf-test-root nil)
+  (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
+  (let ((enable-local-variables :all))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-8: Target product is not on the primary git branch
+    (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain"))))
+
+(deftest trf-implement-evaluates-nothing-from-the-target-products-dir-locals ()
+  "Implementing evaluates no eval form in the target product's .dir-locals.el."
+  (let ((marker (expand-file-name "evaluated" trf-test-root)))
     (trf-test-write-files trf-test-root
-                          '((".dir-locals.el" . "((nil . ((trf-primary-git-branch . \"trunk\"))))\n")))
-    (trf-test-write-files directory
-                          '((".dir-locals.el" . "((nil . ((trf-primary-git-branch . \"main\"))))\n")))
-    (let ((state (trf-test-state directory)))
-      ;; UW-1 §Extensions: Turn record changes into code
-      ;; MSG-8: Target product is not on the primary git branch
-      (assert-equal '(user-error "The target product is not on the primary git branch:\ntrunk")
-                    (trf-test-from-file (trf-test-report-file directory)
-                                        #'trf-accept-record-implementation-report))
-      ;; UW-1 §Extensions: Turn record changes into code
-      (assert-equal state (trf-test-state directory)))))
+                          (list (cons ".dir-locals.el"
+                                      (format "((nil . ((eval . (write-region \"\" nil %S)))))\n"
+                                              marker))))
+    (let ((enable-local-variables :all))
+      (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement.")))
+    (assert-nil (file-exists-p marker))))
+
+(deftest trf-implement-on-main-when-the-target-product-names-an-empty-primary-git-branch ()
+  "On main, when the target product's .dir-locals.el names an empty string, the primary git branch stays main."
+  (trf-test-write-primary-git-branch trf-test-root "")
+  ;; F-1 §Rules: Ask the IDE to implement the record changes
+  ;; MSG-1: No record changes to implement
+  (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement.")))
+
+(deftest trf-implement-detached-when-the-ide-names-no-primary-git-branch ()
+  "Detached, with the IDE setting naming no primary git branch, the IDE gives MSG-8."
+  (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
+  (let ((trf-primary-git-branch nil))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-8: Target product is not on the primary git branch
+    (let ((refusal (trf-test-implement)))
+      (assert-equal 'user-error (car refusal))
+      (assert-true (string-prefix-p "The target product is not on the primary git branch:\n"
+                                    (cadr refusal))))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

@@ -36,21 +36,24 @@
 (defcustom trf-primary-git-branch "main"
   "The primary git branch of the target product."
   :type 'string
-  :safe #'stringp
+  :safe (lambda (value) (and (stringp value) (not (string-empty-p value))))
   :group 'trf)
 
 (defun trf--primary-git-branch (root)
   "Return `trf-primary-git-branch' as it applies to the target product's ROOT."
   (with-temp-buffer
     (setq default-directory (file-name-as-directory root))
-    (hack-dir-local-variables-non-file-buffer)
+    (let ((enable-local-variables :safe))
+      (hack-dir-local-variables-non-file-buffer))
     trf-primary-git-branch))
 
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf--refuse-off-the-primary-git-branch (root)
   "Signal a `user-error' unless ROOT is on the primary git branch."
   (let ((primary (trf--primary-git-branch root)))
-    (unless (equal primary (trf-git-current-branch root))
+    (unless (and (stringp primary)
+                 (not (string-empty-p primary))
+                 (equal primary (trf-git-current-branch root)))
       ;; MSG-8: Target product is not on the primary git branch
       (user-error "%s\n%s" trf-not-on-the-primary-git-branch-message primary))))
 
