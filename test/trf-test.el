@@ -60,9 +60,10 @@ or the name of the machine that stops instead of finishing."
   (when-let* ((file (buffer-file-name (window-buffer (selected-window)))))
     (string-suffix-p "/.trf/record-implementation-report.org" file)))
 
-(defun trf-test-implement ()
-  "Ask the IDE to implement the record changes of `trf-test-root'; return what it signals."
-  (let ((default-directory trf-test-root))
+(defun trf-test-implement (&optional directory)
+  "Ask the IDE to implement the record changes from DIRECTORY; return what it signals.
+DIRECTORY defaults to `trf-test-root'."
+  (let ((default-directory (or directory trf-test-root)))
     (condition-case err
         (progn (trf-implement-record-changes) nil)
       (error err))))
@@ -205,6 +206,61 @@ or the name of the machine that stops instead of finishing."
     (assert-equal '("brainstorming machine" "planning machine") (mapcar #'car runs))
     ;; UW-1 §Extensions: Turn record changes into code
     (assert-nil (trf-test-report-shown-p))))
+
+(deftest trf-implement-refused-commit ()
+  "When the record changes cannot be committed, MSG-4 is given and no machine runs."
+  (trf-test-write-files trf-test-root
+                        (list trf-test-record-change
+                              '(".git/hooks/pre-commit"
+                                . "#!/bin/sh\necho pre-commit refuses >&2\nexit 1\n")))
+  (set-file-modes (expand-file-name ".git/hooks/pre-commit" trf-test-root) #o755)
+  (let (runs refusal)
+    (trf-test-with-machines runs 'now
+      (setq refusal (trf-test-implement)))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-4: Record changes could not be committed
+    (assert-equal '(user-error "The record changes could not be committed:\npre-commit refuses")
+                  refusal)
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-nil runs)
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-nil (file-exists-p (expand-file-name ".worktrees" trf-test-root)))))
+
+(deftest trf-implement-record-changes-already-committed ()
+  "Record changes already committed are not committed again; the machines start from the latest commit."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (trf-test-git trf-test-root "add" "--all")
+  (trf-test-git trf-test-root "commit" "--quiet" "--message" "Order")
+  (let ((head (trf-test-head trf-test-root))
+        runs)
+    (trf-test-with-machines runs 'now
+      (assert-nil (trf-test-implement)))
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    (assert-equal head (trf-test-head trf-test-root))
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    (assert-equal head (string-trim (trf-test-git (nth 1 (car runs)) "rev-parse" "HEAD")))))
+
+(deftest trf-implement-from-inside-a-worktree ()
+  "Asked from inside a worktree, the IDE implements the target product's record changes."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let (runs)
+    (trf-test-with-machines runs 'now
+      (trf-test-implement))
+    (let* ((first (nth 1 (car runs)))
+           (first-head (string-trim (trf-test-git first "rev-parse" "HEAD"))))
+      (setq runs nil)
+      (trf-test-write-files trf-test-root '(("docs/features/f-2-pay.org" . "* F-2 Pay\n")))
+      (trf-test-with-machines runs 'now
+        (assert-nil (trf-test-implement (expand-file-name ".trf/" first))))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal "main\n" (trf-test-git trf-test-root "rev-parse" "--abbrev-ref" "HEAD"))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-match "^- F-2 Pay$" (trf-test-git trf-test-root "log" "-1" "--format=format:%B"))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal first-head (string-trim (trf-test-git first "rev-parse" "HEAD")))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal (expand-file-name ".worktrees/" trf-test-root)
+                    (file-name-directory (directory-file-name (nth 1 (car runs))))))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

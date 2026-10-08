@@ -46,12 +46,21 @@ Give the first PREVIOUS-HANDOFF; call ON-DONE once the last has finished."
         (find-file-noselect
          (expand-file-name (trf-machines-handoff-file assessor) directory)))))))
 
+;; UW-1 §Extensions: Turn record changes into code
+(defun trf--target-product-root ()
+  "Return the root of the target product holding `default-directory'.
+From inside a worktree, return the target product's root it was created from."
+  (let ((worktree (trf-worktree-of default-directory)))
+    (cond (worktree (trf-worktree-root worktree))
+          ((trf-project-root))
+          (t default-directory))))
+
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 ;;;###autoload
 (defun trf-implement-record-changes ()
   "Ask the IDE to implement the record changes."
   (interactive)
-  (let ((root (or (trf-project-root) default-directory)))
+  (let ((root (trf--target-product-root)))
     ;; UW-1 §Extensions: Turn record changes into code
     (when (trf-git-operation-in-progress-p root)
       (user-error "%s" trf-record-changes-operation-in-progress-message))
