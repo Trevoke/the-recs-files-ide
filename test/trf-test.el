@@ -874,5 +874,21 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
     ;; MSG-9: No primary git branch is named
     (trf-test-assert-accept-refuses directory '(user-error "Please set a primary git branch first."))))
 
+(deftest trf-accept-refused-by-the-target-product-without-a-reason ()
+  "When the work cannot be brought in and git says nothing, accepting gives MSG-5 with no reason given."
+  (let ((directory (trf-test-implemented-worktree))
+        (git (symbol-function 'trf-git)))
+    (trf-test-build directory)
+    (cl-letf (((symbol-function 'trf-git)
+               (lambda (dir &rest args)
+                 (if (equal (car args) "merge")
+                     (signal 'trf-git-error (list ""))
+                   (apply git dir args)))))
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; MSG-5: Work cannot be brought into the codebase
+      (trf-test-assert-accept-refuses
+       directory
+       '(user-error "The work cannot be brought into the codebase:\nNo reason given.")))))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here

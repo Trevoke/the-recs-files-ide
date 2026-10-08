@@ -178,7 +178,8 @@ From inside a worktree, return the target product's root it was created from."
           (trf-worktree-merge-failed
            ;; UW-1 §Extensions: Turn record changes into code
            ;; MSG-5: Work cannot be brought into the codebase
-           (user-error "%s\n%s" trf-work-not-brought-in-message (cadr err)))))))))
+           (user-error "%s\n%s" trf-work-not-brought-in-message
+                       (trf-record-changes-reason (cadr err))))))))))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-reject-record-implementation-report ()
