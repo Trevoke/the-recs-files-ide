@@ -143,6 +143,7 @@
 
 (defun trf-session-test-turn-ends (stop-reason)
   "Run a machine through one turn ending with STOP-REASON; return (FINISHED STOPPED DISPLAYED)."
+  (setq trf-session-test-handlers nil)
   (trf-session-test-with-fake-shell
    (with-spy display-buffer calls
      (let (finished (stopped 0))
@@ -158,18 +159,20 @@
   (dolist (reason '("refusal" "max_tokens" "max_turn_requests"))
     (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends reason)))
       ;; UW-1 §Extensions: Turn record changes into code
-      (assert-equal 1 stopped reason)
-      (assert-nil finished reason)
-      (assert-equal (list (get-buffer trf-session-test-buffer-name)) displayed reason))))
+      (assert-equal 1 stopped (format "a %s turn stops the machine once" reason))
+      (assert-nil finished (format "a %s turn does not finish the machine" reason))
+      (assert-equal (list (get-buffer trf-session-test-buffer-name)) displayed
+                    (format "a %s turn displays the session buffer" reason)))))
 
 (deftest trf-session-waits-when-turn-ends-normally ()
   "A turn that ends normally without the handoff file leaves the machine waiting."
-  (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends "end_turn")))
-    ;; UW-1 §Main success scenario: Turn record changes into code
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-equal 0 stopped)
-    (assert-nil finished)
-    (assert-nil displayed)))
+  (dolist (reason '("end_turn" nil))
+    (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends reason)))
+      ;; UW-1 §Main success scenario: Turn record changes into code
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal 0 stopped (format "a %S turn does not stop the machine" reason))
+      (assert-nil finished (format "a %S turn does not finish the machine" reason))
+      (assert-nil displayed (format "a %S turn displays no buffer" reason)))))
 
 (deftest trf-session-finished-whatever-the-stop-reason ()
   "A turn that ends with the handoff file finishes the machine, whatever its stop reason."
@@ -183,9 +186,12 @@
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason reason)))
        (trf-session-test-settle)
        ;; UW-1 §Main success scenario: Turn record changes into code
-       (assert-equal "Plan written." finished reason)
+       (assert-equal "Plan written." finished
+                     (format "a %s turn with the handoff file finishes the machine" reason))
        ;; UW-1 §Extensions: Turn record changes into code
-       (assert-nil stopped reason)))))
+       (assert-nil stopped
+                   (format "a %s turn with the handoff file does not stop the machine"
+                           reason))))))
 
 (deftest trf-session-abandoned-when-buffer-killed ()
   "A session cleaned up before the handoff calls neither continuation."

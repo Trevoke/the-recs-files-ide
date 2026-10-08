@@ -46,7 +46,6 @@ Give the first PREVIOUS-HANDOFF; call ON-DONE once the last has finished."
         (find-file-noselect
          (expand-file-name (trf-machines-handoff-file assessor) directory)))))))
 
-;; UW-1 §Extensions: Turn record changes into code
 (defun trf--target-product-root ()
   "Return the root of the target product holding `default-directory'.
 From inside a worktree, return the target product's root it was created from."

@@ -9,6 +9,8 @@
 
 (defconst trf-test-config '((:identifier . fake)))
 
+(defconst trf-test-machine-buffer-name "*trf fake machine*")
+
 (defconst trf-test-record-change '("docs/features/f-1-order.org" . "* F-1 Order\n"))
 
 (setup-each ()
@@ -20,8 +22,9 @@
     (when (and (buffer-file-name buffer)
                (string-prefix-p trf-test-root (buffer-file-name buffer)))
       (kill-buffer buffer)))
-  (when (get-buffer "*trf record changes*")
-    (kill-buffer "*trf record changes*"))
+  (dolist (name (list trf-record-changes-buffer-name trf-test-machine-buffer-name))
+    (when (get-buffer name)
+      (kill-buffer name)))
   (delete-directory trf-test-root t))
 
 (deftest trf-test-version-is-set ()
@@ -32,27 +35,32 @@
   "Run BODY with each machine handing off; RUNS collects (name directory config instructions).
 FINISHING is `now' to finish each machine at once, `later' to finish it from a timer,
 or the name of the machine that stops instead of finishing."
-  `(cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
-             ((symbol-function 'trf-session-run)
-              (lambda (machine directory config instructions on-finished on-stopped)
-                (let ((name (plist-get machine :name)))
-                  (setq ,runs (append ,runs (list (list name directory config instructions))))
-                  (if (equal ,finishing name)
-                      (funcall on-stopped)
-                    (let ((text (concat "Handed off by " name ".")))
-                      (with-temp-file (expand-file-name (trf-machines-handoff-file machine)
-                                                        directory)
-                        (insert text))
-                      (if (eq ,finishing 'later)
-                          (run-at-time 0 nil on-finished text)
-                        (funcall on-finished text)))))
-                (get-buffer-create "*trf fake machine*")))
-             ((symbol-function 'y-or-n-p) (lambda (&rest _) t)))
-     ,@body))
+  (let ((timers (make-symbol "timers")))
+    `(let ((,timers nil))
+       (unwind-protect
+           (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
+                     ((symbol-function 'trf-session-run)
+                      (lambda (machine directory config instructions on-finished on-stopped)
+                        (let ((name (plist-get machine :name)))
+                          (setq ,runs (append ,runs (list (list name directory config
+                                                                instructions))))
+                          (if (equal ,finishing name)
+                              (funcall on-stopped)
+                            (let ((text (concat "Handed off by " name ".")))
+                              (with-temp-file (expand-file-name
+                                               (trf-machines-handoff-file machine) directory)
+                                (insert text))
+                              (if (eq ,finishing 'later)
+                                  (push (run-at-time 0 nil on-finished text) ,timers)
+                                (funcall on-finished text)))))
+                        (get-buffer-create trf-test-machine-buffer-name)))
+                     ((symbol-function 'y-or-n-p) (lambda (&rest _) t)))
+             ,@body)
+         (mapc #'cancel-timer ,timers)))))
 
 (defun trf-test-settle (done)
-  "Wait until DONE returns non-nil, for at most two seconds."
-  (with-timeout (2 nil)
+  "Wait until DONE returns non-nil; signal an error after two seconds."
+  (with-timeout (2 (error "Timed out waiting for %S" done))
     (while (not (funcall done))
       (accept-process-output nil 0.01))))
 
@@ -106,7 +114,8 @@ DIRECTORY defaults to `trf-test-root'."
   (let (shown)
     (cl-letf (((symbol-function 'y-or-n-p)
                (lambda (&rest _)
-                 (setq shown (with-current-buffer "*trf record changes*" (buffer-string)))
+                 (setq shown (with-current-buffer trf-record-changes-buffer-name
+                              (buffer-string)))
                  nil)))
       (trf-test-implement))
     ;; F-1 §Rules: Ask the IDE to implement the record changes
@@ -252,13 +261,11 @@ DIRECTORY defaults to `trf-test-root'."
       (trf-test-write-files trf-test-root '(("docs/features/f-2-pay.org" . "* F-2 Pay\n")))
       (trf-test-with-machines runs 'now
         (assert-nil (trf-test-implement (expand-file-name ".trf/" first))))
-      ;; UW-1 §Extensions: Turn record changes into code
       (assert-equal "main\n" (trf-test-git trf-test-root "rev-parse" "--abbrev-ref" "HEAD"))
       ;; F-1 §Rules: Ask the IDE to implement the record changes
       (assert-match "^- F-2 Pay$" (trf-test-git trf-test-root "log" "-1" "--format=format:%B"))
       ;; UW-1 §Extensions: Turn record changes into code
       (assert-equal first-head (string-trim (trf-test-git first "rev-parse" "HEAD")))
-      ;; UW-1 §Extensions: Turn record changes into code
       (assert-equal (expand-file-name ".worktrees/" trf-test-root)
                     (file-name-directory (directory-file-name (nth 1 (car runs))))))))
 
