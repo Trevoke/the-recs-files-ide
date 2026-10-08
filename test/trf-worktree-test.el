@@ -255,5 +255,53 @@
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-true (trf-worktree-brought-in-p directory))))
 
+(defun trf-worktree-test-commit (root message)
+  (trf-test-write-files root (list (cons "src/widget.el" (concat "; " message "\n"))))
+  (trf-test-git root "commit" "--quiet" "--all" "--message" message)
+  (trf-test-head root))
+
+(defun trf-worktree-test-implemented (root)
+  (string-trim (trf-test-git root "rev-parse" "refs/recs/implemented")))
+
+(deftest trf-worktree-mark-implemented-without-a-ref ()
+  "With nothing implemented, marking a worktree's record changes implemented sets the ref to its base."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root))))
+    (trf-worktree-mark-implemented directory)
+    ;; UW-1 §Success guarantee: Turn record changes into code
+    (assert-equal (trf-test-head root) (trf-worktree-test-implemented root))))
+
+(deftest trf-worktree-mark-implemented-moves-the-ref-forward ()
+  "A base holding the implemented records moves the ref to it."
+  (let* ((root trf-worktree-test-root)
+         (earlier (trf-test-head root)))
+    (trf-test-git root "update-ref" "refs/recs/implemented" earlier)
+    (let* ((base (trf-worktree-test-commit root "later"))
+           (directory (trf-worktree-create root base)))
+      (trf-worktree-mark-implemented directory)
+      ;; UW-1 §Success guarantee: Turn record changes into code
+      (assert-equal base (trf-worktree-test-implemented root)))))
+
+(deftest trf-worktree-mark-implemented-never-moves-the-ref-back ()
+  "A base the implemented records already hold leaves the ref where it is."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root)))
+         (later (trf-worktree-test-commit root "later")))
+    (trf-test-git root "update-ref" "refs/recs/implemented" later)
+    (trf-worktree-mark-implemented directory)
+    ;; UW-1 §Success guarantee: Turn record changes into code
+    (assert-equal later (trf-worktree-test-implemented root))))
+
+(deftest trf-worktree-mark-implemented-leaves-a-diverged-ref ()
+  "A base that has diverged from the implemented records leaves the ref where it is."
+  (let* ((root trf-worktree-test-root)
+         (side (progn (trf-test-git root "checkout" "--quiet" "-b" "side")
+                      (trf-worktree-test-commit root "side"))))
+    (trf-test-git root "checkout" "--quiet" "main")
+    (trf-test-git root "update-ref" "refs/recs/implemented" side)
+    (let ((directory (trf-worktree-create root (trf-worktree-test-commit root "main"))))
+      (trf-worktree-mark-implemented directory)
+      (assert-equal side (trf-worktree-test-implemented root)))))
+
 (provide 'trf-worktree-test)
 ;;; trf-worktree-test.el ends here

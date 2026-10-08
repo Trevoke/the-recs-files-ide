@@ -96,17 +96,17 @@ From inside a worktree, return the target product's root it was created from."
   "Ask the IDE to implement the record changes."
   (interactive)
   (trf--giving-git-failures
-   (let ((root (trf--target-product-root)))
-     (trf-record-changes-refuse-operation-in-progress root)
-     (let ((changes (trf-record-changes root)))
-       (unless changes
-         (user-error "%s" trf-no-record-changes-message))
-       (trf--show-record-changes changes)
-       (when (y-or-n-p "Implement these record changes? ")
-         (let* ((config (trf-session-config))
-                (commit (trf-record-changes-commit root changes))
-                (directory (trf-worktree-create root commit)))
-           (trf--implement directory config changes nil)))))))
+    (let ((root (trf--target-product-root)))
+      (trf-record-changes-refuse-operation-in-progress root)
+      (let ((changes (trf-record-changes root)))
+        (unless changes
+          (user-error "%s" trf-no-record-changes-message))
+        (trf--show-record-changes changes)
+        (when (y-or-n-p "Implement these record changes? ")
+          (let* ((config (trf-session-config))
+                 (commit (trf-record-changes-commit root changes))
+                 (directory (trf-worktree-create root commit)))
+            (trf--implement directory config changes nil)))))))
 
 (defun trf--work-in-progress ()
   "Return the worktree holding the current buffer's file, or signal a `user-error'."
@@ -122,32 +122,32 @@ From inside a worktree, return the target product's root it was created from."
   (interactive)
   ;; F-2 §Rules: Accept or reject the record implementation report
   (trf--giving-git-failures
-   (let* ((directory (trf--work-in-progress))
-          (root (trf-worktree-root directory)))
-     (trf-record-changes-refuse-operation-in-progress root)
-     ;; UW-1 §Extensions: Turn record changes into code
-     (unless (trf-worktree-root-on-its-branch-p directory)
-       ;; MSG-6: Codebase is not on the work's branch
-       (user-error "%s" trf-not-on-the-works-branch-message))
-     (cond
-      ;; UW-1 §Success guarantee: Turn record changes into code
-      ((trf-worktree-brought-in-p directory)
-       (trf-worktree-mark-implemented directory))
-      ;; F-2 §Rules: Accept or reject the record implementation report
+    (let* ((directory (trf--work-in-progress))
+           (root (trf-worktree-root directory)))
+      (trf-record-changes-refuse-operation-in-progress root)
       ;; UW-1 §Extensions: Turn record changes into code
-      ((trf-worktree-codebase-moved-p directory)
-       (trf--implement directory (trf-session-config)
-                       (trf-record-changes-in-commit root (trf-worktree-from directory)
-                                                    (trf-worktree-base directory))
-                       trf-codebase-moved-instruction))
-      (t
-       (condition-case err
-           ;; F-2 §Produces: Accept or reject the record implementation report
-           (trf-worktree-accept directory)
-         (trf-worktree-merge-failed
-          ;; UW-1 §Extensions: Turn record changes into code
-          ;; MSG-5: Work cannot be brought into the codebase
-          (user-error "%s\n%s" trf-work-not-brought-in-message (cadr err)))))))))
+      (unless (trf-worktree-root-on-its-branch-p directory)
+        ;; MSG-6: Codebase is not on the work's branch
+        (user-error "%s" trf-not-on-the-works-branch-message))
+      (cond
+       ;; UW-1 §Success guarantee: Turn record changes into code
+       ((trf-worktree-brought-in-p directory)
+        (trf-worktree-mark-implemented directory))
+       ;; F-2 §Rules: Accept or reject the record implementation report
+       ;; UW-1 §Extensions: Turn record changes into code
+       ((trf-worktree-codebase-moved-p directory)
+        (trf--implement directory (trf-session-config)
+                        (trf-record-changes-in-commit root (trf-worktree-from directory)
+                                                      (trf-worktree-base directory))
+                        trf-codebase-moved-instruction))
+       (t
+        (condition-case err
+            ;; F-2 §Produces: Accept or reject the record implementation report
+            (trf-worktree-accept directory)
+          (trf-worktree-merge-failed
+           ;; UW-1 §Extensions: Turn record changes into code
+           ;; MSG-5: Work cannot be brought into the codebase
+           (user-error "%s\n%s" trf-work-not-brought-in-message (cadr err)))))))))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
 ;;;###autoload

@@ -458,7 +458,17 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
                                     #'trf-accept-record-implementation-report))
     ;; UW-1 §Extensions: Turn record changes into code
     (assert-equal "- F-2 Pay (added): docs/features/f-2-pay.org\n"
-                  (trf-test-rerun-record-changes started-first))))
+                  (trf-test-rerun-record-changes started-first))
+    (trf-test-build started-first)
+    (trf-test-git started-first "merge" "--quiet" "--no-edit" "main")
+    (assert-nil (trf-test-from-file (trf-test-report-file started-first)
+                                    #'trf-accept-record-implementation-report))
+    ;; UW-1 §Main success scenario: Turn record changes into code
+    (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
+    ;; UW-1 §Success guarantee: Turn record changes into code
+    (assert-equal (trf-worktree-base started-later)
+                  (string-trim (trf-test-git trf-test-root "rev-parse"
+                                             "refs/recs/implemented")))))
 
 (deftest trf-accept-reruns-on-the-record-changes-it-started-with-after-earlier-work-is-accepted ()
   "Work started on top of other work reruns on the record changes it started with once that work is accepted."

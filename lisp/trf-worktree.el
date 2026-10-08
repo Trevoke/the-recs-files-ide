@@ -118,9 +118,13 @@
 
 ;; UW-1 §Success guarantee: Turn record changes into code
 (defun trf-worktree-mark-implemented (directory)
-  "Mark DIRECTORY's record changes implemented."
-  (trf-git (trf-worktree-root directory) "update-ref" trf-record-changes-implemented-ref
-           (trf-worktree-base directory)))
+  "Mark DIRECTORY's record changes implemented, moving the implemented records only forward."
+  (let* ((root (trf-worktree-root directory))
+         (base (trf-worktree-base directory))
+         (implemented (trf-git-ref-commit root trf-record-changes-implemented-ref)))
+    (when (or (not implemented)
+              (trf-git-check root "merge-base" "--is-ancestor" implemented base))
+      (trf-git root "update-ref" trf-record-changes-implemented-ref base))))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-worktree-accept (directory)
