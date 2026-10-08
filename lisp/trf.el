@@ -150,6 +150,15 @@ From inside a worktree, return the target product's root it was created from."
       ;; MSG-2: No work in progress to accept or reject
       (user-error "%s" trf-no-work-in-progress-message)))
 
+;; F-2 §Produces: Accept or reject the record implementation report
+(defun trf--remove-work-in-progress (directory)
+  "Remove the work in progress DIRECTORY, and kill the buffers visiting its files."
+  (trf-worktree-remove directory)
+  (dolist (buffer (buffer-list))
+    (when-let* ((file (buffer-file-name buffer)))
+      (when (string-prefix-p directory (expand-file-name file))
+        (kill-buffer buffer)))))
+
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-accept-record-implementation-report ()
   "Accept the record implementation report of the work in progress here."
@@ -163,7 +172,8 @@ From inside a worktree, return the target product's root it was created from."
       (cond
        ;; UW-1 §Success guarantee: Turn record changes into code
        ((trf-worktree-brought-in-p directory)
-        (trf-worktree-mark-implemented directory))
+        (trf-worktree-mark-implemented directory)
+        (trf--remove-work-in-progress directory))
        ;; F-2 §Rules: Accept or reject the record implementation report
        ;; UW-1 §Extensions: Turn record changes into code
        ((trf-worktree-codebase-moved-p directory)
@@ -179,7 +189,8 @@ From inside a worktree, return the target product's root it was created from."
            ;; UW-1 §Extensions: Turn record changes into code
            ;; MSG-5: Work cannot be brought into the codebase
            (user-error "%s\n%s" trf-work-not-brought-in-message
-                       (trf-record-changes-reason (cadr err))))))))))
+                       (trf-record-changes-reason (cadr err)))))
+        (trf--remove-work-in-progress directory))))))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-reject-record-implementation-report ()

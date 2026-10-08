@@ -126,5 +126,13 @@
                (cdr err))))
     (trf-worktree-mark-implemented directory)))
 
+;; F-2 §Produces: Accept or reject the record implementation report
+(defun trf-worktree-remove (directory)
+  "Remove the worktree DIRECTORY and its branch from its root."
+  (let ((root (trf-worktree-root directory))
+        (branch (trf-worktree-branch directory)))
+    (trf-git root "worktree" "remove" directory)
+    (trf-git root "branch" "--quiet" "-d" branch)))
+
 (provide 'trf-worktree)
 ;;; trf-worktree.el ends here

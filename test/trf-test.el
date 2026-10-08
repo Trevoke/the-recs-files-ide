@@ -472,8 +472,9 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
 
 (deftest trf-accept-reruns-on-the-record-changes-it-started-with-after-later-work-is-accepted ()
   "Work started before other work is accepted reruns on the record changes it started with."
-  (let ((started-first (trf-test-implemented-worktree (list trf-test-other-record-change)))
-        (started-later (trf-test-implemented-worktree)))
+  (let* ((started-first (trf-test-implemented-worktree (list trf-test-other-record-change)))
+         (started-later (trf-test-implemented-worktree))
+         (base (trf-worktree-base started-later)))
     (assert-nil (trf-test-from-file (trf-test-report-file started-later)
                                     #'trf-accept-record-implementation-report))
     ;; UW-1 §Extensions: Turn record changes into code
@@ -486,7 +487,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
     ;; UW-1 §Success guarantee: Turn record changes into code
-    (assert-equal (trf-worktree-base started-later)
+    (assert-equal base
                   (string-trim (trf-test-git trf-test-root "rev-parse"
                                              "refs/recs/implemented")))))
 
@@ -570,7 +571,8 @@ Every other call to `trf-git' runs git."
 
 (deftest trf-accept-git-fails-after-bringing-the-work-in ()
   "When git fails marking the record changes implemented after the merge, accepting gives MSG-7, not MSG-5."
-  (let ((directory (trf-test-implemented-worktree)))
+  (let* ((directory (trf-test-implemented-worktree))
+         (base (trf-worktree-base directory)))
     (trf-test-build directory)
     (trf-test-failing-git-subcommand "update-ref" "fatal: cannot lock ref"
       ;; F-2 §Rules: Accept or reject the record implementation report
@@ -585,7 +587,7 @@ Every other call to `trf-git' runs git."
       (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                       #'trf-accept-record-implementation-report))
       ;; UW-1 §Success guarantee: Turn record changes into code
-      (assert-equal (trf-worktree-base directory)
+      (assert-equal base
                     (string-trim (trf-test-git trf-test-root "rev-parse"
                                                "refs/recs/implemented")))
       ;; UW-1 §Main success scenario: Turn record changes into code
@@ -593,14 +595,15 @@ Every other call to `trf-git' runs git."
 
 (deftest trf-accept-from-another-file-of-the-work ()
   "Accepting from any file of the work in progress brings the work in."
-  (let ((directory (trf-test-implemented-worktree)))
+  (let* ((directory (trf-test-implemented-worktree))
+         (base (trf-worktree-base directory)))
     (trf-test-build directory)
     (assert-nil (trf-test-from-file (expand-file-name "src/widget.el" directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
     (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
     ;; F-2 §Produces: Accept or reject the record implementation report
-    (assert-equal (trf-worktree-base directory)
+    (assert-equal base
                   (string-trim (trf-test-git trf-test-root "rev-parse" "refs/recs/implemented")))))
 
 (deftest trf-reject-from-another-file-of-the-work ()
@@ -617,8 +620,9 @@ Every other call to `trf-git' runs git."
 
 (deftest trf-accept-after-the-rerun-brings-the-work-in ()
   "Once the rerun has brought the work up to date with the codebase, accepting brings it in."
-  (let ((directory (trf-test-implemented-worktree))
-        runs)
+  (let* ((directory (trf-test-implemented-worktree))
+         (base (trf-worktree-base directory))
+         runs)
     (trf-test-build directory)
     (trf-test-write-files trf-test-root '(("src/other.el" . "(provide 'other)\n")))
     (trf-test-git trf-test-root "add" "--all")
@@ -633,7 +637,7 @@ Every other call to `trf-git' runs git."
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
     ;; UW-1 §Success guarantee: Turn record changes into code
-    (assert-equal (trf-worktree-base directory)
+    (assert-equal base
                   (string-trim (trf-test-git trf-test-root "rev-parse" "refs/recs/implemented")))))
 
 (deftest trf-implement-on-a-detached-codebase ()
@@ -892,6 +896,78 @@ Every other call to `trf-git' runs git."
       (trf-test-assert-accept-refuses
        directory
        '(user-error "The work cannot be brought into the codebase:\nNo reason given.")))))
+
+(defun trf-test-assert-work-in-progress-removed (directory branch)
+  "Assert the worktree DIRECTORY, its BRANCH and every buffer visiting a file in it are gone."
+  (assert-nil (file-exists-p directory))
+  (assert-equal "" (trf-test-git trf-test-root "branch" "--list" branch))
+  (assert-nil (seq-find (lambda (buffer)
+                          (when-let* ((file (buffer-file-name buffer)))
+                            (string-prefix-p directory file)))
+                        (buffer-list))))
+
+(deftest trf-accept-removes-the-work-in-progress ()
+  "Accepting from the report removes the worktree, its branch and the buffers visiting it."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory)))
+    (trf-test-build directory)
+    (find-file-noselect (expand-file-name "src/widget.el" directory))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; UW-1 §Main success scenario: Turn record changes into code
+    (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (trf-test-assert-work-in-progress-removed directory branch)))
+
+(deftest trf-accept-of-work-already-brought-in-removes-the-work-in-progress ()
+  "Accepting work already brought into the codebase marks it implemented and removes it."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory))
+         (base (trf-worktree-base directory)))
+    (trf-test-build directory)
+    (trf-test-git trf-test-root "merge" "--quiet" "--no-edit" branch)
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; UW-1 §Success guarantee: Turn record changes into code
+    (assert-equal base (string-trim (trf-test-git trf-test-root "rev-parse"
+                                                  "refs/recs/implemented")))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (trf-test-assert-work-in-progress-removed directory branch)))
+
+(deftest trf-accept-git-fails-removing-the-work-in-progress ()
+  "When git refuses to remove the worktree, accepting gives MSG-7; accepting again removes it."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory))
+         (base (trf-worktree-base directory)))
+    (trf-test-build directory)
+    (trf-test-write-files directory '(("src/scratch.el" . "(provide 'scratch)\n")))
+    (let ((refusal (trf-test-from-file (trf-test-report-file directory)
+                                       #'trf-accept-record-implementation-report)))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      ;; MSG-7: Git could not do what the IDE asked
+      (assert-equal 'user-error (car refusal))
+      (assert-true (string-prefix-p "Git could not do what the IDE asked:\n" (cadr refusal))))
+    ;; UW-1 §Success guarantee: Turn record changes into code
+    (assert-equal base (string-trim (trf-test-git trf-test-root "rev-parse"
+                                                  "refs/recs/implemented")))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-true (file-exists-p (trf-test-report-file directory)))
+    (delete-file (expand-file-name "src/scratch.el" directory))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (trf-test-assert-work-in-progress-removed directory branch)))
+
+(deftest trf-reject-keeps-the-worktree-and-its-branch ()
+  "Rejecting keeps the worktree and its branch."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory)))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-reject-record-implementation-report))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-true (file-exists-p (trf-test-report-file directory)))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-match (regexp-quote branch) (trf-test-git trf-test-root "branch" "--list" branch))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

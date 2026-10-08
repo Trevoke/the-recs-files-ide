@@ -274,5 +274,46 @@
       (trf-worktree-mark-implemented directory)
       (assert-equal side (trf-worktree-test-implemented root)))))
 
+(defun trf-worktree-test-accepted ()
+  "Create a worktree of the root, commit work in it and accept it; return its directory."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root))))
+    (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; built\n")))
+    (trf-test-git directory "commit" "--quiet" "--all" "--message" "Build")
+    (trf-worktree-accept directory)
+    directory))
+
+(deftest trf-worktree-remove-removes-the-worktree-and-its-branch ()
+  "Removing an accepted worktree deletes its directory and its branch."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-test-accepted))
+         (branch (trf-worktree-branch directory)))
+    (trf-worktree-remove directory)
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-nil (file-exists-p directory))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-equal "" (trf-test-git root "branch" "--list" branch))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-equal 1 (length (split-string (trf-test-git root "worktree" "list") "\n" t)))
+    ;; UW-1 §Success guarantee: Turn record changes into code
+    (assert-equal "(provide 'widget) ; built\n"
+                  (with-temp-buffer
+                    (insert-file-contents (expand-file-name "src/widget.el" root))
+                    (buffer-string)))))
+
+(deftest trf-worktree-remove-with-untracked-files-keeps-the-worktree ()
+  "Removing a worktree holding untracked files signals and keeps the worktree and its branch."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-test-accepted))
+         (branch (trf-worktree-branch directory)))
+    (trf-test-write-files directory '(("src/scratch.el" . "(provide 'scratch)\n")))
+    (assert-equal 'trf-git-error
+                  (car (condition-case err (progn (trf-worktree-remove directory) nil)
+                         (error err))))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-true (file-exists-p (expand-file-name ".trf/root" directory)))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-match (regexp-quote branch) (trf-test-git root "branch" "--list" branch))))
+
 (provide 'trf-worktree-test)
 ;;; trf-worktree-test.el ends here
