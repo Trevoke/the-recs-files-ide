@@ -865,5 +865,14 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
                   (trf-test-from-file (expand-file-name "docs/vision.org" trf-test-root)
                                       #'trf-accept-record-implementation-report))))
 
+(deftest trf-accept-when-the-target-product-names-no-primary-git-branch ()
+  "When the target product's .dir-locals.el names nil, accepting gives MSG-9 and keeps the work in progress."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-build directory)
+    (trf-test-write-primary-git-branch trf-test-root nil)
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-9: No primary git branch is named
+    (trf-test-assert-accept-refuses directory '(user-error "Please set a primary git branch first."))))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here

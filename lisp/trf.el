@@ -39,7 +39,7 @@
 
 (defcustom trf-primary-git-branch "main"
   "The primary git branch of the target product."
-  :type 'string
+  :type '(choice (const :tag "None" nil) string)
   :safe (lambda (value) (or (null value) (stringp value)))
   :group 'trf)
 
@@ -52,7 +52,7 @@
     trf-primary-git-branch))
 
 ;; UW-1 §Extensions: Turn record changes into code
-(defun trf--refuse-off-the-primary-git-branch (root)
+(defun trf--refuse-unless-on-the-primary-git-branch (root)
   "Signal a `user-error' unless ROOT is on the primary git branch."
   (let ((primary (trf--primary-git-branch root)))
     (unless (and (stringp primary) (not (string-empty-p primary)))
@@ -132,7 +132,7 @@ From inside a worktree, return the target product's root it was created from."
   (trf--giving-git-failures
     (let ((root (trf--target-product-root)))
       (trf-record-changes-refuse-operation-in-progress root)
-      (trf--refuse-off-the-primary-git-branch root)
+      (trf--refuse-unless-on-the-primary-git-branch root)
       (let ((changes (trf-record-changes root)))
         (unless changes
           (user-error "%s" trf-no-record-changes-message))
@@ -159,7 +159,7 @@ From inside a worktree, return the target product's root it was created from."
     (let* ((directory (trf--work-in-progress))
            (root (trf-worktree-root directory)))
       (trf-record-changes-refuse-operation-in-progress root)
-      (trf--refuse-off-the-primary-git-branch root)
+      (trf--refuse-unless-on-the-primary-git-branch root)
       (cond
        ;; UW-1 §Success guarantee: Turn record changes into code
        ((trf-worktree-brought-in-p directory)
