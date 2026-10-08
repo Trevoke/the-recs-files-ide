@@ -1,0 +1,5 @@
+* MSG-8 Target product is not on the primary git branch
+
+Text: The target product is not on the primary git branch:
+
+Followed by: the primary git branch's name.

@@ -9,6 +9,5 @@ changes in code.
 - MSG-3 :: [[./message-catalog/msg-3-finish-the-merge-or-rebase-first.org][Finish the merge or rebase first]]
 - MSG-4 :: [[./message-catalog/msg-4-record-changes-could-not-be-committed.org][Record changes could not be committed]]
 - MSG-5 :: [[./message-catalog/msg-5-work-cannot-be-brought-into-the-codebase.org][Work cannot be brought into the codebase]]
-- MSG-6 :: [[./message-catalog/msg-6-codebase-is-not-on-the-works-branch.org][Codebase is not on the work's branch]]
 - MSG-7 :: [[./message-catalog/msg-7-git-could-not-do-what-the-ide-asked.org][Git could not do what the IDE asked]]
-- MSG-8 :: [[./message-catalog/msg-8-codebase-is-not-on-a-branch.org][Codebase is not on a branch]]
+- MSG-8 :: [[./message-catalog/msg-8-target-product-is-not-on-the-primary-git-branch.org][Target product is not on the primary git branch]]

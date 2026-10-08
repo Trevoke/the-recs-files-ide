@@ -24,6 +24,8 @@ Each term is defined within its bounded context, as named in the vision.
 - implemented :: said of record changes once the record keeper has accepted
   their record implementation report into the codebase.
 - codebase :: the target product's code that the record keeper has accepted.
+- primary git branch :: the git branch of the target product that record
+  changes are committed to and work is brought into; the record keeper names it.
 - machine :: an AI program the IDE has put to one kind of work, through the
   instructions it gives and the devices it configures it with.
 - device :: a tool a machine uses, such as the shell, the file system, the test

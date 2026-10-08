@@ -54,8 +54,8 @@ The record keeper asks to implement the record changes.
 - 2c. The record changes cannot be committed :: IDE gives MSG-4: Record changes
   could not be committed, with the reason the target product gave; the use case
   ends.
-- 2d. The codebase is not on a branch :: IDE gives MSG-8: Codebase is not on a
-  branch; the use case ends.
+- 2d. The target product is not on the primary git branch :: IDE gives MSG-8:
+  Target product is not on the primary git branch; the use case ends.
 - 3a. A machine of the implementation workflow stops before finishing :: IDE
   keeps the work in progress and shows the record keeper why; record keeper has
   that machine start again on it, at step 3.
@@ -72,8 +72,9 @@ The record keeper asks to implement the record changes.
 - 7b. The work cannot be brought into the codebase :: IDE gives MSG-5: Work
   cannot be brought into the codebase, with the reason the target product gave;
   IDE keeps the work in progress and leaves the codebase as it was.
-- 7c. The codebase is not on the branch the work started from :: IDE gives
-  MSG-6: Codebase is not on the work's branch; IDE keeps the work in progress.
+- 7c. The target product is not on the primary git branch :: IDE gives MSG-8:
+  Target product is not on the primary git branch; IDE keeps the work in
+  progress.
 - 7d. The target product is in the middle of a merge, rebase, cherry-pick,
   revert or bisect :: IDE gives MSG-3: Finish the merge or rebase first; IDE
   keeps the work in progress.

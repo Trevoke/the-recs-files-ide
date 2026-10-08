@@ -1,3 +1,0 @@
-* MSG-6 Codebase is not on the work's branch
-
-Text: The codebase is not on the branch this work started from.
