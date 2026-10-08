@@ -167,20 +167,13 @@ From inside a worktree, return the target product's root it was created from."
               (buffer-list)))
 
 ;; F-2 §Produces: Accept or reject the record implementation report
-;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding a modified buffer's lock file
-(defun trf--let-go-of-modified-buffers-p (directory)
-  "Ask about each modified buffer visiting a file in DIRECTORY.
-Return nil once the record keeper keeps one; otherwise mark them all unmodified
-and return non-nil."
-  (let ((modified (seq-filter #'buffer-modified-p (trf--buffers-visiting directory))))
-    (unless (seq-some (lambda (buffer)
-                        (with-current-buffer buffer
-                          (not (kill-buffer--possibly-save buffer))))
-                      modified)
-      (dolist (buffer modified)
-        (with-current-buffer buffer
-          (set-buffer-modified-p nil)))
-      t)))
+(defun trf--keep-a-modified-buffer-p (directory)
+  "Ask about each modified buffer visiting a file in DIRECTORY; return non-nil once one is kept."
+  (seq-some (lambda (buffer)
+              (with-current-buffer buffer
+                (and (buffer-modified-p)
+                     (not (kill-buffer--possibly-save buffer)))))
+            (trf--buffers-visiting directory)))
 
 ;; F-2 §Produces: Accept or reject the record implementation report
 ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer shuts down its ACP client
@@ -190,7 +183,10 @@ and return non-nil."
   "Kill the buffers visiting files in DIRECTORY and its session buffers.
 Move every other buffer whose directory is in DIRECTORY to ROOT."
   (let ((key (file-name-as-directory (expand-file-name directory))))
-    (mapc #'kill-buffer (trf--buffers-visiting directory))
+    (dolist (buffer (trf--buffers-visiting directory))
+      (with-current-buffer buffer
+        (set-buffer-modified-p nil))
+      (kill-buffer buffer))
     (dolist (buffer (gethash key trf--session-buffers))
       (when (buffer-live-p buffer)
         (kill-buffer buffer)))
@@ -204,7 +200,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
 (defun trf--remove-work-in-progress (directory)
   "Remove the work in progress DIRECTORY and release the buffers in it.
 Signal `quit' when the record keeper keeps a modified buffer visiting one of its files."
-  (unless (trf--let-go-of-modified-buffers-p directory)
+  (when (trf--keep-a-modified-buffer-p directory)
     (signal 'quit nil))
   (let ((root (trf-worktree-root directory)))
     (trf-worktree-remove directory)

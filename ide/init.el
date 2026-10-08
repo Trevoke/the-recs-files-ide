@@ -36,6 +36,8 @@
 
 (add-to-list 'load-path (expand-file-name "../lisp/" user-emacs-directory))
 (require 'trf)
+(require 'trf-emacs)
+(trf-emacs-keep-files-outside-the-target-product)
 
 (global-set-key (kbd "C-c r i") #'trf-implement-record-changes)
 (global-set-key (kbd "C-c r a") #'trf-accept-record-implementation-report)

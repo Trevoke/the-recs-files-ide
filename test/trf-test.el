@@ -4,6 +4,7 @@
 (require 'e-unit)
 (require 'trf-test-helper)
 (require 'trf)
+(require 'trf-emacs)
 
 (defvar trf-test-root nil)
 
@@ -976,7 +977,7 @@ Every other call to `trf-git' runs git."
     (assert-match (regexp-quote branch) (trf-test-git trf-test-root "branch" "--list" branch))))
 
 (deftest trf-accept-git-fails-deleting-the-branch ()
-  "When git fails deleting the work's branch, accepting gives MSG-7; accepting again removes the work."
+  "When git fails deleting the branch of the work in progress, accepting gives MSG-7; accepting again removes the work."
   (let* ((directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory)))
     (trf-test-build directory)
@@ -1050,10 +1051,16 @@ Every other call to `trf-git' runs git."
 
 (deftest trf-accept-stops-when-the-record-keeper-keeps-a-modified-buffer ()
   "When the record keeper keeps a modified buffer of the work, accepting stops; accepting again removes it."
-  (let* ((directory (trf-test-implemented-worktree))
+  (let* ((state (make-temp-file "trf-state-" t))
+         (process-environment (cons (concat "XDG_STATE_HOME=" state) process-environment))
+         (auto-save-file-name-transforms auto-save-file-name-transforms)
+         (lock-file-name-transforms lock-file-name-transforms)
+         (backup-directory-alist backup-directory-alist)
+         (directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory))
          (file (expand-file-name "src/widget.el" directory))
          buffer)
+    (trf-emacs-keep-files-outside-the-target-product)
     (trf-test-build directory)
     (setq buffer (find-file-noselect file))
     (with-current-buffer buffer
@@ -1074,7 +1081,8 @@ Every other call to `trf-git' runs git."
       (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                       #'trf-accept-record-implementation-report)))
     ;; F-2 §Produces: Accept or reject the record implementation report
-    (trf-test-assert-work-in-progress-removed directory branch)))
+    (trf-test-assert-work-in-progress-removed directory branch)
+    (delete-directory state t)))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

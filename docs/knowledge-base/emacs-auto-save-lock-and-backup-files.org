@@ -1,0 +1,62 @@
+#+TITLE: Where Emacs Keeps Auto-save, Lock and Backup Files — Reference
+#+STARTUP: overview
+
+Not a project document. This records where GNU Emacs 30.2 puts a visited
+file's auto-save, lock and backup files when told to keep them in a directory
+of their own, and when batch Emacs turns on auto-saving, as established by a
+run on 2026-10-08.
+
+*What it establishes.* With =auto-save-file-name-transforms= and
+=lock-file-name-transforms= given the =t= flag, and with
+=backup-directory-alist= naming an absolute directory, all three files go into
+the directory named, under a name made from the visited file's whole path with
+each =/= written as =!=. In batch Emacs, =find-file= leaves =auto-save-mode=
+off until it is turned on.
+
+* The transforms put auto-save, lock and backup files under the directories named
+
+In the run below, the auto-save file of =work/widget.el= is
+=state/auto-save/#!<tmp>!work!widget.el#=, its lock file is
+=state/lock/.#!<tmp>!work!widget.el=, and its backup file is
+=state/backup/!<tmp>!work!widget.el~=.
+
+* Batch find-file leaves auto-save-mode off
+
+In the run below, =buffer-auto-save-file-name= is =nil= after =find-file= in
+batch Emacs, although =auto-save-default= is =t=, and is set once
+=auto-save-mode= is turned on.
+
+* The run
+
+Run with =bash ef-run.sh <empty directory>=; the script writes that directory
+as =<tmp>= in its output, in both its plain and its =!= form.
+
+#+begin_src sh
+set -u
+tmp=$(cd "$1" && pwd -P)
+main() {
+  cd "$tmp"
+  emacs --version | head -1
+  mkdir -p work state/auto-save state/lock state/backup
+  echo one > work/widget.el
+  emacs -Q --batch --eval '(progn
+    (setq auto-save-file-name-transforms (list (list ".*" (expand-file-name "state/auto-save/") t)))
+    (setq lock-file-name-transforms (list (list ".*" (expand-file-name "state/lock/") t)))
+    (setq backup-directory-alist (list (cons "." (expand-file-name "state/backup/"))))
+    (find-file "work/widget.el")
+    (princ (format "auto-save after find-file: %S\n" buffer-auto-save-file-name))
+    (auto-save-mode 1)
+    (princ (format "auto-save after auto-save-mode: %S\n" buffer-auto-save-file-name))
+    (princ (format "lock: %S\n" (make-lock-file-name buffer-file-name)))
+    (princ (format "backup: %S\n" (make-backup-file-name buffer-file-name))))'
+}
+main 2>&1 | sed -e "s|$tmp|<tmp>|g" -e "s|$(echo "$tmp" | tr / !)|!<tmp>|g"
+#+end_src
+
+#+begin_example
+GNU Emacs 30.2
+auto-save after find-file: nil
+auto-save after auto-save-mode: "<tmp>/state/auto-save/#!<tmp>!work!widget.el#"
+lock: "<tmp>/state/lock/.#!<tmp>!work!widget.el"
+backup: "<tmp>/state/backup/!<tmp>!work!widget.el~"
+#+end_example
