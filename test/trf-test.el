@@ -777,16 +777,76 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
   ;; MSG-1: No record changes to implement
   (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement.")))
 
-(deftest trf-implement-detached-when-the-ide-names-no-primary-git-branch ()
-  "Detached, with the IDE setting naming no primary git branch, the IDE gives MSG-8."
+(deftest trf-implement-when-no-primary-git-branch-is-named ()
+  "When no primary git branch is named, the IDE gives MSG-9, asks nothing, commits nothing and starts no work."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let ((trf-primary-git-branch nil))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-9: No primary git branch is named
+    (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
+
+(deftest trf-implement-when-an-empty-primary-git-branch-is-named ()
+  "When the IDE setting names an empty primary git branch, the IDE gives MSG-9."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let ((trf-primary-git-branch ""))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-9: No primary git branch is named
+    (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
+
+(deftest trf-implement-detached-when-no-primary-git-branch-is-named-gives-msg-9-before-msg-8 ()
+  "Detached, when no primary git branch is named, the IDE gives MSG-9 rather than MSG-8."
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
   (let ((trf-primary-git-branch nil))
     ;; UW-1 §Extensions: Turn record changes into code
-    ;; MSG-8: Target product is not on the primary git branch
-    (let ((refusal (trf-test-implement)))
-      (assert-equal 'user-error (car refusal))
-      (assert-true (string-prefix-p "The target product is not on the primary git branch:\n"
-                                    (cadr refusal))))))
+    ;; MSG-9: No primary git branch is named
+    (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
+
+(deftest trf-implement-when-no-primary-git-branch-is-named-gives-msg-9-before-msg-1 ()
+  "Without record changes, when no primary git branch is named, the IDE gives MSG-9 rather than MSG-1."
+  (let ((trf-primary-git-branch nil))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-9: No primary git branch is named
+    (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
+
+(deftest trf-implement-mid-merge-when-no-primary-git-branch-is-named-gives-msg-3-before-msg-9 ()
+  "Mid merge, when no primary git branch is named, the IDE gives MSG-3 rather than MSG-9."
+  (trf-test-leave-in-progress trf-test-root 'merge)
+  (let ((trf-primary-git-branch nil))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-3: Finish the merge or rebase first
+    (trf-test-assert-implement-refuses
+     '(user-error
+       "The target product is in the middle of a merge or rebase; finish it first."))))
+
+(deftest trf-accept-when-no-primary-git-branch-is-named ()
+  "When no primary git branch is named, accepting gives MSG-9 and keeps the work in progress."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-build directory)
+    (let ((trf-primary-git-branch nil))
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; MSG-9: No primary git branch is named
+      (trf-test-assert-accept-refuses directory '(user-error "Please set a primary git branch first.")))))
+
+(deftest trf-accept-mid-merge-when-no-primary-git-branch-is-named-gives-msg-3-before-msg-9 ()
+  "Mid merge, when no primary git branch is named, accepting gives MSG-3 rather than MSG-9."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-leave-in-progress trf-test-root 'merge)
+    (let ((trf-primary-git-branch nil))
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; MSG-3: Finish the merge or rebase first
+      (trf-test-assert-accept-refuses
+       directory
+       '(user-error
+         "The target product is in the middle of a merge or rebase; finish it first.")))))
+
+(deftest trf-accept-outside-work-in-progress-when-no-primary-git-branch-is-named ()
+  "Outside any work in progress, when no primary git branch is named, accepting gives MSG-2."
+  (let ((trf-primary-git-branch nil))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    ;; MSG-2: No work in progress to accept or reject
+    (assert-equal '(user-error "There is no work in progress here to accept or reject.")
+                  (trf-test-from-file (expand-file-name "docs/vision.org" trf-test-root)
+                                      #'trf-accept-record-implementation-report))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

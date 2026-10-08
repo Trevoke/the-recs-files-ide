@@ -25,6 +25,10 @@
 (defconst trf-not-on-the-primary-git-branch-message
   "The target product is not on the primary git branch:")
 
+;; MSG-9: No primary git branch is named
+(defconst trf-no-primary-git-branch-message
+  "Please set a primary git branch first.")
+
 ;; MSG-7: Git could not do what the IDE asked
 (defconst trf-git-failed-message
   "Git could not do what the IDE asked:")
@@ -51,8 +55,10 @@
 (defun trf--refuse-off-the-primary-git-branch (root)
   "Signal a `user-error' unless ROOT is on the primary git branch."
   (let ((primary (trf--primary-git-branch root)))
-    (unless (and (stringp primary)
-                 (equal primary (trf-git-current-branch root)))
+    (unless (and (stringp primary) (not (string-empty-p primary)))
+      ;; MSG-9: No primary git branch is named
+      (user-error "%s" trf-no-primary-git-branch-message))
+    (unless (equal primary (trf-git-current-branch root))
       ;; MSG-8: Target product is not on the primary git branch
       (user-error "%s\n%s" trf-not-on-the-primary-git-branch-message primary))))
 
