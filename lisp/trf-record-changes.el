@@ -164,8 +164,8 @@ Return the commit they are in."
     (user-error "%s" trf-record-changes-operation-in-progress-message))
   (when changes
     (let ((paths (trf-record-changes--paths changes))
-          untracked
-          committed)
+          (head (trf-git-ref-commit root "HEAD"))
+          untracked)
       ;; UW-1 §Minimal guarantee: Turn record changes into code
       (unwind-protect
           (condition-case err
@@ -173,15 +173,14 @@ Return the commit they are in."
                 (setq untracked (trf-record-changes--untracked
                                  root (append paths (trf-record-changes--projection-files
                                                      root paths))))
-                (trf-record-changes--commit-staged root changes untracked)
-                (setq committed t))
+                (trf-record-changes--commit-staged root changes untracked))
             (trf-git-error
              ;; UW-1 §Extensions: Turn record changes into code
              (user-error "%s" (string-join (seq-remove #'string-empty-p
                                                        (list trf-record-changes-not-committed-message
                                                              (cadr err)))
                                            "\n"))))
-        (unless committed
+        (when (equal head (trf-git-ref-commit root "HEAD"))
           (trf-record-changes--unstage root untracked)))))
   (trf-git-ref-commit root "HEAD"))
 

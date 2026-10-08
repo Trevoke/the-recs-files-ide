@@ -455,6 +455,29 @@ Return what was signalled, and the status before and after."
     ;; UW-1 §Minimal guarantee: Turn record changes into code
     (assert-equal status-before status-after)))
 
+(deftest trf-record-changes-commit-keeps-the-commit-on-a-quit-after-it ()
+  "A quit landing once git has committed leaves the commit and nothing staged."
+  (let* ((root trf-record-changes-test-root)
+         (git (symbol-function 'trf-record-changes--git)))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")))
+    (let* ((changes (trf-record-changes root))
+           (signalled (condition-case err
+                          (cl-letf (((symbol-function 'trf-record-changes--git)
+                                     (lambda (directory &rest args)
+                                       (prog1 (apply git directory args)
+                                         (when (member "commit" args)
+                                           (signal 'quit nil))))))
+                            (trf-record-changes-commit root changes)
+                            nil)
+                        (quit err))))
+      (assert-equal '(quit) signalled)
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "docs/features/f-1-order.org\n"
+                    (trf-test-git root "show" "--name-only" "--format=" "HEAD"))
+      ;; UW-1 §Minimal guarantee: Turn record changes into code
+      (assert-equal "" (trf-test-git root "status" "--porcelain")))))
+
 (deftest trf-record-changes-commit-refused-without-a-reason ()
   "When git refuses the commit and gives no reason, MSG-4 is given alone."
   (let* ((root trf-record-changes-test-root)
