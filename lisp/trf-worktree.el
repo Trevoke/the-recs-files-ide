@@ -40,17 +40,12 @@
       (insert-file-contents (expand-file-name (concat ".trf/" file) directory)))
     (string-trim (buffer-string))))
 
-(defun trf-worktree--root-branch-now (root)
-  "Return the branch ROOT is on, or nil when it is detached."
-  (let ((branch (string-trim (trf-git root "branch" "--show-current"))))
-    (unless (string-empty-p branch) branch)))
-
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-worktree-create (root commit)
   "Create a worktree of ROOT starting from COMMIT; return its directory."
   (let* ((root (file-name-as-directory (expand-file-name root)))
-         (root-branch (trf-worktree--root-branch-now root))
+         (root-branch (trf-git-current-branch root))
          (from (trf-record-changes-from root))
          (name (make-temp-name (format-time-string "trf-%Y%m%d-%H%M%S-")))
          (branch (concat "trf/" name))
@@ -99,7 +94,7 @@
   "Return non-nil when DIRECTORY's root is on the branch it was on when DIRECTORY was created."
   (when (file-exists-p (expand-file-name ".trf/root-branch" directory))
     (equal (trf-worktree--read directory "root-branch")
-           (trf-worktree--root-branch-now (trf-worktree-root directory)))))
+           (trf-git-current-branch (trf-worktree-root directory)))))
 
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-worktree-codebase-moved-p (directory)

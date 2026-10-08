@@ -61,6 +61,11 @@ or its standard output when that is empty."
     (when (eq status 0)
       (string-trim stdout))))
 
+(defun trf-git-current-branch (directory)
+  "Return the branch checked out in DIRECTORY, or nil when it is detached."
+  (let ((branch (string-trim (trf-git directory "branch" "--show-current"))))
+    (unless (string-empty-p branch) branch)))
+
 (defconst trf-git--operation-files
   '("MERGE_HEAD" "rebase-merge" "rebase-apply" "CHERRY_PICK_HEAD" "REVERT_HEAD"
     "sequencer" "BISECT_LOG" "BISECT_START")

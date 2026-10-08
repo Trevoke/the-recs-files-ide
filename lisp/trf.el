@@ -24,6 +24,10 @@
 (defconst trf-not-on-the-works-branch-message
   "The codebase is not on the branch this work started from.")
 
+;; MSG-8: Codebase is not on a branch
+(defconst trf-not-on-a-branch-message
+  "The codebase is not on a branch; check out a branch first.")
+
 ;; MSG-7: Git could not do what the IDE asked
 (defconst trf-git-failed-message
   "Git could not do what the IDE asked:")
@@ -102,6 +106,10 @@ From inside a worktree, return the target product's root it was created from."
   (trf--giving-git-failures
     (let ((root (trf--target-product-root)))
       (trf-record-changes-refuse-operation-in-progress root)
+      ;; UW-1 §Extensions: Turn record changes into code
+      (unless (trf-git-current-branch root)
+        ;; MSG-8: Codebase is not on a branch
+        (user-error "%s" trf-not-on-a-branch-message))
       (let ((changes (trf-record-changes root)))
         (unless changes
           (user-error "%s" trf-no-record-changes-message))

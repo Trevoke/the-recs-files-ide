@@ -630,5 +630,42 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
     (assert-equal (trf-worktree-base directory)
                   (string-trim (trf-test-git trf-test-root "rev-parse" "refs/recs/implemented")))))
 
+(deftest trf-implement-on-a-detached-codebase ()
+  "On a detached codebase, the IDE gives MSG-8, asks nothing, commits nothing and starts no work."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
+  (let ((head (trf-test-head trf-test-root))
+        (status (trf-test-git trf-test-root "status" "--porcelain")))
+    (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) (error "Asked to confirm")))
+              ((symbol-function 'trf-session-config) (lambda () (error "Asked for a config"))))
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; MSG-8: Codebase is not on a branch
+      (assert-equal '(user-error "The codebase is not on a branch; check out a branch first.")
+                    (trf-test-implement)))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal head (trf-test-head trf-test-root))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-nil (file-exists-p (expand-file-name ".worktrees" trf-test-root)))))
+
+(deftest trf-implement-on-a-detached-codebase-gives-msg-8-before-msg-1 ()
+  "On a detached codebase without record changes, the IDE gives MSG-8 rather than MSG-1."
+  (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
+  ;; UW-1 §Extensions: Turn record changes into code
+  ;; MSG-8: Codebase is not on a branch
+  (assert-equal '(user-error "The codebase is not on a branch; check out a branch first.")
+                (trf-test-implement)))
+
+(deftest trf-implement-mid-rebase-gives-msg-3-before-msg-8 ()
+  "Mid rebase, with the codebase detached, the IDE gives MSG-3 rather than MSG-8."
+  (trf-test-leave-in-progress trf-test-root 'rebase)
+  (assert-equal "" (trf-test-git trf-test-root "branch" "--show-current"))
+  ;; UW-1 §Extensions: Turn record changes into code
+  ;; MSG-3: Finish the merge or rebase first
+  (assert-equal '(user-error
+                  "The target product is in the middle of a merge or rebase; finish it first.")
+                (trf-test-implement)))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here
