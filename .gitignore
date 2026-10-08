@@ -3,3 +3,7 @@
 .elk/
 vendor/
 *.elc
+ide/elpa/
+ide/eln-cache/
+ide/transient/
+ide/projects
