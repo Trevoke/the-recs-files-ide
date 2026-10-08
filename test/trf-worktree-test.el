@@ -334,5 +334,28 @@
     ;; UW-1 §Extensions: Turn record changes into code
     (assert-equal moved (trf-worktree-codebase-moved-p directory))))
 
+(deftest trf-worktree-commit-saved-edits-commits-edits-and-new-files ()
+  "Saved edits and new files are committed to the work; the worktree's state files are not."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root))))
+    (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; saved\n")
+                                      ("src/gadget.el" . "(provide 'gadget)\n")))
+    (trf-worktree-commit-saved-edits directory)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal "" (trf-test-git directory "status" "--porcelain"))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal "src/gadget.el\nsrc/widget.el\n"
+                  (trf-test-git directory "diff" "--name-only" (trf-worktree-base directory) "HEAD"))
+    (assert-match (regexp-quote (trf-worktree-branch directory))
+                  (trf-test-git directory "log" "-1" "--format=%s"))))
+
+(deftest trf-worktree-commit-saved-edits-with-nothing-saved ()
+  "With nothing saved since the last commit, nothing is committed."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root))))
+    (trf-worktree-commit-saved-edits directory)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal (trf-worktree-base directory) (trf-test-head directory))))
+
 (provide 'trf-worktree-test)
 ;;; trf-worktree-test.el ends here

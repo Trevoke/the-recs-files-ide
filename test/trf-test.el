@@ -945,9 +945,9 @@ Every other call to `trf-git' runs git."
          (branch (trf-worktree-branch directory))
          (base (trf-worktree-base directory)))
     (trf-test-build directory)
-    (trf-test-write-files directory '(("src/scratch.el" . "(provide 'scratch)\n")))
-    (let ((refusal (trf-test-from-file (trf-test-report-file directory)
-                                       #'trf-accept-record-implementation-report)))
+    (let ((refusal (trf-test-failing-git-subcommand '("worktree" "remove") "fatal: cannot remove"
+                     (trf-test-from-file (trf-test-report-file directory)
+                                         #'trf-accept-record-implementation-report))))
       ;; F-2 §Rules: Accept or reject the record implementation report
       ;; MSG-7: Git could not do what the IDE asked
       (assert-equal 'user-error (car refusal))
@@ -959,7 +959,6 @@ Every other call to `trf-git' runs git."
     (assert-true (file-exists-p (trf-test-report-file directory)))
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-true (find-buffer-visiting (trf-test-report-file directory)))
-    (delete-file (expand-file-name "src/scratch.el" directory))
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
@@ -998,13 +997,12 @@ Every other call to `trf-git' runs git."
   "When git refuses to remove a worktree holding no commit, accepting again removes it."
   (let* ((directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory)))
-    (trf-test-write-files directory '(("src/scratch.el" . "(provide 'scratch)\n")))
-    (let ((refusal (trf-test-from-file (trf-test-report-file directory)
-                                       #'trf-accept-record-implementation-report)))
+    (let ((refusal (trf-test-failing-git-subcommand '("worktree" "remove") "fatal: cannot remove"
+                     (trf-test-from-file (trf-test-report-file directory)
+                                         #'trf-accept-record-implementation-report))))
       ;; F-2 §Rules: Accept or reject the record implementation report
       ;; MSG-7: Git could not do what the IDE asked
       (assert-true (string-prefix-p "Git could not do what the IDE asked:\n" (cadr refusal))))
-    (delete-file (expand-file-name "src/scratch.el" directory))
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
@@ -1065,40 +1063,148 @@ Every other call to `trf-git' runs git."
                   (buffer-local-value 'default-directory
                                       (get-buffer trf-test-machine-buffer-name)))))
 
-(deftest trf-accept-stops-when-the-record-keeper-keeps-a-modified-buffer ()
-  "When the record keeper keeps a modified buffer of the work, accepting stops; accepting again removes it."
-  (let* ((state (make-temp-file "trf-state-" t))
-         (process-environment (cons (concat "XDG_STATE_HOME=" state) process-environment))
-         (auto-save-file-name-transforms auto-save-file-name-transforms)
-         (lock-file-name-transforms lock-file-name-transforms)
-         (backup-directory-alist backup-directory-alist)
-         (directory (trf-test-implemented-worktree))
+(defmacro trf-test-offering-saves (answer offered &rest body)
+  "Run BODY answering ANSWER to each offer to save a buffer; collect the buffers offered in OFFERED."
+  (declare (indent 2) (debug t))
+  `(cl-letf (((symbol-function 'map-y-or-n-p)
+              (lambda (_prompter actor list &rest _)
+                (setq ,offered (append ,offered list))
+                (if ,answer
+                    (progn (mapc actor list) (length list))
+                  0))))
+     ,@body))
+
+(defmacro trf-test-with-the-ides-files-kept (&rest body)
+  "Run BODY with the IDE keeping its auto-save, lock and backup files in a temp directory."
+  (declare (indent 0) (debug t))
+  (let ((state (make-symbol "state")))
+    `(let* ((,state (make-temp-file "trf-state-" t))
+            (process-environment (cons (concat "XDG_STATE_HOME=" ,state) process-environment))
+            (auto-save-file-name-transforms auto-save-file-name-transforms)
+            (lock-file-name-transforms lock-file-name-transforms)
+            (backup-directory-alist backup-directory-alist))
+       (unwind-protect
+           (progn
+             (trf-emacs-keep-files-outside-the-target-product)
+             ,@body)
+         (delete-directory ,state t)))))
+
+(deftest trf-implement-includes-a-record-saved-when-offered ()
+  "A record file saved when the IDE offers to save it is among the record changes."
+  (trf-test-with-the-ides-files-kept
+    (let ((buffer (progn
+                    (make-directory (expand-file-name "docs/features/" trf-test-root) t)
+                    (find-file-noselect (expand-file-name (car trf-test-record-change)
+                                                          trf-test-root))))
+          offered shown)
+      (with-current-buffer buffer
+        (insert (cdr trf-test-record-change)))
+      (trf-test-offering-saves t offered
+        (cl-letf (((symbol-function 'y-or-n-p)
+                   (lambda (&rest _)
+                     (setq shown (with-current-buffer trf--record-changes-buffer-name
+                                   (buffer-string)))
+                     nil)))
+          (assert-nil (trf-test-implement))))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal (list buffer) offered)
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-equal "- F-1 Order (added): docs/features/f-1-order.org\n" shown))))
+
+(deftest trf-implement-leaves-out-a-record-not-saved-when-offered ()
+  "A record file not saved when the IDE offers to save it is left out of the record changes."
+  (trf-test-with-the-ides-files-kept
+    (let ((buffer (progn
+                    (make-directory (expand-file-name "docs/features/" trf-test-root) t)
+                    (find-file-noselect (expand-file-name (car trf-test-record-change)
+                                                          trf-test-root))))
+          offered)
+      (with-current-buffer buffer
+        (insert (cdr trf-test-record-change)))
+      (trf-test-offering-saves nil offered
+        ;; F-1 §Rules: Ask the IDE to implement the record changes
+        ;; MSG-1: No record changes to implement
+        (assert-equal '(user-error "There are no record changes to implement.")
+                      (trf-test-implement)))
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (assert-true (buffer-modified-p buffer)))))
+
+(deftest trf-accept-brings-in-an-edit-saved-when-offered ()
+  "An edit in the work in progress saved when the IDE offers to save it is brought into the codebase."
+  (let* ((directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory))
-         (file (expand-file-name "src/widget.el" directory))
-         buffer)
-    (trf-emacs-keep-files-outside-the-target-product)
+         (elsewhere (find-file-noselect (expand-file-name "docs/vision.org" trf-test-root)))
+         (buffer (find-file-noselect (expand-file-name "src/widget.el" directory)))
+         offered)
     (trf-test-build directory)
-    (setq buffer (find-file-noselect file))
     (with-current-buffer buffer
-      (insert ";; edited\n"))
-    (cl-letf (((symbol-function 'kill-buffer--possibly-save) (lambda (_) nil)))
-      (assert-equal '(quit)
-                    (condition-case err
-                        (trf-test-from-file (trf-test-report-file directory)
-                                            #'trf-accept-record-implementation-report)
-                      (quit err))))
-    ;; F-2 §Produces: Accept or reject the record implementation report
-    (assert-true (file-exists-p (trf-test-report-file directory)))
-    ;; F-2 §Produces: Accept or reject the record implementation report
-    (assert-match (regexp-quote branch) (trf-test-git trf-test-root "branch" "--list" branch))
-    (assert-true (buffer-live-p buffer))
-    (assert-true (find-buffer-visiting (trf-test-report-file directory)))
-    (cl-letf (((symbol-function 'kill-buffer--possibly-save) (lambda (_) t)))
+      (revert-buffer t t t)
+      (goto-char (point-max))
+      (insert ";; saved\n"))
+    (with-current-buffer elsewhere
+      (insert "Elsewhere.\n"))
+    (trf-test-offering-saves t offered
       (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                       #'trf-accept-record-implementation-report)))
-    ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal (list buffer) offered)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal "(provide 'widget) ; built\n;; saved\n" (trf-test-widget))
+    ;; F-2 §Rules: Accept or reject the record implementation report
     (trf-test-assert-work-in-progress-removed directory branch)
-    (delete-directory state t)))
+    (with-current-buffer elsewhere
+      (set-buffer-modified-p nil))))
+
+(deftest trf-accept-brings-in-an-edit-already-saved ()
+  "Edits saved in the work in progress but not committed, new files among them, are brought into the codebase."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory)))
+    (trf-test-build directory)
+    (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; saved\n")
+                                      ("src/gadget.el" . "(provide 'gadget)\n")))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal "(provide 'widget) ; saved\n" (trf-test-widget))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-true (file-exists-p (expand-file-name "src/gadget.el" trf-test-root)))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal "" (trf-test-git trf-test-root "ls-files" ".trf"))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (trf-test-assert-work-in-progress-removed directory branch)))
+
+(deftest trf-accept-leaves-an-edit-not-saved-when-offered ()
+  "An edit not saved when the IDE offers to save it stays in its buffer; the work in progress is still removed."
+  (trf-test-with-the-ides-files-kept
+    (let* ((directory (trf-test-implemented-worktree))
+           (branch (trf-worktree-branch directory))
+           (buffer (find-file-noselect (expand-file-name "src/widget.el" directory)))
+           offered)
+      (trf-test-build directory)
+      (with-current-buffer buffer
+        (revert-buffer t t t)
+        (goto-char (point-max))
+        (insert ";; unsaved\n"))
+      (trf-test-offering-saves nil offered
+        (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                        #'trf-accept-record-implementation-report)))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-true (buffer-live-p buffer))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-true (buffer-modified-p buffer))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-equal "(provide 'widget) ; built\n;; unsaved\n"
+                    (with-current-buffer buffer (buffer-string)))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-equal (file-name-as-directory trf-test-root)
+                    (buffer-local-value 'default-directory buffer))
+      (assert-nil (file-exists-p directory))
+      (assert-equal "" (trf-test-git trf-test-root "branch" "--list" branch))
+      (with-current-buffer buffer
+        (set-buffer-modified-p nil))
+      (kill-buffer buffer))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

@@ -138,6 +138,14 @@
                (cdr err))))
     (trf-worktree-mark-implemented directory)))
 
+;; F-2 §Rules: Accept or reject the record implementation report
+(defun trf-worktree-commit-saved-edits (directory)
+  "Commit to DIRECTORY's work whatever is saved in DIRECTORY and not yet committed."
+  (trf-git directory "add" "--all")
+  (unless (trf-git-check directory "diff" "--cached" "--quiet")
+    (trf-git directory "commit" "--quiet" "--message"
+             (format "Save the record keeper's edits to %s" (trf-worktree-branch directory)))))
+
 ;; F-2 §Produces: Accept or reject the record implementation report
 ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove removes a worktree holding only excluded or ignored files
 ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding untracked or modified files

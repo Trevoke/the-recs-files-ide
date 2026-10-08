@@ -131,6 +131,13 @@ From inside a worktree, return the target product's root it was created from."
           ((trf-project-root))
           (t default-directory))))
 
+(defun trf--offer-to-save (directory &optional except)
+  "Offer to save each modified buffer visiting a file in DIRECTORY and not in EXCEPT."
+  (save-some-buffers nil (lambda ()
+                           (and (trf--in-directory-p directory buffer-file-name)
+                                (not (and except
+                                          (trf--in-directory-p except buffer-file-name)))))))
+
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-implement-record-changes ()
   "Ask the IDE to implement the record changes."
@@ -139,6 +146,8 @@ From inside a worktree, return the target product's root it was created from."
     (let ((root (trf--target-product-root)))
       (trf-record-changes-refuse-operation-in-progress root)
       (trf--refuse-unless-on-the-primary-git-branch root)
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      (trf--offer-to-save root (expand-file-name ".worktrees/" root))
       (let ((changes (trf-record-changes root)))
         (unless changes
           (user-error "%s" trf-no-record-changes-message))
@@ -167,26 +176,16 @@ From inside a worktree, return the target product's root it was created from."
               (buffer-list)))
 
 ;; F-2 §Produces: Accept or reject the record implementation report
-(defun trf--keep-a-modified-buffer-p (directory)
-  "Ask about each modified buffer visiting a file in DIRECTORY; return non-nil once one is kept."
-  (seq-some (lambda (buffer)
-              (with-current-buffer buffer
-                (and (buffer-modified-p)
-                     (not (kill-buffer--possibly-save buffer)))))
-            (trf--buffers-visiting directory)))
-
-;; F-2 §Produces: Accept or reject the record implementation report
 ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer shuts down its ACP client
 ;; docs/knowledge-base/agent-shell-session-buffers.org §The ACP process is not the session buffer's process
 ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
 (defun trf--release-buffers (directory root)
-  "Kill the buffers visiting files in DIRECTORY and its session buffers.
+  "Kill the unmodified buffers visiting files in DIRECTORY, and its session buffers.
 Move every other buffer whose directory is in DIRECTORY to ROOT."
   (let ((key (file-name-as-directory (expand-file-name directory))))
     (dolist (buffer (trf--buffers-visiting directory))
-      (with-current-buffer buffer
-        (set-buffer-modified-p nil))
-      (kill-buffer buffer))
+      (unless (buffer-modified-p buffer)
+        (kill-buffer buffer)))
     ;; F-2 §Rules: Accept or reject the record implementation report
     (dolist (buffer (gethash key trf--session-buffers))
       (when (buffer-live-p buffer)
@@ -199,10 +198,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
 
 ;; F-2 §Produces: Accept or reject the record implementation report
 (defun trf--remove-work-in-progress (directory)
-  "Remove the work in progress DIRECTORY and release the buffers in it.
-Signal `quit' when the record keeper keeps a modified buffer visiting one of its files."
-  (when (trf--keep-a-modified-buffer-p directory)
-    (signal 'quit nil))
+  "Remove the work in progress DIRECTORY and release the buffers in it."
   (let ((root (trf-worktree-root directory)))
     (trf-worktree-remove directory)
     (trf--release-buffers directory root)))
@@ -217,6 +213,9 @@ Signal `quit' when the record keeper keeps a modified buffer visiting one of its
            (root (trf-worktree-root directory)))
       (trf-record-changes-refuse-operation-in-progress root)
       (trf--refuse-unless-on-the-primary-git-branch root)
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (trf--offer-to-save directory)
+      (trf-worktree-commit-saved-edits directory)
       (cond
        ;; UW-1 §Success guarantee: Turn record changes into code
        ((trf-worktree-brought-in-p directory)
