@@ -16,8 +16,8 @@ The target product keeps records; the IDE has an AI program to run as machines.
 
 ** Minimal guarantee
 
-The codebase and the records are unchanged unless the record keeper accepts;
-work in progress is kept.
+The codebase is unchanged unless the record keeper accepts; the record changes
+stay as the record keeper confirmed them, committed; work in progress is kept.
 
 ** Success guarantee
 
