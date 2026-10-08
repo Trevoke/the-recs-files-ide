@@ -51,18 +51,19 @@
                   (trf-project-root (mock-fs-path "/target/docs/")))))
 
 (deftest trf-project-root-is-expanded ()
-  "The target product's root is an expanded directory name."
-  (make-directory (expand-file-name ".cache/" "~/") t)
-  (let ((root (file-name-as-directory
-               (make-temp-file (expand-file-name "trf-root-test-" "~/.cache/") t))))
+  "The target product's root is an expanded directory name, even under the home directory."
+  (let* ((home (file-name-as-directory (make-temp-file "trf-home-" t)))
+         (root (expand-file-name "target/" home)))
     (unwind-protect
-        (progn
+        (let ((process-environment (cons (concat "HOME=" home) process-environment))
+              (abbreviated-home-dir nil))
           (trf-test-write-files root `(("AGENTS.md" . ,trf-test-agents-md)
                                        ("docs/vision.org" . "#+TITLE: Vision\n")))
+          (assert-equal "~/target/" (abbreviate-file-name root))
           (let ((found (trf-project-root (expand-file-name "docs/" root))))
             (assert-equal root found)
             (assert-nil (string-prefix-p "~" found))))
-      (delete-directory root t))))
+      (delete-directory home t))))
 
 (provide 'trf-project-test)
 ;;; trf-project-test.el ends here
