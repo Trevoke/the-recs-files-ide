@@ -11,3 +11,4 @@ changes in code.
 - MSG-5 :: [[./message-catalog/msg-5-work-cannot-be-brought-into-the-codebase.org][Work cannot be brought into the codebase]]
 - MSG-7 :: [[./message-catalog/msg-7-git-could-not-do-what-the-ide-asked.org][Git could not do what the IDE asked]]
 - MSG-8 :: [[./message-catalog/msg-8-target-product-is-not-on-the-primary-git-branch.org][Target product is not on the primary git branch]]
+- MSG-9 :: [[./message-catalog/msg-9-no-primary-git-branch-is-named.org][No primary git branch is named]]
