@@ -1,5 +1,6 @@
 ;;; trf.el --- The IDE for projects that keep records -*- lexical-binding: t; -*-
 
+(require 'trf-group)
 (require 'trf-git)
 (require 'trf-project)
 (require 'trf-record-changes)
@@ -20,13 +21,9 @@
 (defconst trf-work-not-brought-in-message
   "The work cannot be brought into the codebase:")
 
-;; MSG-6: Codebase is not on the work's branch
-(defconst trf-not-on-the-works-branch-message
-  "The codebase is not on the branch this work started from.")
-
-;; MSG-8: Codebase is not on a branch
-(defconst trf-not-on-a-branch-message
-  "The codebase is not on a branch; check out a branch first.")
+;; MSG-8: Target product is not on the primary git branch
+(defconst trf-not-on-the-primary-git-branch-message
+  "The target product is not on the primary git branch:")
 
 ;; MSG-7: Git could not do what the IDE asked
 (defconst trf-git-failed-message
@@ -35,6 +32,27 @@
 ;; UW-1 §Extensions: Turn record changes into code
 (defconst trf-codebase-moved-instruction
   "The codebase has moved since this work started; bring the work up to date with it.")
+
+(defcustom trf-primary-git-branch "main"
+  "The primary git branch of the target product."
+  :type 'string
+  :safe #'stringp
+  :group 'trf)
+
+(defun trf--primary-git-branch (root)
+  "Return `trf-primary-git-branch' as it applies to the target product's ROOT."
+  (with-temp-buffer
+    (setq default-directory (file-name-as-directory root))
+    (hack-dir-local-variables-non-file-buffer)
+    trf-primary-git-branch))
+
+;; UW-1 §Extensions: Turn record changes into code
+(defun trf--refuse-off-the-primary-git-branch (root)
+  "Signal a `user-error' unless ROOT is on the primary git branch."
+  (let ((primary (trf--primary-git-branch root)))
+    (unless (equal primary (trf-git-current-branch root))
+      ;; MSG-8: Target product is not on the primary git branch
+      (user-error "%s\n%s" trf-not-on-the-primary-git-branch-message primary))))
 
 (defmacro trf--giving-git-failures (&rest body)
   "Run BODY; turn a `trf-git-error' it signals into a `user-error'."
@@ -106,10 +124,7 @@ From inside a worktree, return the target product's root it was created from."
   (trf--giving-git-failures
     (let ((root (trf--target-product-root)))
       (trf-record-changes-refuse-operation-in-progress root)
-      ;; UW-1 §Extensions: Turn record changes into code
-      (unless (trf-git-current-branch root)
-        ;; MSG-8: Codebase is not on a branch
-        (user-error "%s" trf-not-on-a-branch-message))
+      (trf--refuse-off-the-primary-git-branch root)
       (let ((changes (trf-record-changes root)))
         (unless changes
           (user-error "%s" trf-no-record-changes-message))
@@ -136,10 +151,7 @@ From inside a worktree, return the target product's root it was created from."
     (let* ((directory (trf--work-in-progress))
            (root (trf-worktree-root directory)))
       (trf-record-changes-refuse-operation-in-progress root)
-      ;; UW-1 §Extensions: Turn record changes into code
-      (unless (trf-worktree-root-on-its-branch-p directory)
-        ;; MSG-6: Codebase is not on the work's branch
-        (user-error "%s" trf-not-on-the-works-branch-message))
+      (trf--refuse-off-the-primary-git-branch root)
       (cond
        ;; UW-1 §Success guarantee: Turn record changes into code
        ((trf-worktree-brought-in-p directory)

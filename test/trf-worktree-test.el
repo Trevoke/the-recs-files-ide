@@ -185,35 +185,6 @@
     ;; UW-1 §Minimal guarantee: Turn record changes into code
     (assert-equal "" (trf-test-git root "for-each-ref" "refs/recs/"))))
 
-(deftest trf-worktree-create-records-the-root-branch ()
-  "The worktree records the branch its root was on when the work started."
-  (let* ((root trf-worktree-test-root)
-         (directory (trf-worktree-create root (trf-test-head root))))
-    (assert-equal "main" (trf-worktree-test-read directory "root-branch"))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-true (trf-worktree-root-on-its-branch-p directory))))
-
-(deftest trf-worktree-root-on-another-branch ()
-  "Once its root is on another branch, the root is not on the worktree's branch."
-  (let* ((root trf-worktree-test-root)
-         (directory (trf-worktree-create root (trf-test-head root))))
-    (trf-test-git root "checkout" "--quiet" "-b" "side")
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-nil (trf-worktree-root-on-its-branch-p directory))
-    (trf-test-git root "checkout" "--quiet" "--detach" "main")
-    ;; UW-1 §Extensions: Turn record changes into code
-    (assert-nil (trf-worktree-root-on-its-branch-p directory))))
-
-(deftest trf-worktree-create-from-a-detached-root ()
-  "A worktree created while its root is detached records no root branch."
-  (let ((root trf-worktree-test-root))
-    (trf-test-git root "checkout" "--quiet" "--detach")
-    (let ((directory (trf-worktree-create root (trf-test-head root))))
-      (assert-nil (file-exists-p (expand-file-name ".trf/root-branch" directory)))
-      (trf-test-git root "checkout" "--quiet" "main")
-      ;; UW-1 §Extensions: Turn record changes into code
-      (assert-nil (trf-worktree-root-on-its-branch-p directory)))))
-
 (deftest trf-worktree-create-records-what-the-record-changes-are-measured-from ()
   "The worktree records the implemented records' commit as it was when the work started."
   (let* ((root trf-worktree-test-root)

@@ -45,7 +45,6 @@
 (defun trf-worktree-create (root commit)
   "Create a worktree of ROOT starting from COMMIT; return its directory."
   (let* ((root (file-name-as-directory (expand-file-name root)))
-         (root-branch (trf-git-current-branch root))
          (from (trf-record-changes-from root))
          (name (make-temp-name (format-time-string "trf-%Y%m%d-%H%M%S-")))
          (branch (concat "trf/" name))
@@ -58,8 +57,6 @@
     (trf-worktree--write directory "root" root)
     (trf-worktree--write directory "base" commit)
     (trf-worktree--write directory "branch" branch)
-    (when root-branch
-      (trf-worktree--write directory "root-branch" root-branch))
     (trf-worktree--write directory "from" from)
     directory))
 
@@ -88,13 +85,6 @@
 (defun trf-worktree-branch (directory)
   "Return the branch the worktree DIRECTORY was created on."
   (trf-worktree--read directory "branch"))
-
-;; UW-1 §Extensions: Turn record changes into code
-(defun trf-worktree-root-on-its-branch-p (directory)
-  "Return non-nil when DIRECTORY's root is on the branch it was on when DIRECTORY was created."
-  (when (file-exists-p (expand-file-name ".trf/root-branch" directory))
-    (equal (trf-worktree--read directory "root-branch")
-           (trf-git-current-branch (trf-worktree-root directory)))))
 
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-worktree-codebase-moved-p (directory)
