@@ -18,6 +18,9 @@ kept.
   progress.
 - On accept, the IDE ends each machine that worked on the work in progress
   since the IDE last started.
+- Before accepting, the IDE offers to save each file of the work in progress
+  with unsaved edits; what the record keeper saves is brought into the codebase
+  with the work, and unsaved edits are left as they are.
 
 ** Next
 

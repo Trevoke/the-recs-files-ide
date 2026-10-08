@@ -21,6 +21,9 @@ from the codebase.
 - When git fails and no other message covers it, the IDE gives MSG-7: Git could
   not do what the IDE asked, with git's own output, and keeps the work in
   progress.
+- Before showing the record changes, the IDE offers to save each file of the
+  target product with unsaved edits; the record changes include what the
+  record keeper saves.
 
 ** Next
 
