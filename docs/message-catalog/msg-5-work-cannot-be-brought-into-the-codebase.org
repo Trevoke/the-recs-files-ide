@@ -2,4 +2,5 @@
 
 Text: The work cannot be brought into the codebase:
 
-Followed by: the reason the target product gave.
+Followed by: the reason the target product gave, or "No reason given." when it
+gave none.
