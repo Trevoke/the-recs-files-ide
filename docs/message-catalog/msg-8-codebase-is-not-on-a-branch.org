@@ -1,0 +1,3 @@
+* MSG-8 Codebase is not on a branch
+
+Text: The codebase is not on a branch; check out a branch first.

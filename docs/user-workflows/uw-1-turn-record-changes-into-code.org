@@ -54,6 +54,8 @@ The record keeper asks to implement the record changes.
 - 2c. The record changes cannot be committed :: IDE gives MSG-4: Record changes
   could not be committed, with the reason the target product gave; the use case
   ends.
+- 2d. The codebase is not on a branch :: IDE gives MSG-8: Codebase is not on a
+  branch; the use case ends.
 - 3a. A machine of the implementation workflow stops before finishing :: IDE
   keeps the work in progress and shows the record keeper why; record keeper has
   that machine start again on it, at step 3.
