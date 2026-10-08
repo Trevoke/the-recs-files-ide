@@ -41,26 +41,27 @@
       ;; MSG-7: Git could not do what the IDE asked
       (user-error "%s\n%s" trf-git-failed-message (trf-record-changes-reason (cadr err))))))
 
-(defconst trf-record-changes-buffer-name "*trf record changes*")
+(defconst trf--record-changes-buffer-name "*trf record changes*")
 
 (defun trf--show-record-changes (changes)
-  "Show CHANGES in the buffer `trf-record-changes-buffer-name'."
-  (with-current-buffer (get-buffer-create trf-record-changes-buffer-name)
+  "Show CHANGES in the buffer `trf--record-changes-buffer-name'."
+  (with-current-buffer (get-buffer-create trf--record-changes-buffer-name)
     (let ((inhibit-read-only t))
       (erase-buffer)
-      (insert (mapconcat #'trf-machines--change-line changes "\n") "\n"))
+      (insert (mapconcat #'trf-machines-change-line changes "\n") "\n"))
     (special-mode)
     (display-buffer (current-buffer))))
 
-(defun trf--run-machines (machines directory config changes previous-handoff on-done)
+(defun trf--run-machines (machines directory config changes previous-handoff on-done
+                                    &optional ide-instruction)
   "Run MACHINES in turn in DIRECTORY with the AI program CONFIG on CHANGES.
-Give the first PREVIOUS-HANDOFF; call ON-DONE once the last has finished."
+Give the first PREVIOUS-HANDOFF and IDE-INSTRUCTION; call ON-DONE once the last has finished."
   (if (null machines)
       (funcall on-done)
     (let ((machine (car machines)))
       (trf-session-run
        machine directory config
-       (trf-machines-instructions machine changes previous-handoff)
+       (trf-machines-instructions machine changes previous-handoff ide-instruction)
        (lambda (handoff)
          (trf--run-machines (cdr machines) directory config changes handoff on-done))
        #'ignore))))
@@ -71,16 +72,20 @@ Give the first PREVIOUS-HANDOFF; call ON-DONE once the last has finished."
     (trf--run-machines
      (list assessor) directory config changes nil
      (lambda ()
-       (pop-to-buffer-same-window
-        (find-file-noselect
-         (expand-file-name (trf-machines-handoff-file assessor) directory)))))))
+       (let ((report (expand-file-name (trf-machines-handoff-file assessor) directory)))
+         ;; UW-1 §Extensions: Turn record changes into code
+         (when-let* ((buffer (find-buffer-visiting report)))
+           (with-current-buffer buffer
+             (revert-buffer t t t)))
+         (pop-to-buffer-same-window (find-file-noselect report)))))))
 
-(defun trf--implement (directory config changes previous-handoff)
+(defun trf--implement (directory config changes &optional ide-instruction)
   "Run the implementation workflow in DIRECTORY with CONFIG on CHANGES, then the assessor.
-Give the brainstorming machine PREVIOUS-HANDOFF."
+Give the brainstorming machine IDE-INSTRUCTION."
   (trf--run-machines (trf-machines-implementation-workflow)
-                     directory config changes previous-handoff
-                     (lambda () (trf--assess directory config changes))))
+                     directory config changes nil
+                     (lambda () (trf--assess directory config changes))
+                     ide-instruction))
 
 (defun trf--target-product-root ()
   "Return the root of the target product holding `default-directory'.
@@ -91,7 +96,6 @@ From inside a worktree, return the target product's root it was created from."
           (t default-directory))))
 
 ;; F-1 §Rules: Ask the IDE to implement the record changes
-;;;###autoload
 (defun trf-implement-record-changes ()
   "Ask the IDE to implement the record changes."
   (interactive)
@@ -106,7 +110,7 @@ From inside a worktree, return the target product's root it was created from."
           (let* ((config (trf-session-config))
                  (commit (trf-record-changes-commit root changes))
                  (directory (trf-worktree-create root commit)))
-            (trf--implement directory config changes nil)))))))
+            (trf--implement directory config changes)))))))
 
 (defun trf--work-in-progress ()
   "Return the worktree holding the current buffer's file, or signal a `user-error'."
@@ -116,7 +120,6 @@ From inside a worktree, return the target product's root it was created from."
       (user-error "%s" trf-no-work-in-progress-message)))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
-;;;###autoload
 (defun trf-accept-record-implementation-report ()
   "Accept the record implementation report of the work in progress here."
   (interactive)
@@ -150,7 +153,6 @@ From inside a worktree, return the target product's root it was created from."
            (user-error "%s\n%s" trf-work-not-brought-in-message (cadr err)))))))))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
-;;;###autoload
 (defun trf-reject-record-implementation-report ()
   "Reject the record implementation report of the work in progress here, keeping the work."
   (interactive)

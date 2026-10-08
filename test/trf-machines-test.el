@@ -75,5 +75,19 @@
       (assert-equal 2 (length (split-string
                                text "Paths are relative to the root of your working tree\\."))))))
 
+(deftest trf-machines-instructions-carry-an-instruction-from-the-ide ()
+  "An instruction from the IDE is a paragraph of its own, not something a machine handed off."
+  (let ((text (trf-machines-instructions (car (trf-machines-implementation-workflow))
+                                         trf-machines-test-changes nil "Bring it up to date.")))
+    (assert-match "\n\nBring it up to date\\.\n\n" text)
+    (assert-nil (string-match-p "handed off" text))))
+
+(deftest trf-machines-instructions-carry-both-a-handoff-and-an-instruction ()
+  "A handoff and an instruction from the IDE each keep their own paragraph."
+  (let ((text (trf-machines-instructions (car (trf-machines-implementation-workflow))
+                                         trf-machines-test-changes "Done." "Bring it up to date.")))
+    (assert-match "\n\nBring it up to date\\.\n\n" text)
+    (assert-match "The machine before you handed off:\nDone\\." text)))
+
 (provide 'trf-machines-test)
 ;;; trf-machines-test.el ends here

@@ -22,7 +22,7 @@
     (when (and (buffer-file-name buffer)
                (string-prefix-p trf-test-root (buffer-file-name buffer)))
       (kill-buffer buffer)))
-  (dolist (name (list trf-record-changes-buffer-name trf-test-machine-buffer-name))
+  (dolist (name (list trf--record-changes-buffer-name trf-test-machine-buffer-name))
     (when (get-buffer name)
       (kill-buffer name)))
   (delete-directory trf-test-root t))
@@ -114,7 +114,7 @@ DIRECTORY defaults to `trf-test-root'."
   (let (shown)
     (cl-letf (((symbol-function 'y-or-n-p)
                (lambda (&rest _)
-                 (setq shown (with-current-buffer trf-record-changes-buffer-name
+                 (setq shown (with-current-buffer trf--record-changes-buffer-name
                               (buffer-string)))
                  nil)))
       (trf-test-implement))
@@ -404,11 +404,17 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
     (trf-test-git trf-test-root "add" "--all")
     (trf-test-git trf-test-root "commit" "--quiet" "--message" "Other work")
     (let ((state (trf-test-state directory))
-          (asked 0))
+          (asked 0)
+          (report (find-file-noselect (trf-test-report-file directory))))
+      (trf-test-write-files directory '((".trf/record-implementation-report.org" . "Old report.")))
+      (set-file-times (trf-test-report-file directory) (time-subtract nil 60))
+      (with-current-buffer report (revert-buffer t t t))
       (trf-test-with-machines runs 'now
         (cl-letf (((symbol-function 'trf-session-config)
-                   (lambda () (cl-incf asked) trf-test-config)))
-          (with-current-buffer (find-file-noselect (trf-test-report-file directory))
+                   (lambda () (cl-incf asked) trf-test-config))
+                  ((symbol-function 'yes-or-no-p) (lambda (&rest _) (error "Asked to reread")))
+                  ((symbol-function 'y-or-n-p) (lambda (&rest _) (error "Asked to reread"))))
+          (with-current-buffer report
             (trf-accept-record-implementation-report))))
       ;; UW-1 §Extensions: Turn record changes into code
       (assert-equal '("brainstorming machine" "planning machine" "executing machine"
@@ -421,9 +427,14 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
       (assert-match "The codebase has moved since this work started; bring the work up to date with it\\."
                     (nth 3 (car runs)))
       ;; UW-1 §Extensions: Turn record changes into code
+      (assert-nil (string-match-p "handed off:\nThe codebase has moved" (nth 3 (car runs))))
+      ;; UW-1 §Extensions: Turn record changes into code
       (assert-match "^- F-1 Order (added): docs/features/f-1-order\\.org$" (nth 3 (car runs)))
       ;; UW-1 §Main success scenario: Turn record changes into code
       (assert-true (trf-test-report-shown-p))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal "Handed off by reconciliation assessor."
+                    (with-current-buffer (window-buffer (selected-window)) (buffer-string)))
       ;; UW-1 §Minimal guarantee: Turn record changes into code
       (assert-equal state (trf-test-state directory)))))
 

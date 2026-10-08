@@ -59,7 +59,8 @@
   "Return MACHINE's handoff file, relative to its worktree."
   (format ".trf/%s.org" (plist-get machine :slug)))
 
-(defun trf-machines--change-line (change)
+(defun trf-machines-change-line (change)
+  "Return the line naming CHANGE."
   (format "- %s (%s): %s"
           (string-join (delq nil (list (plist-get change :identifier)
                                        (plist-get change :title)))
@@ -67,15 +68,17 @@
           (plist-get change :status)
           (plist-get change :path)))
 
-(defun trf-machines-instructions (machine changes &optional previous-handoff)
-  "Return MACHINE's instructions for CHANGES, given the PREVIOUS-HANDOFF text."
+(defun trf-machines-instructions (machine changes &optional previous-handoff ide-instruction)
+  "Return MACHINE's instructions for CHANGES, given the PREVIOUS-HANDOFF text.
+IDE-INSTRUCTION, when given, is a paragraph of its own."
   (string-join
    (delq nil
          (list (format "You are the %s. Paths are relative to the root of your working tree."
                        (plist-get machine :name))
                (concat "The record changes:\n"
-                       (mapconcat #'trf-machines--change-line changes "\n"))
+                       (mapconcat #'trf-machines-change-line changes "\n"))
                (plist-get machine :work)
+               ide-instruction
                (when previous-handoff
                  (concat "The machine before you handed off:\n" previous-handoff))
                (plist-get machine :closing)))
