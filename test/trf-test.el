@@ -290,6 +290,12 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
           (progn (funcall command) nil)
         (error err)))))
 
+(defun trf-test-widget ()
+  "Return the codebase's src/widget.el."
+  (with-temp-buffer
+    (insert-file-contents (expand-file-name "src/widget.el" trf-test-root))
+    (buffer-string)))
+
 (defun trf-test-state (directory)
   "Return the codebase's HEAD, status and refs/recs/, and the work in progress in DIRECTORY."
   (list (trf-test-head trf-test-root)
@@ -326,10 +332,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; UW-1 §Main success scenario: Turn record changes into code
-    (assert-equal "(provide 'widget) ; built\n"
-                  (with-temp-buffer
-                    (insert-file-contents (expand-file-name "src/widget.el" trf-test-root))
-                    (buffer-string)))
+    (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
     ;; UW-1 §Success guarantee: Turn record changes into code
     (assert-equal base (string-trim (trf-test-git trf-test-root "rev-parse"
                                                   "refs/recs/implemented")))
@@ -452,14 +455,14 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
 (defconst trf-test-other-record-change '("docs/features/f-2-pay.org" . "* F-2 Pay\n"))
 
 (defun trf-test-rerun-record-changes (directory)
-  "Accept DIRECTORY's report on a moved codebase; return the record changes the brainstorming machine is given."
+  "Accept DIRECTORY's report on a moved codebase; return the record changes the brainstorming machine is given, or nil."
   (let (runs)
     (trf-test-with-machines runs 'now
       (with-current-buffer (find-file-noselect (trf-test-report-file directory))
         (trf-accept-record-implementation-report)))
     (let ((instructions (nth 3 (car runs))))
-      (assert-true (string-match "The record changes:\n\\(\\(?:- .*\n\\)*\\)" instructions))
-      (match-string 1 instructions))))
+      (when (string-match "The record changes:\n\\(\\(?:- .*\n\\)*\\)" instructions)
+        (match-string 1 instructions)))))
 
 (deftest trf-accept-reruns-on-the-record-changes-it-started-with-after-later-work-is-accepted ()
   "Work started before other work is accepted reruns on the record changes it started with."
@@ -569,10 +572,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
       (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: cannot lock ref")
                     (trf-test-from-file (trf-test-report-file directory)
                                         #'trf-accept-record-implementation-report)))
-    (assert-equal "(provide 'widget) ; built\n"
-                  (with-temp-buffer
-                    (insert-file-contents (expand-file-name "src/widget.el" trf-test-root))
-                    (buffer-string)))
+    (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-true (file-directory-p directory))
     (let ((head (trf-test-head trf-test-root)))
@@ -584,11 +584,6 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
                                                "refs/recs/implemented")))
       ;; UW-1 §Main success scenario: Turn record changes into code
       (assert-equal head (trf-test-head trf-test-root)))))
-
-(defun trf-test-widget ()
-  (with-temp-buffer
-    (insert-file-contents (expand-file-name "src/widget.el" trf-test-root))
-    (buffer-string)))
 
 (deftest trf-accept-from-another-file-of-the-work ()
   "Accepting from any file of the work in progress brings the work in."
