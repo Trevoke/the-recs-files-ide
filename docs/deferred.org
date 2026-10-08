@@ -10,6 +10,8 @@ Returns to UW-1 as extension 4a, "An answer changes a record", when written.
 To redesign when taken up: written for one machine that stops, reassesses the
 implementation plan and resumes. The implementation workflow is now three
 machines, and reassessing the plan presumably falls to the planning machine.
+Also to settle when taken up: which record changes a 7a rerun uses after a record
+is amended mid-workflow.
 
 - Scope :: the IDE (black-box)
 - Level :: user goal
