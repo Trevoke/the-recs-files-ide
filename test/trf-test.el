@@ -33,7 +33,9 @@
   (assert-equal "0.1.0" trf-version))
 
 (defmacro trf-test-with-machines (runs finishing &rest body)
-  "Run BODY with each machine handing off; RUNS collects (name directory config instructions).
+  "Run BODY with each machine finishing; RUNS collects (name directory config instructions).
+The brainstorming and planning machines produce docs/plans/<slug>.md; the reconciliation
+assessor writes the record implementation report.
 FINISHING is `now' to finish each machine at once, `later' to finish it from a timer,
 or the name of the machine that stops instead of finishing."
   (let ((timers (make-symbol "timers")))
@@ -47,13 +49,17 @@ or the name of the machine that stops instead of finishing."
                                                                 instructions))))
                           (if (equal ,finishing name)
                               (funcall on-stopped)
-                            (let ((text (concat "Handed off by " name ".")))
-                              (with-temp-file (expand-file-name
-                                               (trf-machines-handoff-file machine) directory)
-                                (insert text))
+                            (let ((produced
+                                   (when (memq (plist-get machine :slug) '(brainstorming planning))
+                                     (list (format "docs/plans/%s.md" (plist-get machine :slug))))))
+                              (when (equal name "reconciliation assessor")
+                                (with-temp-file (expand-file-name
+                                                 (trf-machines-record-implementation-report-file)
+                                                 directory)
+                                  (insert "Assessed by the reconciliation assessor.")))
                               (if (eq ,finishing 'later)
-                                  (push (run-at-time 0 nil on-finished text) ,timers)
-                                (funcall on-finished text)))))
+                                  (push (run-at-time 0 nil on-finished produced) ,timers)
+                                (funcall on-finished produced)))))
                         (get-buffer-create trf-test-machine-buffer-name)))
                      ((symbol-function 'y-or-n-p) (lambda (&rest _) t)))
              ,@body)
@@ -163,7 +169,7 @@ IMPLEMENT defaults to `trf-test-implement'."
                     (string-trim (trf-test-git directory "rev-parse" "HEAD"))))))
 
 (deftest trf-implement-runs-the-machines-in-turn ()
-  "The implementation workflow's machines run in turn, each given the handoff before it, then the reconciliation assessor."
+  "The implementation workflow's machines run in turn, each given what the one before produced, then the reconciliation assessor."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (let (runs)
     (trf-test-with-machines runs 'now
@@ -173,9 +179,9 @@ IMPLEMENT defaults to `trf-test-implement'."
                     "reconciliation assessor")
                   (mapcar #'car runs))
     ;; UW-1 §Main success scenario: Turn record changes into code
-    (assert-match "Handed off by brainstorming machine\\." (nth 3 (nth 1 runs)))
+    (assert-match "^- docs/plans/brainstorming\\.md$" (nth 3 (nth 1 runs)))
     ;; UW-1 §Main success scenario: Turn record changes into code
-    (assert-match "Handed off by planning machine\\." (nth 3 (nth 2 runs)))
+    (assert-match "^- docs/plans/planning\\.md$" (nth 3 (nth 2 runs)))
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-equal 1 (length (delete-dups (mapcar (lambda (run) (nth 1 run)) runs))))))
 
@@ -437,13 +443,13 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
       (assert-match "The codebase has moved since this work started; bring the work up to date with it\\."
                     (nth 3 (car runs)))
       ;; UW-1 §Extensions: Turn record changes into code
-      (assert-nil (string-match-p "handed off:\nThe codebase has moved" (nth 3 (car runs))))
+      (assert-nil (string-match-p "produced[^\n]*:\nThe codebase has moved" (nth 3 (car runs))))
       ;; UW-1 §Extensions: Turn record changes into code
       (assert-match "^- F-1 Order (added): docs/features/f-1-order\\.org$" (nth 3 (car runs)))
       ;; UW-1 §Main success scenario: Turn record changes into code
       (assert-true (trf-test-report-shown-p))
       ;; UW-1 §Extensions: Turn record changes into code
-      (assert-equal "Handed off by reconciliation assessor."
+      (assert-equal "Assessed by the reconciliation assessor."
                     (with-current-buffer (window-buffer (selected-window)) (buffer-string)))
       ;; UW-1 §Minimal guarantee: Turn record changes into code
       (assert-equal state (trf-test-state directory)))))

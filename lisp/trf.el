@@ -86,18 +86,19 @@
 (defvar trf--session-buffers (make-hash-table :test #'equal)
   "The machines' session buffers, keyed by the worktree they work in.")
 
-(defun trf--run-machines (machines directory config changes previous-handoff on-done
+(defun trf--run-machines (machines directory config changes produced on-done
                                     &optional ide-instruction)
   "Run MACHINES in turn in DIRECTORY with the AI program CONFIG on CHANGES.
-Give the first PREVIOUS-HANDOFF and IDE-INSTRUCTION; call ON-DONE once the last has finished."
+Give the first the paths PRODUCED before it and IDE-INSTRUCTION; call ON-DONE once the last
+has finished."
   (if (null machines)
       (funcall on-done)
     (let ((machine (car machines)))
       (push (trf-session-run
              machine directory config
-             (trf-machines-instructions machine changes previous-handoff ide-instruction)
-             (lambda (handoff)
-               (trf--run-machines (cdr machines) directory config changes handoff on-done))
+             (trf-machines-instructions machine changes produced ide-instruction)
+             (lambda (produced)
+               (trf--run-machines (cdr machines) directory config changes produced on-done))
              #'ignore)
             (gethash (file-name-as-directory (expand-file-name directory))
                      trf--session-buffers)))))
@@ -108,7 +109,8 @@ Give the first PREVIOUS-HANDOFF and IDE-INSTRUCTION; call ON-DONE once the last 
     (trf--run-machines
      (list assessor) directory config changes nil
      (lambda ()
-       (let ((report (expand-file-name (trf-machines-handoff-file assessor) directory)))
+       (let ((report (expand-file-name (trf-machines-record-implementation-report-file)
+                                       directory)))
          ;; UW-1 §Extensions: Turn record changes into code
          (when-let* ((buffer (find-buffer-visiting report)))
            (with-current-buffer buffer
@@ -245,8 +247,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
   (interactive)
   (let* ((directory (trf--work-in-progress))
          (report (find-buffer-visiting
-                  (expand-file-name (trf-machines-handoff-file
-                                     (trf-machines-reconciliation-assessor))
+                  (expand-file-name (trf-machines-record-implementation-report-file)
                                     directory))))
     ;; F-2 §Produces: Accept or reject the record implementation report
     (when report

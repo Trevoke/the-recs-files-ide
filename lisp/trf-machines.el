@@ -19,14 +19,39 @@
     (executing
      . "Use the %s skill to turn the record changes into code by following the implementation plan, committing as you go.")))
 
+(defconst trf-machines--finished-line "{\"finished\": true}"
+  "The line a machine ends its last turn with when it produces nothing for the next.")
+
+(defconst trf-machines--finished-and-produced-line
+  "{\"finished\": true, \"produced\": [\"<path>\"]}"
+  "The line a machine ends its last turn with, listing the paths it produced.")
+
+(defconst trf-machines--closing
+  '((brainstorming
+     . "When your work is finished, end your last turn with this line alone, listing in \"produced\" the path of each document in which you settled with the record keeper how the record changes are to be implemented:")
+    (planning
+     . "When your work is finished, end your last turn with this line alone, listing in \"produced\" the path of the implementation plan:")
+    (executing
+     . "When your work is finished, end your last turn with this line alone:"))
+  "What each machine of the implementation workflow is told about finishing.")
+
+(defconst trf-machines--reading
+  '((planning . "Read what the brainstorming machine produced; it settles how the record changes are to be implemented:")
+    (executing . "Follow the implementation plan the planning machine produced:"))
+  "What each machine is told about the paths the machine before it produced.")
+
+;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-machines--make (slug name)
   (let ((machine (list :slug slug :name name
                        :skill (alist-get slug trf-machines-skills))))
     (append machine
             (list :work (format (alist-get slug trf-machines--work)
                                 (plist-get machine :skill))
-                  :closing (format "When your work is finished, write %s as your last act, naming what you produced."
-                                   (trf-machines-handoff-file machine))))))
+                  :reading (alist-get slug trf-machines--reading)
+                  :closing (concat (alist-get slug trf-machines--closing) "\n"
+                                   (if (eq slug 'executing)
+                                       trf-machines--finished-line
+                                     trf-machines--finished-and-produced-line))))))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-machines-implementation-workflow ()
@@ -35,29 +60,31 @@
         (trf-machines--make 'planning "planning machine")
         (trf-machines--make 'executing "executing machine")))
 
+;; F-2 §Takes: Accept or reject the record implementation report
+;; UW-1 §Main success scenario: Turn record changes into code
+(defun trf-machines-record-implementation-report-file ()
+  "Return the record implementation report's path, relative to the worktree."
+  ".trf/record-implementation-report.org")
+
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-machines-reconciliation-assessor ()
   "Return the reconciliation assessor."
-  (let* ((machine (list :slug 'record-implementation-report
-                        :name "reconciliation assessor" :skill nil))
-         (report (trf-machines-handoff-file machine)))
-    (append machine
-            (list :work (concat
-                         "For each of the record changes, find the tests that cite it, run them, "
-                         "and assess whether the codebase is reconciled with it. "
-                         (format "The record implementation report is %s; change no other file. " report)
-                         "The report is an org file "
-                         "with one heading per record change, its identifier and title, listing "
-                         "each test that cites it and whether it passed; a record change that no "
-                         "test cites is shown as untested. If you cannot assess at all, say so "
-                         "and why under every record change.")
-                  :closing (format "When you have assessed every record change, write %s as your last act."
-                                   report)))))
-
-(defun trf-machines-handoff-file (machine)
-  "Return MACHINE's handoff file, relative to its worktree."
-  (format ".trf/%s.org" (plist-get machine :slug)))
+  (let ((report (trf-machines-record-implementation-report-file)))
+    (list :slug 'reconciliation-assessor
+          :name "reconciliation assessor" :skill nil
+          :work (concat
+                 "For each of the record changes, find the tests that cite it, run them, "
+                 "and assess whether the codebase is reconciled with it. "
+                 (format "The record implementation report is %s; change no other file. " report)
+                 "The report is an org file "
+                 "with one heading per record change, its identifier and title, listing "
+                 "each test that cites it and whether it passed; a record change that no "
+                 "test cites is shown as untested. If you cannot assess at all, say so "
+                 "and why under every record change.")
+          :closing (concat "When you have assessed every record change, "
+                           "end your last turn with this line alone:\n"
+                           trf-machines--finished-line))))
 
 (defun trf-machines-change-line (change)
   "Return the line naming CHANGE."
@@ -68,8 +95,8 @@
           (plist-get change :status)
           (plist-get change :path)))
 
-(defun trf-machines-instructions (machine changes &optional previous-handoff ide-instruction)
-  "Return MACHINE's instructions for CHANGES, given the PREVIOUS-HANDOFF text.
+(defun trf-machines-instructions (machine changes &optional produced ide-instruction)
+  "Return MACHINE's instructions for CHANGES, given the paths PRODUCED by the machine before.
 IDE-INSTRUCTION, when given, is a paragraph of its own."
   (string-join
    (delq nil
@@ -79,8 +106,9 @@ IDE-INSTRUCTION, when given, is a paragraph of its own."
                        (mapconcat #'trf-machines-change-line changes "\n"))
                (plist-get machine :work)
                ide-instruction
-               (when previous-handoff
-                 (concat "The machine before you handed off:\n" previous-handoff))
+               (when (and produced (plist-get machine :reading))
+                 (concat (plist-get machine :reading) "\n"
+                         (mapconcat (lambda (path) (concat "- " path)) produced "\n")))
                (plist-get machine :closing)))
    "\n\n"))
 

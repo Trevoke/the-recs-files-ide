@@ -1,0 +1,79 @@
+#+TITLE: Reading an agent-shell Machine's Messages — Reference
+#+STARTUP: overview
+
+Not a project document. This records how the text of an agent's messages
+reaches a subscriber of an agent-shell session, as read in the source of
+agent-shell 0.86.2 and acp 0.15.1, the versions under =ide/elpa/= and pinned
+for the tests in =Elkfile=.
+
+*What it establishes.* agent-shell turns each ACP =agent_message_chunk=
+notification into an =agent-message-chunk= event carrying only the chunk's
+text. It keeps none of that text for subscribers, and the =turn-complete= event
+carries only the stop reason and usage. A subscriber that needs the text of a
+turn collects the chunks itself, from one =turn-complete= to the next. The
+chunks of separate messages in one turn arrive one after another, with nothing
+marking where one message ends and the next begins.
+
+* acp hands each notification to the subscribed handlers
+
+=acp.el=, =acp-subscribe-to-notifications= pushes a handler onto the client's
+=:notification-handlers=:
+
+#+begin_example
+  (let ((handlers (map-elt client :notification-handlers)))
+    (push (lambda (notification)
+            ...
+                (funcall on-notification notification))))
+          handlers)
+#+end_example
+
+=acp.el=, =acp--start-client='s process filter routes each incoming message
+and calls every one of those handlers for a notification:
+
+#+begin_example
+                                                            :on-notification
+                                                            (lambda (notification)
+                                                              (dolist (handler (map-elt client :notification-handlers))
+#+end_example
+
+=agent-shell.el= subscribes =agent-shell--on-notification= through
+=acp-subscribe-to-notifications=.
+
+* agent-shell streams each chunk of an agent message as an event
+
+=agent-shell.el=, =agent-shell--on-notification=, for a =session/update= whose
+=sessionUpdate= is ="agent_message_chunk"=, renders the chunk and emits:
+
+#+begin_example
+             (agent-shell--emit-event
+              :event 'agent-message-chunk
+              :data (list (cons :text-chunk (map-nested-elt acp-notification '(params update content text)))))
+#+end_example
+
+The event carries no =messageId=: agent-shell uses the notification's
+=messageId= only to decide where its own rendered fragments begin. The
+documentation of =agent-shell-subscribe-to= says of the event:
+
+#+begin_example
+  `agent-message-chunk'   - Agent streamed a chunk of message text
+    :data contains :text-chunk (the raw text the agent emitted, nil for a
+    non-text block such as an image).  Emitted once per streamed chunk, so
+    it may fire many times per turn; the shell neither renders nor
+    accumulates the text.
+#+end_example
+
+* A turn's end carries no message text
+
+=agent-shell.el=, in the response handler of the prompt request, once the
+turn's =session/prompt= request returns:
+
+#+begin_example
+                     (let ((data (list (cons :stop-reason (map-elt acp-response 'stopReason))
+                                       (cons :usage (map-elt (agent-shell--state) :usage)))))
+                       (agent-shell--emit-event
+                        :event 'turn-complete
+                        :data data)
+#+end_example
+
+The documentation of =agent-shell-subscribe-to= says =turn-complete='s :data
+"contains :stop-reason and :usage".

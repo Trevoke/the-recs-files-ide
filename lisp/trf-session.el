@@ -1,6 +1,7 @@
 ;;; trf-session.el --- Machines over ACP -*- lexical-binding: t; -*-
 
 (require 'map)
+(require 'seq)
 (require 'agent-shell)
 (require 'trf-group)
 (require 'trf-machines)
@@ -17,33 +18,48 @@ The record keeper picks it through agent-shell."
   (or trf-ai-program-config
       (agent-shell-select-config :prompt "AI program for the machines: ")))
 
-(defun trf-session--handoff-text (handoff)
-  (with-temp-buffer
-    (insert-file-contents handoff)
-    (buffer-string)))
+;; UW-1 §Main success scenario: Turn record changes into code
+(defun trf-session--finished (text)
+  "Return a list holding the paths produced when TEXT's last line says the machine finished.
+Return nil when it does not."
+  (when-let* ((line (car (last (split-string (or text "") "[\r\n]+" t "[ \t]+")))))
+    (let ((start 0) found)
+      (while (and (not found) (string-match "{" line start))
+        (let ((position (match-beginning 0)))
+          (setq start (1+ position))
+          (when-let* ((object (ignore-errors
+                                (json-parse-string (substring line position)
+                                                   :object-type 'alist
+                                                   :array-type 'list
+                                                   :false-object nil
+                                                   :null-object nil)))
+                      ((consp object))
+                      ((eq (alist-get 'finished object) t)))
+            (let ((produced (alist-get 'produced object)))
+              (setq found (list (when (listp produced)
+                                  (seq-filter #'stringp produced))))))))
+      found)))
 
 (defun trf-session--stopped-p (stop-reason)
   (not (member stop-reason '(nil "end_turn"))))
 
 ;; ADR-2 §Decision: Talk to machines over ACP
-(defun trf-session-run (machine directory config instructions on-finished on-stopped)
-  "Run MACHINE in DIRECTORY with the AI program CONFIG and INSTRUCTIONS.
-Return its session buffer.  MACHINE's handoff file is deleted before the
-session starts.  Call ON-FINISHED with the handoff file's text at the end
-of the first turn in which the handoff file exists.  Call ON-STOPPED, with
-the session buffer displayed, if the session fails, or a turn ends for a
-reason other than \"end_turn\", before then.  If the session's buffer is
-killed first, call neither."
+;; docs/knowledge-base/agent-shell-agent-messages.org §agent-shell streams each chunk of an agent message as an event
+;; docs/knowledge-base/agent-shell-agent-messages.org §A turn's end carries no message text
+(defun trf-session-run (_machine directory config instructions on-finished on-stopped)
+  "Run a machine in DIRECTORY with the AI program CONFIG and INSTRUCTIONS.
+Return its session buffer.  Call ON-FINISHED with the paths the machine
+produced at the end of the first turn whose last line says it has
+finished.  Call ON-STOPPED, with the session buffer displayed, if the
+session fails, or a turn ends for a reason other than \"end_turn\",
+before then.  If the session's buffer is killed first, call neither."
   (let* ((default-directory directory)
-         (handoff (expand-file-name (trf-machines-handoff-file machine) directory))
-         (buffer (progn
-                   (when (file-exists-p handoff) (delete-file handoff))
-                   (let ((agent-shell-session-strategy 'new))
-                     (agent-shell-start :config config))))
+         (buffer (let ((agent-shell-session-strategy 'new))
+                   (agent-shell-start :config config)))
+         (text "")
          (over nil)
-         (finish (lambda ()
-                   (let ((text (trf-session--handoff-text handoff)))
-                     (run-at-time 0 nil on-finished text))))
+         (finish (lambda (produced)
+                   (run-at-time 0 nil on-finished produced)))
          (stop (lambda ()
                  (when (buffer-live-p buffer) (display-buffer buffer))
                  (run-at-time 0 nil on-stopped))))
@@ -53,24 +69,30 @@ killed first, call neither."
                  (agent-shell-insert :text instructions :submit t :no-focus t
                                      :shell-buffer buffer)))
     (agent-shell-subscribe-to
+     :shell-buffer buffer :event 'agent-message-chunk
+     :on-event (lambda (event)
+                 (setq text (concat text (or (map-elt (map-elt event :data) :text-chunk) "")))))
+    (agent-shell-subscribe-to
      :shell-buffer buffer :event 'turn-complete
      :on-event (lambda (event)
-                 (unless over
-                   (cond ((file-exists-p handoff)
-                          (setq over t)
-                          (funcall finish))
-                         ;; UW-1 §Extensions: Turn record changes into code
-                         ((trf-session--stopped-p
-                           (map-elt (map-elt event :data) :stop-reason))
-                          (setq over t)
-                          (funcall stop))))))
+                 (let ((finished (trf-session--finished text)))
+                   (setq text "")
+                   (unless over
+                     (cond (finished
+                            (setq over t)
+                            (funcall finish (car finished)))
+                           ;; UW-1 §Extensions: Turn record changes into code
+                           ((trf-session--stopped-p
+                             (map-elt (map-elt event :data) :stop-reason))
+                            (setq over t)
+                            (funcall stop)))))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'error
      :on-event (lambda (_event)
                  (unless over
                    (setq over t)
-                   (if (file-exists-p handoff)
-                       (funcall finish)
+                   (if-let* ((finished (trf-session--finished text)))
+                       (funcall finish (car finished))
                      (funcall stop)))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'clean-up
