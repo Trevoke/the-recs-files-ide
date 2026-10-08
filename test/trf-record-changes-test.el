@@ -586,5 +586,33 @@ Return the error signalled, the status before and after, and HEAD before and aft
   "Mid bisect, the record changes are not committed and MSG-3 is given."
   (trf-record-changes-test-refuses-in-progress 'bisect))
 
+(deftest trf-record-changes-in-a-commit ()
+  "The record changes a commit holds are those between the implemented records and it, as it holds them."
+  (let ((root trf-record-changes-test-root))
+    (trf-record-changes-test-mark-implemented)
+    (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")
+                                 ("docs/user-workflows/uw-1-order-a-widget.org"
+                                  . "* UW-1 Order a widget\n\n1. Buyer orders twice.\n")))
+    (delete-file (expand-file-name "docs/vision.org" root))
+    (trf-test-git root "add" "--all")
+    (trf-test-git root "commit" "--quiet" "--message" "Record changes")
+    (let ((commit (trf-test-head root)))
+      (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order later\n")
+                                   ("docs/features/f-2-pay.org" . "* F-2 Pay\n")))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal '((:path "docs/features/f-1-order.org" :status added
+                       :identifier "F-1" :title "Order")
+                      (:path "docs/user-workflows/uw-1-order-a-widget.org" :status modified
+                       :identifier "UW-1" :title "Order a widget")
+                      (:path "docs/vision.org" :status deleted :identifier nil :title "Vision"))
+                    (trf-record-changes-in-commit root commit)))))
+
+(deftest trf-record-changes-in-a-commit-before-any-implementation ()
+  "With nothing implemented, the record changes a commit holds are all its records."
+  (let ((root trf-record-changes-test-root))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal (trf-record-changes root)
+                  (trf-record-changes-in-commit root (trf-test-head root)))))
+
 (provide 'trf-record-changes-test)
 ;;; trf-record-changes-test.el ends here

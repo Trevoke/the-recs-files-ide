@@ -46,13 +46,17 @@
          (cons nil (match-string 1 text)))
         (t (cons nil (file-name-base path)))))
 
-(defun trf-record-changes--describe (root base path status)
-  "Return the record change at PATH in ROOT with git STATUS, measured from BASE."
-  (let* ((text (if (equal status "D")
-                   (trf-git root "show" (concat base ":" path))
-                 (with-temp-buffer
-                   (insert-file-contents (expand-file-name path root))
-                   (buffer-string))))
+(defun trf-record-changes--describe (root base path status &optional commit)
+  "Return the record change at PATH in ROOT with git STATUS, measured from BASE.
+Read PATH as COMMIT holds it, or from disk when COMMIT is nil."
+  (let* ((text (cond ((equal status "D")
+                      (trf-git root "show" (concat base ":" path)))
+                     (commit
+                      (trf-git root "show" (concat commit ":" path)))
+                     (t
+                      (with-temp-buffer
+                        (insert-file-contents (expand-file-name path root))
+                        (buffer-string)))))
          (heading (trf-record-changes--heading text path)))
     (list :path path
           :status (pcase status ("A" 'added) ("D" 'deleted) (_ 'modified))
@@ -93,6 +97,19 @@
       (mapcar (lambda (entry)
                 (trf-record-changes--describe root base (car entry) (cdr entry)))
               (sort entries (lambda (a b) (string< (car a) (car b))))))))
+
+;; UW-1 §Extensions: Turn record changes into code
+(defun trf-record-changes-in-commit (root commit)
+  "Return the record changes of the target product at ROOT as COMMIT holds them, by path."
+  (when-let* ((paths (append (trf-project-record-directories root)
+                             (trf-project-vision-and-ubiquitous-language-paths root))))
+    (let ((base (trf-record-changes--base root)))
+      (mapcar (lambda (entry)
+                (trf-record-changes--describe root base (car entry) (cdr entry) commit))
+              (sort (trf-record-changes--pairs
+                     (apply #'trf-record-changes--git-paths root "diff" "--name-status" "-z"
+                            "--no-renames" base commit "--" paths))
+                    (lambda (a b) (string< (car a) (car b))))))))
 
 (defun trf-record-changes--commit-message (changes)
   "Return the commit message naming each of CHANGES."
