@@ -1,15 +1,15 @@
 ;;; trf-machines.el --- The machines the IDE runs -*- lexical-binding: t; -*-
 
 (require 'subr-x)
-
-(defgroup trf nil "The IDE for projects that keep records." :group 'tools)
+(require 'trf-group)
 
 (defcustom trf-machines-skills
   '((brainstorming . "recs-brainstorming")
     (planning . "recs-writing-plans")
     (executing . "recs-executing-plans"))
   "The skill each machine of the implementation workflow is configured with."
-  :type '(alist :key-type symbol :value-type string))
+  :type '(alist :key-type symbol :value-type string)
+  :group 'trf)
 
 (defconst trf-machines--work
   '((brainstorming

@@ -2,6 +2,7 @@
 
 (require 'map)
 (require 'agent-shell)
+(require 'trf-group)
 (require 'trf-machines)
 
 (defcustom trf-ai-program-config nil
