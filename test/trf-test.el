@@ -509,6 +509,19 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
               (lambda (&rest _) (signal 'trf-git-error (list ,reason)))))
      ,@body))
 
+(defmacro trf-test-failing-git-subcommand (subcommand reason &rest body)
+  "Run BODY with `trf-git' signalling `trf-git-error' with REASON for SUBCOMMAND.
+Every other call to `trf-git' runs git."
+  (declare (indent 2) (debug t))
+  (let ((git (make-symbol "git")))
+    `(let ((,git (symbol-function 'trf-git)))
+       (cl-letf (((symbol-function 'trf-git)
+                  (lambda (directory &rest args)
+                    (if (equal (car args) ,subcommand)
+                        (signal 'trf-git-error (list ,reason))
+                      (apply ,git directory args)))))
+         ,@body))))
+
 (deftest trf-implement-git-fails-checking-for-an-operation-in-progress ()
   "When git fails checking for a merge or rebase, implementing gives MSG-7 with git's output."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
@@ -557,14 +570,9 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
 
 (deftest trf-accept-git-fails-after-bringing-the-work-in ()
   "When git fails marking the record changes implemented after the merge, accepting gives MSG-7, not MSG-5."
-  (let ((directory (trf-test-implemented-worktree))
-        (git (symbol-function 'trf-git)))
+  (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
-    (cl-letf (((symbol-function 'trf-git)
-               (lambda (directory &rest args)
-                 (if (equal (car args) "update-ref")
-                     (signal 'trf-git-error (list "fatal: cannot lock ref"))
-                   (apply git directory args)))))
+    (trf-test-failing-git-subcommand "update-ref" "fatal: cannot lock ref"
       ;; F-2 §Rules: Accept or reject the record implementation report
       ;; MSG-7: Git could not do what the IDE asked
       (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: cannot lock ref")
@@ -876,14 +884,9 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
 
 (deftest trf-accept-refused-by-the-target-product-without-a-reason ()
   "When the work cannot be brought in and git says nothing, accepting gives MSG-5 with no reason given."
-  (let ((directory (trf-test-implemented-worktree))
-        (git (symbol-function 'trf-git)))
+  (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
-    (cl-letf (((symbol-function 'trf-git)
-               (lambda (dir &rest args)
-                 (if (equal (car args) "merge")
-                     (signal 'trf-git-error (list ""))
-                   (apply git dir args)))))
+    (trf-test-failing-git-subcommand "merge" ""
       ;; UW-1 §Extensions: Turn record changes into code
       ;; MSG-5: Work cannot be brought into the codebase
       (trf-test-assert-accept-refuses
