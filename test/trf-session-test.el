@@ -141,6 +141,52 @@
      ;; UW-1 §Extensions: Turn record changes into code
      (assert-nil stopped))))
 
+(defun trf-session-test-turn-ends (stop-reason)
+  "Run a machine through one turn ending with STOP-REASON; return (FINISHED STOPPED DISPLAYED)."
+  (trf-session-test-with-fake-shell
+   (with-spy display-buffer calls
+     (let (finished (stopped 0))
+       (trf-session-test-run (lambda (text) (setq finished text))
+                             (lambda () (setq stopped (1+ stopped))))
+       (trf-session-test-fire 'turn-complete (list (cons :stop-reason stop-reason)))
+       (trf-session-test-fire 'turn-complete (list (cons :stop-reason stop-reason)))
+       (trf-session-test-settle)
+       (list finished stopped (mapcar #'car calls))))))
+
+(deftest trf-session-stopped-when-turn-ends-short ()
+  "A turn refused or cut off by a limit, without the handoff file, stops the machine once."
+  (dolist (reason '("refusal" "max_tokens" "max_turn_requests"))
+    (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends reason)))
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal 1 stopped reason)
+      (assert-nil finished reason)
+      (assert-equal (list (get-buffer trf-session-test-buffer-name)) displayed reason))))
+
+(deftest trf-session-waits-when-turn-ends-normally ()
+  "A turn that ends normally without the handoff file leaves the machine waiting."
+  (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends "end_turn")))
+    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal 0 stopped)
+    (assert-nil finished)
+    (assert-nil displayed)))
+
+(deftest trf-session-finished-whatever-the-stop-reason ()
+  "A turn that ends with the handoff file finishes the machine, whatever its stop reason."
+  (dolist (reason '("end_turn" "refusal" "max_tokens" "max_turn_requests"))
+    (setq trf-session-test-handlers nil)
+    (trf-session-test-with-fake-shell
+     (let (finished stopped)
+       (trf-session-test-run (lambda (text) (setq finished text))
+                             (lambda () (setq stopped t)))
+       (trf-session-test-write-handoff "Plan written.")
+       (trf-session-test-fire 'turn-complete (list (cons :stop-reason reason)))
+       (trf-session-test-settle)
+       ;; UW-1 §Main success scenario: Turn record changes into code
+       (assert-equal "Plan written." finished reason)
+       ;; UW-1 §Extensions: Turn record changes into code
+       (assert-nil stopped reason)))))
+
 (deftest trf-session-abandoned-when-buffer-killed ()
   "A session cleaned up before the handoff calls neither continuation."
   (trf-session-test-with-fake-shell

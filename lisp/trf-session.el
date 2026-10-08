@@ -1,5 +1,6 @@
 ;;; trf-session.el --- Machines over ACP -*- lexical-binding: t; -*-
 
+(require 'map)
 (require 'agent-shell)
 (require 'trf-machines)
 
@@ -20,14 +21,18 @@ The record keeper picks it through agent-shell."
     (insert-file-contents handoff)
     (buffer-string)))
 
+(defun trf-session--stopped-p (stop-reason)
+  (not (member stop-reason '(nil "end_turn"))))
+
 ;; ADR-2 §Decision: Talk to machines over ACP
 (defun trf-session-run (machine directory config instructions on-finished on-stopped)
   "Run MACHINE in DIRECTORY with the AI program CONFIG and INSTRUCTIONS.
 Return its session buffer.  MACHINE's handoff file is deleted before the
 session starts.  Call ON-FINISHED with the handoff file's text at the end
 of the first turn in which the handoff file exists.  Call ON-STOPPED, with
-the session buffer displayed, if the session fails before then.  If the
-session's buffer is killed first, call neither."
+the session buffer displayed, if the session fails, or a turn ends for a
+reason other than \"end_turn\", before then.  If the session's buffer is
+killed first, call neither."
   (let* ((default-directory directory)
          (handoff (expand-file-name (trf-machines-handoff-file machine) directory))
          (buffer (progn
@@ -37,7 +42,10 @@ session's buffer is killed first, call neither."
          (over nil)
          (finish (lambda ()
                    (let ((text (trf-session--handoff-text handoff)))
-                     (run-at-time 0 nil on-finished text)))))
+                     (run-at-time 0 nil on-finished text))))
+         (stop (lambda ()
+                 (when (buffer-live-p buffer) (display-buffer buffer))
+                 (run-at-time 0 nil on-stopped))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'init-finished
      :on-event (lambda (_event)
@@ -45,10 +53,16 @@ session's buffer is killed first, call neither."
                                      :shell-buffer buffer)))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'turn-complete
-     :on-event (lambda (_event)
-                 (when (and (not over) (file-exists-p handoff))
-                   (setq over t)
-                   (funcall finish))))
+     :on-event (lambda (event)
+                 (unless over
+                   (cond ((file-exists-p handoff)
+                          (setq over t)
+                          (funcall finish))
+                         ;; UW-1 §Extensions: Turn record changes into code
+                         ((trf-session--stopped-p
+                           (map-elt (map-elt event :data) :stop-reason))
+                          (setq over t)
+                          (funcall stop))))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'error
      :on-event (lambda (_event)
@@ -56,8 +70,7 @@ session's buffer is killed first, call neither."
                    (setq over t)
                    (if (file-exists-p handoff)
                        (funcall finish)
-                     (when (buffer-live-p buffer) (display-buffer buffer))
-                     (run-at-time 0 nil on-stopped)))))
+                     (funcall stop)))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'clean-up
      :on-event (lambda (_event) (setq over t)))
