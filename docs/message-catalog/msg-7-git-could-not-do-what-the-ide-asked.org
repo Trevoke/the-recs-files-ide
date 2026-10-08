@@ -1,0 +1,5 @@
+* MSG-7 Git could not do what the IDE asked
+
+Text: Git could not do what the IDE asked:
+
+Followed by: git's own output, or "No reason given." when it gave none.
