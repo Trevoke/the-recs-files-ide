@@ -1,3 +1,5 @@
 #!/bin/sh
-here="$(cd "$(dirname "$0")/.." && pwd)"
-exec emacs -q --no-site-file --no-site-lisp --init-directory="$here/ide" -l "$here/ide/init.el" "$@"
+self="$(readlink -f -- "$0")"
+here="$(CDPATH= cd -- "$(dirname -- "$self")/.." && pwd)"
+unset EMACSLOADPATH EMACSNATIVELOADPATH
+exec emacs -Q --init-directory="$here/ide" -l "$here/ide/init.el" "$@"
