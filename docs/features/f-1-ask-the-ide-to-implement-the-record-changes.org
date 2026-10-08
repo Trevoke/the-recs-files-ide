@@ -18,6 +18,9 @@ from the codebase.
   the implementation workflow starts from the latest commit.
 - When there are no record changes, the IDE gives MSG-1: No record changes to
   implement.
+- When git fails and no other message covers it, the IDE gives MSG-7: Git could
+  not do what the IDE asked, with git's own output, and keeps the work in
+  progress.
 
 ** Next
 

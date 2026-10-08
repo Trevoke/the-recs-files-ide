@@ -1,0 +1,21 @@
+* F-2 Accept or reject the record implementation report
+
+Takes: the record implementation report of a work in progress.
+
+Produces: on accept, the work brought into the codebase and the record changes
+implemented; on reject, the work in progress kept.
+
+** Rules
+
+- Outside any work in progress, the IDE gives MSG-2: No work in progress to
+  accept or reject.
+- When the codebase has moved since the work started, accepting runs the
+  implementation workflow again and produces a new record implementation
+  report.
+- When git fails and no other message covers it, the IDE gives MSG-7: Git could
+  not do what the IDE asked, with git's own output, and keeps the work in
+  progress.
+
+** Next
+
+The record keeper asks the IDE to implement the next record changes.
