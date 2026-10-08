@@ -15,6 +15,10 @@
 (defconst trf-record-changes-not-committed-message
   "The record changes could not be committed:")
 
+;; MSG-4: Record changes could not be committed
+(defconst trf-record-changes-no-reason-message
+  "No reason given.")
+
 (defun trf-record-changes--empty-tree (root)
   "Return the tree holding nothing in ROOT."
   (string-trim (trf-git root "hash-object" "-t" "tree" "/dev/null")))
@@ -176,10 +180,10 @@ Return the commit they are in."
                 (trf-record-changes--commit-staged root changes untracked))
             (trf-git-error
              ;; UW-1 §Extensions: Turn record changes into code
-             (user-error "%s" (string-join (seq-remove #'string-empty-p
-                                                       (list trf-record-changes-not-committed-message
-                                                             (cadr err)))
-                                           "\n"))))
+             (user-error "%s\n%s" trf-record-changes-not-committed-message
+                         (if (string-empty-p (cadr err))
+                             trf-record-changes-no-reason-message
+                           (cadr err)))))
         (when (equal head (trf-git-ref-commit root "HEAD"))
           (trf-record-changes--unstage root untracked)))))
   (trf-git-ref-commit root "HEAD"))

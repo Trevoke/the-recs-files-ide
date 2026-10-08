@@ -488,7 +488,7 @@ Return what was signalled, and the status before and after."
     (set-file-modes hook #o755)
     ;; UW-1 §Extensions: Turn record changes into code
     ;; MSG-4: Record changes could not be committed
-    (assert-equal '(user-error "The record changes could not be committed:")
+    (assert-equal '(user-error "The record changes could not be committed:\nNo reason given.")
                   (condition-case err
                       (progn (trf-record-changes-commit root (trf-record-changes root)) nil)
                     (error err)))))
