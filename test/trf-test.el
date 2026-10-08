@@ -747,13 +747,13 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
      '(user-error "The target product is not on the primary git branch:\ntrunk"))))
 
 (deftest trf-implement-detached-when-the-target-product-names-no-primary-git-branch ()
-  "Detached, when the target product's .dir-locals.el names nil, the IDE still gives MSG-8."
+  "Detached, with all local variables allowed, when the target product's .dir-locals.el names nil, the IDE gives MSG-9."
   (trf-test-write-primary-git-branch trf-test-root nil)
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
   (let ((enable-local-variables :all))
     ;; UW-1 §Extensions: Turn record changes into code
-    ;; MSG-8: Target product is not on the primary git branch
-    (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain"))))
+    ;; MSG-9: No primary git branch is named
+    (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
 (deftest trf-implement-evaluates-nothing-from-the-target-products-dir-locals ()
   "Implementing evaluates no eval form in the target product's .dir-locals.el."
@@ -769,13 +769,30 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
       (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement.")))
     (assert-nil (file-exists-p marker))))
 
-(deftest trf-implement-on-main-when-the-target-product-names-an-empty-primary-git-branch ()
-  "On main, when the target product's .dir-locals.el names an empty string, the primary git branch stays main."
+(deftest trf-implement-when-the-target-product-names-an-empty-primary-git-branch ()
+  "When the target product's .dir-locals.el names an empty string, the IDE gives MSG-9."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-write-primary-git-branch trf-test-root "")
-  ;; F-1 §Rules: Ask the IDE to implement the record changes
-  ;; UW-1 §Minimal guarantee: Turn record changes into code
-  ;; MSG-1: No record changes to implement
-  (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement.")))
+  ;; UW-1 §Extensions: Turn record changes into code
+  ;; MSG-9: No primary git branch is named
+  (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first.")))
+
+(deftest trf-implement-when-the-target-product-names-no-primary-git-branch ()
+  "When the target product's .dir-locals.el names nil, the IDE gives MSG-9."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (trf-test-write-primary-git-branch trf-test-root nil)
+  ;; UW-1 §Extensions: Turn record changes into code
+  ;; MSG-9: No primary git branch is named
+  (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first.")))
+
+(deftest trf-implement-ignores-the-target-products-dir-locals-with-local-variables-off ()
+  "With local variables turned off, the IDE ignores the target product's .dir-locals.el."
+  (trf-test-write-primary-git-branch trf-test-root "trunk")
+  (let ((enable-local-variables nil))
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    ;; MSG-1: No record changes to implement
+    (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement."))))
 
 (deftest trf-implement-when-no-primary-git-branch-is-named ()
   "When no primary git branch is named, the IDE gives MSG-9, asks nothing, commits nothing and starts no work."
