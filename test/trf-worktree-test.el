@@ -136,7 +136,7 @@
     (trf-test-git root "commit" "--quiet" "--message" "Other work")
     (let ((head (trf-test-head root))
           (status (trf-test-git root "status" "--porcelain")))
-      (assert-raises 'trf-git-error (trf-worktree-accept directory))
+      (assert-raises 'trf-worktree-merge-failed (trf-worktree-accept directory))
       ;; UW-1 §Minimal guarantee: Turn record changes into code
       (assert-nil (file-exists-p (expand-file-name ".git/MERGE_HEAD" root)))
       ;; UW-1 §Minimal guarantee: Turn record changes into code
@@ -176,7 +176,7 @@
     (ignore-errors (trf-test-git root "merge" "--quiet" "side"))
     (trf-test-write-files root '(("src/gadget.el" . "(provide 'gadget) ; resolved\n")))
     (trf-test-git root "add" "src/gadget.el")
-    (assert-raises 'trf-git-error (trf-worktree-accept directory))
+    (assert-raises 'trf-worktree-merge-failed (trf-worktree-accept directory))
     ;; UW-1 §Minimal guarantee: Turn record changes into code
     (assert-true (file-exists-p (expand-file-name ".git/MERGE_HEAD" root)))
     ;; UW-1 §Minimal guarantee: Turn record changes into code

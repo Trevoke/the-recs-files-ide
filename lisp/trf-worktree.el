@@ -4,6 +4,8 @@
 (require 'trf-git)
 (require 'trf-record-changes)
 
+(define-error 'trf-worktree-merge-failed "Git refused the merge" 'trf-git-error)
+
 (defun trf-worktree--exclude (root pattern)
   "Make git in ROOT ignore PATTERN, through the repository's info/exclude."
   (let ((exclude (expand-file-name
@@ -118,7 +120,8 @@
       (error
        (when (and (not merging) (trf-git-ref-commit root "MERGE_HEAD"))
          (ignore-errors (trf-git root "merge" "--abort")))
-       (signal (car err) (cdr err))))
+       (signal (if (eq (car err) 'trf-git-error) 'trf-worktree-merge-failed (car err))
+               (cdr err))))
     (trf-git root "update-ref" trf-record-changes-implemented-ref
              (trf-worktree-base directory))))
 

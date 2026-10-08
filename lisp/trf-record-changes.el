@@ -16,6 +16,7 @@
   "The record changes could not be committed:")
 
 ;; MSG-4: Record changes could not be committed
+;; MSG-7: Git could not do what the IDE asked
 (defconst trf-record-changes-no-reason-message
   "No reason given.")
 

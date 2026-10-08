@@ -24,9 +24,24 @@
 (defconst trf-not-on-the-works-branch-message
   "The codebase is not on the branch this work started from.")
 
+;; MSG-7: Git could not do what the IDE asked
+(defconst trf-git-failed-message
+  "Git could not do what the IDE asked:")
+
 ;; UW-1 §Extensions: Turn record changes into code
 (defconst trf-codebase-moved-instruction
   "The codebase has moved since this work started; bring the work up to date with it.")
+
+(defmacro trf--giving-git-failures (&rest body)
+  "Run BODY; turn a `trf-git-error' it signals into a `user-error'."
+  `(condition-case err
+       (progn ,@body)
+     (trf-git-error
+      ;; MSG-7: Git could not do what the IDE asked
+      (user-error "%s\n%s" trf-git-failed-message
+                  (if (string-empty-p (cadr err))
+                      trf-record-changes-no-reason-message
+                    (cadr err))))))
 
 (defconst trf-record-changes-buffer-name "*trf record changes*")
 
@@ -82,23 +97,26 @@ From inside a worktree, return the target product's root it was created from."
 (defun trf-implement-record-changes ()
   "Ask the IDE to implement the record changes."
   (interactive)
-  (let ((root (trf--target-product-root)))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (when (trf-git-operation-in-progress-p root)
-      (user-error "%s" trf-record-changes-operation-in-progress-message))
-    (let ((changes (trf-record-changes root)))
-      (unless changes
-        (user-error "%s" trf-no-record-changes-message))
-      (trf--show-record-changes changes)
-      (when (y-or-n-p "Implement these record changes? ")
-        (let* ((config (trf-session-config))
-               (commit (trf-record-changes-commit root changes))
-               (directory (trf-worktree-create root commit)))
-          (trf--implement directory config changes nil))))))
+  ;; F-1 §Rules: Ask the IDE to implement the record changes
+  (trf--giving-git-failures
+   (let ((root (trf--target-product-root)))
+     ;; UW-1 §Extensions: Turn record changes into code
+     (when (trf-git-operation-in-progress-p root)
+       (user-error "%s" trf-record-changes-operation-in-progress-message))
+     (let ((changes (trf-record-changes root)))
+       (unless changes
+         (user-error "%s" trf-no-record-changes-message))
+       (trf--show-record-changes changes)
+       (when (y-or-n-p "Implement these record changes? ")
+         (let* ((config (trf-session-config))
+                (commit (trf-record-changes-commit root changes))
+                (directory (trf-worktree-create root commit)))
+           (trf--implement directory config changes nil)))))))
 
 (defun trf--work-in-progress ()
   "Return the worktree holding the current buffer's file, or signal a `user-error'."
   (or (trf-worktree-of (or buffer-file-name default-directory))
+      ;; F-2 §Rules: Accept or reject the record implementation report
       ;; MSG-2: No work in progress to accept or reject
       (user-error "%s" trf-no-work-in-progress-message)))
 
@@ -107,26 +125,29 @@ From inside a worktree, return the target product's root it was created from."
 (defun trf-accept-record-implementation-report ()
   "Accept the record implementation report of the work in progress here."
   (interactive)
-  (let* ((directory (trf--work-in-progress))
-         (root (trf-worktree-root directory)))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (when (trf-git-operation-in-progress-p root)
-      (user-error "%s" trf-record-changes-operation-in-progress-message))
-    ;; UW-1 §Extensions: Turn record changes into code
-    (unless (trf-worktree-root-on-its-branch-p directory)
-      (user-error "%s" trf-not-on-the-works-branch-message))
-    (if (trf-worktree-codebase-moved-p directory)
-        ;; UW-1 §Extensions: Turn record changes into code
-        (trf--implement directory (trf-session-config)
-                        (trf-record-changes-in-commit root (trf-worktree-from directory)
-                                                     (trf-worktree-base directory))
-                        trf-codebase-moved-instruction)
-      (condition-case err
-          ;; UW-1 §Main success scenario: Turn record changes into code
-          (trf-worktree-accept directory)
-        (trf-git-error
+  ;; F-2 §Rules: Accept or reject the record implementation report
+  (trf--giving-git-failures
+   (let* ((directory (trf--work-in-progress))
+          (root (trf-worktree-root directory)))
+     ;; UW-1 §Extensions: Turn record changes into code
+     (when (trf-git-operation-in-progress-p root)
+       (user-error "%s" trf-record-changes-operation-in-progress-message))
+     ;; UW-1 §Extensions: Turn record changes into code
+     (unless (trf-worktree-root-on-its-branch-p directory)
+       (user-error "%s" trf-not-on-the-works-branch-message))
+     (if (trf-worktree-codebase-moved-p directory)
+         ;; F-2 §Rules: Accept or reject the record implementation report
          ;; UW-1 §Extensions: Turn record changes into code
-         (user-error "%s\n%s" trf-work-not-brought-in-message (cadr err)))))))
+         (trf--implement directory (trf-session-config)
+                         (trf-record-changes-in-commit root (trf-worktree-from directory)
+                                                      (trf-worktree-base directory))
+                         trf-codebase-moved-instruction)
+       (condition-case err
+           ;; F-2 §Produces: Accept or reject the record implementation report
+           (trf-worktree-accept directory)
+         (trf-worktree-merge-failed
+          ;; UW-1 §Extensions: Turn record changes into code
+          (user-error "%s\n%s" trf-work-not-brought-in-message (cadr err))))))))
 
 ;; F-1 §Next: Ask the IDE to implement the record changes
 ;;;###autoload
@@ -138,7 +159,7 @@ From inside a worktree, return the target product's root it was created from."
                   (expand-file-name (trf-machines-handoff-file
                                      (trf-machines-reconciliation-assessor))
                                     directory))))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; F-2 §Produces: Accept or reject the record implementation report
     (when report
       (kill-buffer report))))
 

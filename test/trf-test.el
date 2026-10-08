@@ -473,5 +473,87 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
                           "- F-2 Pay (added): docs/features/f-2-pay.org\n")
                   (trf-test-rerun-record-changes started-later))))
 
+(defmacro trf-test-failing-git (function reason &rest body)
+  "Run BODY with FUNCTION signalling `trf-git-error' with REASON."
+  `(cl-letf (((symbol-function ,function)
+              (lambda (&rest _) (signal 'trf-git-error (list ,reason)))))
+     ,@body))
+
+(deftest trf-implement-git-fails-checking-for-an-operation-in-progress ()
+  "When git fails checking for a merge or rebase, implementing gives MSG-7 with git's output."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let ((head (trf-test-head trf-test-root))
+        (status (trf-test-git trf-test-root "status" "--porcelain")))
+    (trf-test-failing-git 'trf-git-operation-in-progress-p "fatal: broken"
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      ;; MSG-7: Git could not do what the IDE asked
+      (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: broken")
+                    (trf-test-implement)))
+    (assert-equal head (trf-test-head trf-test-root))
+    (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))))
+
+(deftest trf-implement-git-fails-without-a-reason ()
+  "When git fails reading the record changes and says nothing, implementing gives MSG-7 with no reason given."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let ((head (trf-test-head trf-test-root))
+        (status (trf-test-git trf-test-root "status" "--porcelain")))
+    (trf-test-failing-git 'trf-record-changes ""
+      ;; F-1 §Rules: Ask the IDE to implement the record changes
+      ;; MSG-7: Git could not do what the IDE asked
+      (assert-equal '(user-error "Git could not do what the IDE asked:\nNo reason given.")
+                    (trf-test-implement)))
+    (assert-equal head (trf-test-head trf-test-root))
+    (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))))
+
+(deftest trf-implement-git-fails-creating-the-worktree ()
+  "When git fails creating the worktree, implementing gives MSG-7 and keeps the record changes' commit."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let (runs refusal)
+    (trf-test-with-machines runs 'now
+      (trf-test-failing-git 'trf-worktree-create "fatal: no worktree"
+        (setq refusal (trf-test-implement))))
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    ;; MSG-7: Git could not do what the IDE asked
+    (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: no worktree") refusal)
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
+    (assert-equal "Record changes\n\n- F-1 Order\n"
+                  (trf-test-git trf-test-root "log" "-1" "--format=format:%B"))
+    (assert-nil runs)))
+
+(deftest trf-accept-git-fails-checking-whether-the-codebase-moved ()
+  "When git fails checking whether the codebase moved, accepting gives MSG-7 and keeps the work in progress."
+  (let* ((directory (trf-test-implemented-worktree))
+         (state (trf-test-state directory)))
+    (trf-test-failing-git 'trf-worktree-codebase-moved-p "fatal: bad object"
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      ;; MSG-7: Git could not do what the IDE asked
+      (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: bad object")
+                    (trf-test-from-file (trf-test-report-file directory)
+                                        #'trf-accept-record-implementation-report)))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal state (trf-test-state directory))))
+
+(deftest trf-accept-git-fails-after-bringing-the-work-in ()
+  "When git fails marking the record changes implemented after the merge, accepting gives MSG-7, not MSG-5."
+  (let ((directory (trf-test-implemented-worktree))
+        (git (symbol-function 'trf-git)))
+    (trf-test-build directory)
+    (cl-letf (((symbol-function 'trf-git)
+               (lambda (directory &rest args)
+                 (if (equal (car args) "update-ref")
+                     (signal 'trf-git-error (list "fatal: cannot lock ref"))
+                   (apply git directory args)))))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      ;; MSG-7: Git could not do what the IDE asked
+      (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: cannot lock ref")
+                    (trf-test-from-file (trf-test-report-file directory)
+                                        #'trf-accept-record-implementation-report)))
+    (assert-equal "(provide 'widget) ; built\n"
+                  (with-temp-buffer
+                    (insert-file-contents (expand-file-name "src/widget.el" trf-test-root))
+                    (buffer-string)))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-true (file-directory-p directory))))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here
