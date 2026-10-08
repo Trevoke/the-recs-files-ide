@@ -269,9 +269,10 @@ DIRECTORY defaults to `trf-test-root'."
       (assert-equal (expand-file-name ".worktrees/" trf-test-root)
                     (file-name-directory (directory-file-name (nth 1 (car runs))))))))
 
-(defun trf-test-implemented-worktree ()
-  "Implement `trf-test-record-change' with machines finishing at once; return the worktree."
-  (trf-test-write-files trf-test-root (list trf-test-record-change))
+(defun trf-test-implemented-worktree (&optional record-changes)
+  "Implement RECORD-CHANGES with machines finishing at once; return the worktree.
+RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone by default."
+  (trf-test-write-files trf-test-root (or record-changes (list trf-test-record-change)))
   (let (runs)
     (trf-test-with-machines runs 'now
       (trf-test-implement))
@@ -436,6 +437,41 @@ DIRECTORY defaults to `trf-test-root'."
     (assert-nil (find-buffer-visiting (trf-test-report-file directory)))
     ;; UW-1 §Extensions: Turn record changes into code
     (assert-equal state (trf-test-state directory))))
+
+(defconst trf-test-other-record-change '("docs/features/f-2-pay.org" . "* F-2 Pay\n"))
+
+(defun trf-test-rerun-record-changes (directory)
+  "Accept DIRECTORY's report on a moved codebase; return the record changes the brainstorming machine is given."
+  (let (runs)
+    (trf-test-with-machines runs 'now
+      (with-current-buffer (find-file-noselect (trf-test-report-file directory))
+        (trf-accept-record-implementation-report)))
+    (let ((instructions (nth 3 (car runs))))
+      (string-match "The record changes:\n\\(\\(?:- .*\n\\)*\\)" instructions)
+      (match-string 1 instructions))))
+
+(deftest trf-accept-reruns-on-the-record-changes-it-started-with-after-later-work-is-accepted ()
+  "Work started before other work is accepted reruns on the record changes it started with."
+  (let ((started-first (trf-test-implemented-worktree (list trf-test-other-record-change)))
+        (started-later (trf-test-implemented-worktree)))
+    (assert-nil (trf-test-from-file (trf-test-report-file started-later)
+                                    #'trf-accept-record-implementation-report))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal "- F-2 Pay (added): docs/features/f-2-pay.org\n"
+                  (trf-test-rerun-record-changes started-first))))
+
+(deftest trf-accept-reruns-on-the-record-changes-it-started-with-after-earlier-work-is-accepted ()
+  "Work started on top of other work reruns on the record changes it started with once that work is accepted."
+  (let* ((started-first (trf-test-implemented-worktree))
+         (started-later (trf-test-implemented-worktree (list trf-test-other-record-change))))
+    (trf-test-build started-first)
+    (trf-test-git started-first "merge" "--quiet" "--no-edit" "main")
+    (assert-nil (trf-test-from-file (trf-test-report-file started-first)
+                                    #'trf-accept-record-implementation-report))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal (concat "- F-1 Order (added): docs/features/f-1-order.org\n"
+                          "- F-2 Pay (added): docs/features/f-2-pay.org\n")
+                  (trf-test-rerun-record-changes started-later))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

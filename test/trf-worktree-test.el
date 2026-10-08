@@ -214,5 +214,26 @@
       ;; UW-1 §Extensions: Turn record changes into code
       (assert-nil (trf-worktree-root-on-its-branch-p directory)))))
 
+(deftest trf-worktree-create-records-what-the-record-changes-are-measured-from ()
+  "The worktree records the implemented records' commit as it was when the work started."
+  (let* ((root trf-worktree-test-root)
+         (implemented (trf-test-head root)))
+    (trf-test-git root "update-ref" "refs/recs/implemented" implemented)
+    (let ((directory (trf-worktree-create root implemented)))
+      (trf-test-write-files root '(("src/other.el" . "(provide 'other)\n")))
+      (trf-test-git root "add" "--all")
+      (trf-test-git root "commit" "--quiet" "--message" "Other work")
+      (trf-test-git root "update-ref" "refs/recs/implemented" "HEAD")
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal implemented (trf-worktree-from directory)))))
+
+(deftest trf-worktree-create-before-any-implementation ()
+  "A worktree started before anything is implemented records nothing to measure from."
+  (let ((directory (trf-worktree-create trf-worktree-test-root
+                                        (trf-test-head trf-worktree-test-root))))
+    (assert-nil (file-exists-p (expand-file-name ".trf/from" directory)))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-nil (trf-worktree-from directory))))
+
 (provide 'trf-worktree-test)
 ;;; trf-worktree-test.el ends here

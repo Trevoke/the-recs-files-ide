@@ -587,9 +587,9 @@ Return the error signalled, the status before and after, and HEAD before and aft
   (trf-record-changes-test-refuses-in-progress 'bisect))
 
 (deftest trf-record-changes-in-a-commit ()
-  "The record changes a commit holds are those between the implemented records and it, as it holds them."
-  (let ((root trf-record-changes-test-root))
-    (trf-record-changes-test-mark-implemented)
+  "The record changes a commit holds are those between the given commit and it, as it holds them."
+  (let ((root trf-record-changes-test-root)
+        (from (trf-test-head trf-record-changes-test-root)))
     (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")
                                  ("docs/user-workflows/uw-1-order-a-widget.org"
                                   . "* UW-1 Order a widget\n\n1. Buyer orders twice.\n")))
@@ -605,14 +605,14 @@ Return the error signalled, the status before and after, and HEAD before and aft
                       (:path "docs/user-workflows/uw-1-order-a-widget.org" :status modified
                        :identifier "UW-1" :title "Order a widget")
                       (:path "docs/vision.org" :status deleted :identifier nil :title "Vision"))
-                    (trf-record-changes-in-commit root commit)))))
+                    (trf-record-changes-in-commit root from commit)))))
 
-(deftest trf-record-changes-in-a-commit-before-any-implementation ()
-  "With nothing implemented, the record changes a commit holds are all its records."
+(deftest trf-record-changes-in-a-commit-from-nothing ()
+  "Measured from nothing, the record changes a commit holds are all its records."
   (let ((root trf-record-changes-test-root))
     ;; UW-1 §Extensions: Turn record changes into code
     (assert-equal (trf-record-changes root)
-                  (trf-record-changes-in-commit root (trf-test-head root)))))
+                  (trf-record-changes-in-commit root nil (trf-test-head root)))))
 
 (provide 'trf-record-changes-test)
 ;;; trf-record-changes-test.el ends here

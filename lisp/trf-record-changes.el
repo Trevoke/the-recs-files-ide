@@ -99,11 +99,12 @@ Read PATH as COMMIT holds it, or from disk when COMMIT is nil."
               (sort entries (lambda (a b) (string< (car a) (car b))))))))
 
 ;; UW-1 §Extensions: Turn record changes into code
-(defun trf-record-changes-in-commit (root commit)
-  "Return the record changes of the target product at ROOT as COMMIT holds them, by path."
+(defun trf-record-changes-in-commit (root from commit)
+  "Return the record changes of the target product at ROOT as COMMIT holds them, by path.
+Measure them from the commit FROM, or from nothing when FROM is nil."
   (when-let* ((paths (append (trf-project-record-directories root)
                              (trf-project-vision-and-ubiquitous-language-paths root))))
-    (let ((base (trf-record-changes--base root)))
+    (let ((base (or from (trf-record-changes--empty-tree root))))
       (mapcar (lambda (entry)
                 (trf-record-changes--describe root base (car entry) (cdr entry) commit))
               (sort (trf-record-changes--pairs

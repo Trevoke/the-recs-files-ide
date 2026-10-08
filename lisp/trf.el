@@ -118,7 +118,8 @@ From inside a worktree, return the target product's root it was created from."
     (if (trf-worktree-codebase-moved-p directory)
         ;; UW-1 §Extensions: Turn record changes into code
         (trf--implement directory (trf-session-config)
-                        (trf-record-changes-in-commit root (trf-worktree-base directory))
+                        (trf-record-changes-in-commit root (trf-worktree-from directory)
+                                                     (trf-worktree-base directory))
                         trf-codebase-moved-instruction)
       (condition-case err
           ;; UW-1 §Main success scenario: Turn record changes into code
