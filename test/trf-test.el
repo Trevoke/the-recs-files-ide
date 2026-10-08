@@ -512,13 +512,15 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
 
 (defmacro trf-test-failing-git-subcommand (subcommand reason &rest body)
   "Run BODY with `trf-git' signalling `trf-git-error' with REASON for SUBCOMMAND.
+SUBCOMMAND is a string, or a list of the arguments a call starts with.
 Every other call to `trf-git' runs git."
   (declare (indent 2) (debug t))
   (let ((git (make-symbol "git")))
     `(let ((,git (symbol-function 'trf-git)))
        (cl-letf (((symbol-function 'trf-git)
                   (lambda (directory &rest args)
-                    (if (equal (car args) ,subcommand)
+                    (if (let ((prefix (ensure-list ,subcommand)))
+                          (equal (seq-take args (length prefix)) prefix))
                         (signal 'trf-git-error (list ,reason))
                       (apply ,git directory args)))))
          ,@body))))
@@ -898,12 +900,14 @@ Every other call to `trf-git' runs git."
        '(user-error "The work cannot be brought into the codebase:\nNo reason given.")))))
 
 (defun trf-test-assert-work-in-progress-removed (directory branch)
-  "Assert the worktree DIRECTORY, its BRANCH and every buffer visiting a file in it are gone."
+  "Assert the worktree DIRECTORY, its BRANCH and every buffer in it are gone."
   (assert-nil (file-exists-p directory))
   (assert-equal "" (trf-test-git trf-test-root "branch" "--list" branch))
   (assert-nil (seq-find (lambda (buffer)
-                          (when-let* ((file (buffer-file-name buffer)))
-                            (string-prefix-p directory file)))
+                          (string-prefix-p
+                           directory
+                           (expand-file-name (or (buffer-file-name buffer)
+                                                 (buffer-local-value 'default-directory buffer)))))
                         (buffer-list))))
 
 (deftest trf-accept-removes-the-work-in-progress ()
@@ -968,6 +972,92 @@ Every other call to `trf-git' runs git."
     (assert-true (file-exists-p (trf-test-report-file directory)))
     ;; F-2 §Produces: Accept or reject the record implementation report
     (assert-match (regexp-quote branch) (trf-test-git trf-test-root "branch" "--list" branch))))
+
+(deftest trf-accept-git-fails-deleting-the-branch ()
+  "When git fails deleting the work's branch, accepting gives MSG-7; accepting again removes the work."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory)))
+    (trf-test-build directory)
+    (trf-test-failing-git-subcommand '("branch" "--quiet" "-d") "fatal: cannot lock ref"
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      ;; MSG-7: Git could not do what the IDE asked
+      (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: cannot lock ref")
+                    (trf-test-from-file (trf-test-report-file directory)
+                                        #'trf-accept-record-implementation-report)))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-true (file-exists-p (trf-test-report-file directory)))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (trf-test-assert-work-in-progress-removed directory branch)))
+
+(deftest trf-accept-git-fails-removing-work-that-holds-no-commit ()
+  "When git refuses to remove a worktree holding no commit, accepting again removes it."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory)))
+    (trf-test-write-files directory '(("src/scratch.el" . "(provide 'scratch)\n")))
+    (let ((refusal (trf-test-from-file (trf-test-report-file directory)
+                                       #'trf-accept-record-implementation-report)))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      ;; MSG-7: Git could not do what the IDE asked
+      (assert-true (string-prefix-p "Git could not do what the IDE asked:\n" (cadr refusal))))
+    (delete-file (expand-file-name "src/scratch.el" directory))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (trf-test-assert-work-in-progress-removed directory branch)))
+
+(deftest trf-accept-kills-the-buffers-in-the-work-in-progress ()
+  "Accepting kills the buffers in the worktree that visit no file, ending their processes unasked."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory))
+         (shell (generate-new-buffer "*trf test shell*"))
+         (session (generate-new-buffer "*trf test session*"))
+         (process nil))
+    (trf-test-build directory)
+    (with-current-buffer shell
+      (setq default-directory directory))
+    (with-current-buffer session
+      (setq default-directory directory)
+      (setq process (make-process :name "trf-test-session" :buffer session
+                                  :command '("sleep" "60"))))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-nil (buffer-live-p shell))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-nil (buffer-live-p session))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-nil (process-live-p process))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (trf-test-assert-work-in-progress-removed directory branch)))
+
+(deftest trf-accept-stops-when-the-record-keeper-keeps-a-modified-buffer ()
+  "When the record keeper keeps a modified buffer of the work, accepting stops; accepting again removes it."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory))
+         (file (expand-file-name "src/widget.el" directory))
+         buffer)
+    (trf-test-build directory)
+    (setq buffer (find-file-noselect file))
+    (with-current-buffer buffer
+      (insert ";; edited\n"))
+    (cl-letf (((symbol-function 'kill-buffer--possibly-save) (lambda (_) nil)))
+      (assert-equal '(quit)
+                    (condition-case err
+                        (trf-test-from-file (trf-test-report-file directory)
+                                            #'trf-accept-record-implementation-report)
+                      (quit err))))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-true (file-exists-p (trf-test-report-file directory)))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-match (regexp-quote branch) (trf-test-git trf-test-root "branch" "--list" branch))
+    (assert-true (buffer-live-p buffer))
+    (cl-letf (((symbol-function 'kill-buffer--possibly-save) (lambda (_) t)))
+      (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                      #'trf-accept-record-implementation-report)))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (trf-test-assert-work-in-progress-removed directory branch)))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

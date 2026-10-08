@@ -150,14 +150,43 @@ From inside a worktree, return the target product's root it was created from."
       ;; MSG-2: No work in progress to accept or reject
       (user-error "%s" trf-no-work-in-progress-message)))
 
+(defun trf--in-directory-p (directory file)
+  "Return non-nil when FILE is in DIRECTORY."
+  (and file (string-prefix-p directory (expand-file-name file))))
+
+;; F-2 §Produces: Accept or reject the record implementation report
+(defun trf--kill-buffers-visiting (directory)
+  "Kill the buffers visiting files in DIRECTORY; return nil once the record keeper keeps one."
+  (catch 'kept
+    (dolist (buffer (buffer-list) t)
+      (when (trf--in-directory-p directory (buffer-file-name buffer))
+        (with-current-buffer buffer
+          (when (buffer-modified-p)
+            (unless (kill-buffer--possibly-save buffer)
+              (throw 'kept nil))
+            (set-buffer-modified-p nil)))
+        (kill-buffer buffer)))))
+
+;; F-2 §Produces: Accept or reject the record implementation report
+(defun trf--kill-buffers-in (directory)
+  "Kill the buffers whose directory is in DIRECTORY, deleting their processes."
+  (dolist (buffer (buffer-list))
+    (when (and (buffer-live-p buffer)
+               (trf--in-directory-p directory
+                                    (buffer-local-value 'default-directory buffer)))
+      (dolist (process (process-list))
+        (when (eq (process-buffer process) buffer)
+          (delete-process process)))
+      (kill-buffer buffer))))
+
 ;; F-2 §Produces: Accept or reject the record implementation report
 (defun trf--remove-work-in-progress (directory)
-  "Remove the work in progress DIRECTORY, and kill the buffers visiting its files."
+  "Remove the work in progress DIRECTORY and the buffers in it.
+Signal `quit' when the record keeper keeps a buffer visiting one of its files."
+  (unless (trf--kill-buffers-visiting directory)
+    (signal 'quit nil))
   (trf-worktree-remove directory)
-  (dolist (buffer (buffer-list))
-    (when-let* ((file (buffer-file-name buffer)))
-      (when (string-prefix-p directory (expand-file-name file))
-        (kill-buffer buffer)))))
+  (trf--kill-buffers-in directory))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-accept-record-implementation-report ()

@@ -86,20 +86,32 @@
   "Return the branch the worktree DIRECTORY was created on."
   (trf-worktree--read directory "branch"))
 
+(defun trf-worktree--branch-exists-p (directory)
+  "Return non-nil while DIRECTORY's branch exists."
+  (trf-git-ref-commit (trf-worktree-root directory)
+                      (concat "refs/heads/" (trf-worktree-branch directory))))
+
+;; F-2 §Produces: Accept or reject the record implementation report
+(defun trf-worktree--work (directory)
+  "Return DIRECTORY's branch, or DIRECTORY's HEAD commit once the branch is gone."
+  (if (trf-worktree--branch-exists-p directory)
+      (trf-worktree-branch directory)
+    (trf-git-ref-commit directory "HEAD")))
+
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-worktree-codebase-moved-p (directory)
   "Return non-nil when the codebase has moved since DIRECTORY's base."
   (not (trf-git-check directory "merge-base" "--is-ancestor"
                       (trf-git-ref-commit (trf-worktree-root directory) "HEAD")
-                      (trf-worktree-branch directory))))
+                      (trf-worktree--work directory))))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-worktree-brought-in-p (directory)
-  "Return non-nil when DIRECTORY's branch holds work and the codebase holds that branch."
+  "Return non-nil when DIRECTORY's work holds commits and the codebase holds that work."
   (let ((root (trf-worktree-root directory))
-        (branch (trf-worktree-branch directory)))
-    (and (not (equal (trf-git-ref-commit root branch) (trf-worktree-base directory)))
-         (trf-git-check root "merge-base" "--is-ancestor" branch "HEAD"))))
+        (work (trf-worktree--work directory)))
+    (and (not (equal (trf-git-ref-commit root work) (trf-worktree-base directory)))
+         (trf-git-check root "merge-base" "--is-ancestor" work "HEAD"))))
 
 ;; UW-1 §Success guarantee: Turn record changes into code
 (defun trf-worktree-mark-implemented (directory)
@@ -118,7 +130,7 @@
          (merging (trf-git-ref-commit root "MERGE_HEAD")))
     (condition-case err
         (trf-git root "merge" "--quiet" "--no-ff" "--no-edit"
-                 (trf-worktree-branch directory))
+                 (trf-worktree--work directory))
       (error
        (when (and (not merging) (trf-git-ref-commit root "MERGE_HEAD"))
          (ignore-errors (trf-git root "merge" "--abort")))
@@ -130,12 +142,15 @@
 ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove removes a worktree holding only excluded or ignored files
 ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding untracked or modified files
 ;; docs/knowledge-base/git-worktree-removal.org §git branch -d refuses a branch checked out in a worktree
+;; docs/knowledge-base/git-worktree-removal.org §git branch -d deletes a merged branch once its worktree is detached
 (defun trf-worktree-remove (directory)
   "Remove the worktree DIRECTORY and its branch from its root."
   (let ((root (trf-worktree-root directory))
         (branch (trf-worktree-branch directory)))
-    (trf-git root "worktree" "remove" directory)
-    (trf-git root "branch" "--quiet" "-d" branch)))
+    (trf-git directory "checkout" "--quiet" "--detach")
+    (when (trf-worktree--branch-exists-p directory)
+      (trf-git root "branch" "--quiet" "-d" branch))
+    (trf-git root "worktree" "remove" directory)))
 
 (provide 'trf-worktree)
 ;;; trf-worktree.el ends here

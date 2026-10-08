@@ -8,8 +8,8 @@ branch are removed, as established by a run of git 2.54.0 on 2026-10-08.
 untracked files are excluded through =info/exclude= or ignored through
 =.gitignore=, and refuses one holding untracked files that are not ignored, or
 modified tracked files, unless given =--force=. =git branch -d= refuses a branch
-while a worktree has it checked out, and deletes it once that worktree is
-removed.
+while a worktree has it checked out, and deletes a branch merged into the
+current branch once its worktree is detached or removed.
 
 * git worktree remove removes a worktree holding only excluded or ignored files
 
@@ -30,37 +30,53 @@ In the run below, =git branch -d trf/excluded= is refused, exit 1, while the
 worktree =excluded= has the branch checked out, and deletes it once that
 worktree is removed.
 
+* git branch -d deletes a merged branch once its worktree is detached
+
+In the run below, =trf/merged= holds a commit that =main= has merged with
+=--no-ff=. =git branch -d trf/merged= is refused, exit 1, while the worktree
+=merged= has it checked out; once =git checkout --detach= has detached that
+worktree, the branch is deleted, exit 0, and the detached worktree is then
+removed, exit 0.
+
 * The run
 
-Run with =bash kb-run.sh <empty directory>=; the temporary directory is shown
-as =<tmp>=.
+Run with =bash kb-run.sh <empty directory>=; the script writes that directory
+as =<tmp>= in its output.
 
 #+begin_src sh
 set -u
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@b GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@b
-cd "$1"
-git --version
-git init --quiet --initial-branch=main root && cd root
-echo '*.log' > .gitignore && git add .gitignore && git commit --quiet --message init
-echo '/.trf/' >> .git/info/exclude
-for case in excluded ignored untracked modified; do
-  git worktree add --quiet -b "trf/$case" "../$case" HEAD
-  mkdir ../$case/.trf && echo state > ../$case/.trf/root
-done
-echo log > ../ignored/build.log
-echo new > ../untracked/new.el
-echo '*.tmp' >> ../modified/.gitignore
-echo '$ git branch -d trf/excluded'
-git branch -d trf/excluded; echo "exit $?"
-for case in excluded ignored untracked modified; do
-  echo "\$ git worktree remove ../$case"
-  git worktree remove "../$case"; echo "exit $?"
-done
-echo '$ git branch -d trf/excluded'
-git branch -d trf/excluded; echo "exit $?"
-echo '$ git worktree list'
-git worktree list | sed 's|/.*/root |<tmp>/root |; s|/.*/\([a-z]*\) |<tmp>/\1 |'
+tmp=$(cd "$1" && pwd -P)
+run() { echo "\$ $*"; "$@"; echo "exit $?"; }
+main() {
+  cd "$tmp"
+  git --version
+  git init --quiet --initial-branch=main root && cd root
+  echo '*.log' > .gitignore && git add .gitignore && git commit --quiet --message init
+  echo '/.trf/' >> .git/info/exclude
+  for case in excluded ignored untracked modified merged; do
+    git worktree add --quiet -b "trf/$case" "../$case" HEAD
+    mkdir ../$case/.trf && echo state > ../$case/.trf/root
+  done
+  echo log > ../ignored/build.log
+  echo new > ../untracked/new.el
+  echo '*.tmp' >> ../modified/.gitignore
+  echo work > ../merged/work.el
+  git -C ../merged add work.el && git -C ../merged commit --quiet --message work
+  git merge --quiet --no-ff --no-edit trf/merged
+  run git branch -d trf/excluded
+  for case in excluded ignored untracked modified; do
+    run git worktree remove "../$case"
+  done
+  run git branch -d trf/excluded
+  run git branch -d trf/merged
+  run git -C ../merged checkout --quiet --detach
+  run git branch -d trf/merged
+  run git worktree remove ../merged
+  run git worktree list
+}
+main 2>&1 | sed "s|$tmp|<tmp>|g"
 #+end_src
 
 #+begin_example
@@ -79,10 +95,21 @@ $ git worktree remove ../modified
 fatal: '../modified' contains modified or untracked files, use --force to delete it
 exit 128
 $ git branch -d trf/excluded
-Deleted branch trf/excluded (was a56422d).
+Deleted branch trf/excluded (was 471708a).
+exit 0
+$ git branch -d trf/merged
+error: cannot delete branch 'trf/merged' used by worktree at '<tmp>/merged'
+exit 1
+$ git -C ../merged checkout --quiet --detach
+exit 0
+$ git branch -d trf/merged
+Deleted branch trf/merged (was ab48b85).
+exit 0
+$ git worktree remove ../merged
 exit 0
 $ git worktree list
-<tmp>/root      a56422d [main]
-<tmp>/modified  a56422d [trf/modified]
-<tmp>/untracked a56422d [trf/untracked]
+<tmp>/root      03e594b [main]
+<tmp>/modified  471708a [trf/modified]
+<tmp>/untracked 471708a [trf/untracked]
+exit 0
 #+end_example
