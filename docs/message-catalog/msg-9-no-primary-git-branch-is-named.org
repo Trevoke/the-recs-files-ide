@@ -1,0 +1,3 @@
+* MSG-9 No primary git branch is named
+
+Text: Please set a primary git branch first.
