@@ -154,7 +154,7 @@
     (let ((coding-system-for-write 'no-conversion))
       (with-temp-file exclude (insert "*.log\r\n")))
     (trf-worktree-create root (trf-test-head root))
-    (assert-equal "*.log\r\n/.worktrees/\n/.trf/\n"
+    (assert-equal "*.log\r\n/.worktrees/\n/.trf/\n.#*\n\\#*#\n"
                   (with-temp-buffer
                     (insert-file-contents-literally exclude)
                     (buffer-string)))))
@@ -356,6 +356,29 @@
     (trf-worktree-commit-saved-edits directory)
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-equal (trf-worktree-base directory) (trf-test-head directory))))
+
+(deftest trf-worktree-create-excludes-emacs-lock-and-auto-save-files ()
+  "Creating a worktree makes git ignore Emacs lock and auto-save files."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root))))
+    (trf-test-write-files directory '(("src/.#widget.el" . "lock") ("src/#widget.el#" . "auto-save")))
+    ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding a modified buffer's lock file
+    (assert-equal "" (trf-test-git directory "status" "--porcelain" "--untracked-files=all"))))
+
+(deftest trf-worktree-commit-saved-edits-leaves-out-emacs-files-in-an-older-worktree ()
+  "Saved edits are committed without Emacs lock and auto-save files, in a worktree made before they were excluded."
+  (let* ((root trf-worktree-test-root)
+         (directory (trf-worktree-create root (trf-test-head root)))
+         (exclude (expand-file-name ".git/info/exclude" root)))
+    (with-temp-file exclude
+      (insert "/.worktrees/\n/.trf/\n"))
+    (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; saved\n")
+                                      ("src/.#widget.el" . "lock")
+                                      ("src/#widget.el#" . "auto-save")))
+    (trf-worktree-commit-saved-edits directory)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal "src/widget.el\n"
+                  (trf-test-git directory "diff" "--name-only" (trf-worktree-base directory) "HEAD"))))
 
 (provide 'trf-worktree-test)
 ;;; trf-worktree-test.el ends here

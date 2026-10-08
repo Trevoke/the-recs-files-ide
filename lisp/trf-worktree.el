@@ -40,6 +40,13 @@
       (insert-file-contents (expand-file-name (concat ".trf/" file) directory)))
     (string-trim (buffer-string))))
 
+;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding a modified buffer's lock file
+;; docs/knowledge-base/git-worktree-removal.org §An exclude pattern starting with # is written with a backslash
+(defun trf-worktree--exclude-emacs-files (root)
+  "Make git in ROOT ignore Emacs lock and auto-save files."
+  (trf-worktree--exclude root ".#*")
+  (trf-worktree--exclude root "\\#*#"))
+
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-worktree-create (root commit)
@@ -52,6 +59,7 @@
                      (expand-file-name (concat ".worktrees/" name) root))))
     (trf-worktree--exclude root "/.worktrees/")
     (trf-worktree--exclude root "/.trf/")
+    (trf-worktree--exclude-emacs-files root)
     (trf-git root "worktree" "add" "--quiet" "-b" branch directory commit)
     (make-directory (expand-file-name ".trf/" directory) t)
     (trf-worktree--write directory "root" root)
@@ -141,6 +149,7 @@
 ;; F-2 §Rules: Accept or reject the record implementation report
 (defun trf-worktree-commit-saved-edits (directory)
   "Commit to DIRECTORY's work whatever is saved in DIRECTORY and not yet committed."
+  (trf-worktree--exclude-emacs-files (trf-worktree-root directory))
   (trf-git directory "add" "--all")
   (unless (trf-git-check directory "diff" "--cached" "--quiet")
     (trf-git directory "commit" "--quiet" "--message"

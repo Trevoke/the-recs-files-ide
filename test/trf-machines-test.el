@@ -32,8 +32,8 @@
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-match "Read what the brainstorming machine produced[^\n]*:\n- docs/plans/x-design\\.md" text)
     ;; UW-1 §Main success scenario: Turn record changes into code
-    (assert-match "\n{\"finished\": true, \"produced\": \\[\"<path>\"\\]}$" text)
-    (assert-match "the implementation plan" text)))
+    (assert-match "end your last turn with one JSON line alone, an object holding \"finished\": true and \"produced\": a list holding the path of the implementation plan, relative to the root of your working tree\\.$" text)
+    (assert-nil (string-match-p "<path>" text))))
 
 (deftest trf-machines-executing-machine-follows-the-implementation-plan-produced ()
   "The executing machine is told to follow the implementation plan the planning machine produced."
@@ -50,7 +50,8 @@
   (let ((text (trf-machines-instructions (car (trf-machines-implementation-workflow))
                                          trf-machines-test-changes)))
     ;; UW-1 §Main success scenario: Turn record changes into code
-    (assert-match "\n{\"finished\": true, \"produced\": \\[\"<path>\"\\]}$" text)
+    (assert-match "end your last turn with one JSON line alone, an object holding \"finished\": true and \"produced\": a list holding the path of each document in which you settled with the record keeper how the record changes are to be implemented, each relative to the root of your working tree\\.$" text)
+    (assert-nil (string-match-p "<path>" text))
     (assert-nil (string-match-p "produced:\n" text))))
 
 (deftest trf-machines-instructions-name-a-change-without-identifier-by-title ()

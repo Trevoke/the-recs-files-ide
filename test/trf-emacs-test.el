@@ -62,5 +62,13 @@
       (trf-test-git root "worktree" "remove" worktree)
       (assert-nil (file-exists-p worktree)))))
 
+(deftest trf-emacs-state-directory-ignores-an-empty-or-relative-xdg-state-home ()
+  "An empty or relative XDG_STATE_HOME counts as unset."
+  (dolist (value '("" "relative/state"))
+    (let ((process-environment (cons (concat "XDG_STATE_HOME=" value) process-environment)))
+      (assert-equal (expand-file-name "recs-files-ide/" "~/.local/state/")
+                    (trf-emacs-state-directory)
+                    (format "XDG_STATE_HOME=%S counts as unset" value)))))
+
 (provide 'trf-emacs-test)
 ;;; trf-emacs-test.el ends here

@@ -11,7 +11,8 @@ modified tracked files, unless given =--force=. =git branch -d= refuses a branch
 while a worktree has it checked out, and deletes a branch merged into the
 current branch once its worktree is detached or removed. An Emacs buffer
 modified in memory leaves a lock file in the worktree, which makes
-=git worktree remove= refuse it until the buffer is marked unmodified.
+=git worktree remove= refuse it until the buffer is marked unmodified. In an
+exclude file, a pattern starting with =#= is written with a backslash.
 
 * git worktree remove removes a worktree holding only excluded or ignored files
 
@@ -47,6 +48,12 @@ In the second run below (GNU Emacs 30.2), an Emacs buffer visiting
 =.#widget.el= there, an untracked file, so =git worktree remove= refuses it,
 exit 128. Once =set-buffer-modified-p= has marked the buffer unmodified, the
 lock file is gone and the worktree is removed, exit 0.
+
+* An exclude pattern starting with # is written with a backslash
+
+In the third run below, =info/exclude= holding =.#*= and =#*#= still leaves
+=#widget.el#= untracked: git reads a line starting with =#= as a comment. Holding
+=.#*= and =\#*#=, it leaves neither =.#widget.el= nor =#widget.el#= untracked.
 
 * The run
 
@@ -161,5 +168,45 @@ modified: t
 fatal: '../work' contains modified or untracked files, use --force to delete it
 exit 128
 modified: nil
+exit 0
+#+end_example
+
+* The third run
+
+Run with =bash hash-run.sh <empty directory>=; the script writes that directory
+as =<tmp>= in its output.
+
+#+begin_src sh
+set -u
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+tmp=$(cd "$1" && pwd -P)
+main() {
+  cd "$tmp"
+  git --version
+  git init --quiet --initial-branch=main root && cd root
+  echo lock > .#widget.el
+  echo auto-save > '#widget.el#'
+  printf '%s\n' '.#*' '#*#' > .git/info/exclude
+  echo '$ cat .git/info/exclude'; cat .git/info/exclude
+  echo '$ git status --porcelain --untracked-files=all'; git status --porcelain --untracked-files=all
+  printf '%s\n' '.#*' '\#*#' > .git/info/exclude
+  echo '$ cat .git/info/exclude'; cat .git/info/exclude
+  echo '$ git status --porcelain --untracked-files=all'; git status --porcelain --untracked-files=all
+  echo "exit $?"
+}
+main 2>&1 | sed "s|$tmp|<tmp>|g"
+#+end_src
+
+#+begin_example
+git version 2.54.0
+$ cat .git/info/exclude
+.#*
+#*#
+$ git status --porcelain --untracked-files=all
+?? #widget.el#
+$ cat .git/info/exclude
+.#*
+\#*#
+$ git status --porcelain --untracked-files=all
 exit 0
 #+end_example

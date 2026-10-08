@@ -1,8 +1,14 @@
 ;;; trf-emacs.el --- Where the IDE's Emacs keeps its own files -*- lexical-binding: t; -*-
 
+(require 'subr-x)
+
 (defun trf-emacs-state-directory ()
   "Return the directory the IDE keeps its own files in."
-  (expand-file-name "recs-files-ide/" (or (getenv "XDG_STATE_HOME") "~/.local/state/")))
+  (let ((state (getenv "XDG_STATE_HOME")))
+    (expand-file-name "recs-files-ide/"
+                      (if (and state (not (string-empty-p state)) (file-name-absolute-p state))
+                          state
+                        "~/.local/state/"))))
 
 (defun trf-emacs--state-subdirectory (name)
   "Return the subdirectory NAME of the IDE's state directory, creating it."

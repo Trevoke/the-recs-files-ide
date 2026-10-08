@@ -95,7 +95,7 @@ has finished."
       (funcall on-done)
     (let ((machine (car machines)))
       (push (trf-session-run
-             machine directory config
+             directory config
              (trf-machines-instructions machine changes produced ide-instruction)
              (lambda (produced)
                (trf--run-machines (cdr machines) directory config changes produced on-done))
@@ -135,10 +135,17 @@ From inside a worktree, return the target product's root it was created from."
 
 (defun trf--offer-to-save (directory &optional except)
   "Offer to save each modified buffer visiting a file in DIRECTORY and not in EXCEPT."
-  (save-some-buffers nil (lambda ()
-                           (and (trf--in-directory-p directory buffer-file-name)
-                                (not (and except
-                                          (trf--in-directory-p except buffer-file-name)))))))
+  (when-let* ((buffers (seq-filter
+                        (lambda (buffer)
+                          (let ((file (buffer-file-name buffer)))
+                            (and (buffer-modified-p buffer)
+                                 (trf--in-directory-p directory file)
+                                 (not (and except (trf--in-directory-p except file))))))
+                        (buffer-list))))
+    (map-y-or-n-p (lambda (buffer) (format "Save file %s? " (buffer-file-name buffer)))
+                  (lambda (buffer) (with-current-buffer buffer (save-buffer)))
+                  buffers
+                  '("file" "files" "save"))))
 
 ;; F-1 §Rules: Ask the IDE to implement the record changes
 (defun trf-implement-record-changes ()
@@ -181,7 +188,7 @@ From inside a worktree, return the target product's root it was created from."
 ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer shuts down its ACP client
 ;; docs/knowledge-base/agent-shell-session-buffers.org §The ACP process is not the session buffer's process
 ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
-(defun trf--release-buffers (directory root)
+(defun trf--kill-the-works-buffers (directory root)
   "Kill the unmodified buffers visiting files in DIRECTORY, and its session buffers.
 Move every other buffer whose directory is in DIRECTORY to ROOT."
   (let ((key (file-name-as-directory (expand-file-name directory))))
@@ -189,10 +196,14 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       (unless (buffer-modified-p buffer)
         (kill-buffer buffer)))
     ;; F-2 §Rules: Accept or reject the record implementation report
-    (dolist (buffer (gethash key trf--session-buffers))
-      (when (buffer-live-p buffer)
-        (kill-buffer buffer)))
-    (remhash key trf--session-buffers)
+    (let ((kept (seq-filter (lambda (buffer)
+                              (when (buffer-live-p buffer)
+                                (kill-buffer buffer))
+                              (buffer-live-p buffer))
+                            (gethash key trf--session-buffers))))
+      (if kept
+          (puthash key kept trf--session-buffers)
+        (remhash key trf--session-buffers)))
     (dolist (buffer (buffer-list))
       (when (trf--in-directory-p directory (buffer-local-value 'default-directory buffer))
         (with-current-buffer buffer
@@ -200,10 +211,10 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
 
 ;; F-2 §Produces: Accept or reject the record implementation report
 (defun trf--remove-work-in-progress (directory)
-  "Remove the work in progress DIRECTORY and release the buffers in it."
+  "Remove the work in progress DIRECTORY and kill or move the buffers in it."
   (let ((root (trf-worktree-root directory)))
     (trf-worktree-remove directory)
-    (trf--release-buffers directory root)))
+    (trf--kill-the-works-buffers directory root)))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-accept-record-implementation-report ()
@@ -217,29 +228,26 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       (trf--refuse-unless-on-the-primary-git-branch root)
       ;; F-2 §Rules: Accept or reject the record implementation report
       (trf--offer-to-save directory)
-      (trf-worktree-commit-saved-edits directory)
-      (cond
-       ;; UW-1 §Success guarantee: Turn record changes into code
-       ((trf-worktree-brought-in-p directory)
-        (trf-worktree-mark-implemented directory)
-        (trf--remove-work-in-progress directory))
-       ;; F-2 §Rules: Accept or reject the record implementation report
-       ;; UW-1 §Extensions: Turn record changes into code
-       ((trf-worktree-codebase-moved-p directory)
-        (trf--implement directory (trf-session-config)
-                        (trf-record-changes-in-commit root (trf-worktree-from directory)
-                                                      (trf-worktree-base directory))
-                        trf-codebase-moved-instruction))
-       (t
-        (condition-case err
-            ;; F-2 §Produces: Accept or reject the record implementation report
-            (trf-worktree-accept directory)
-          (trf-worktree-merge-failed
-           ;; UW-1 §Extensions: Turn record changes into code
-           ;; MSG-5: Work cannot be brought into the codebase
-           (user-error "%s\n%s" trf-work-not-brought-in-message
-                       (trf-record-changes-reason (cadr err)))))
-        (trf--remove-work-in-progress directory))))))
+      ;; UW-1 §Success guarantee: Turn record changes into code
+      (let ((brought-in (trf-worktree-brought-in-p directory)))
+        ;; F-2 §Rules: Accept or reject the record implementation report
+        (trf-worktree-commit-saved-edits directory)
+        (if (and (not brought-in) (trf-worktree-codebase-moved-p directory))
+            ;; F-2 §Rules: Accept or reject the record implementation report
+            ;; UW-1 §Extensions: Turn record changes into code
+            (trf--implement directory (trf-session-config)
+                            (trf-record-changes-in-commit root (trf-worktree-from directory)
+                                                          (trf-worktree-base directory))
+                            trf-codebase-moved-instruction)
+          (condition-case err
+              ;; F-2 §Produces: Accept or reject the record implementation report
+              (trf-worktree-accept directory)
+            (trf-worktree-merge-failed
+             ;; UW-1 §Extensions: Turn record changes into code
+             ;; MSG-5: Work cannot be brought into the codebase
+             (user-error "%s\n%s" trf-work-not-brought-in-message
+                         (trf-record-changes-reason (cadr err)))))
+          (trf--remove-work-in-progress directory))))))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-reject-record-implementation-report ()

@@ -20,7 +20,7 @@ The record keeper picks it through agent-shell."
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-session--finished (text)
-  "Return a list holding the paths produced when TEXT's last line says the machine finished.
+  "Return a list holding the paths produced when TEXT ends with the JSON line saying finished.
 Return nil when it does not."
   (when-let* ((line (car (last (split-string (or text "") "[\r\n]+" t "[ \t]+")))))
     (let ((start 0) found)
@@ -46,11 +46,11 @@ Return nil when it does not."
 ;; ADR-2 §Decision: Talk to machines over ACP
 ;; docs/knowledge-base/agent-shell-agent-messages.org §agent-shell streams each chunk of an agent message as an event
 ;; docs/knowledge-base/agent-shell-agent-messages.org §A turn's end carries no message text
-(defun trf-session-run (_machine directory config instructions on-finished on-stopped)
+(defun trf-session-run (directory config instructions on-finished on-stopped)
   "Run a machine in DIRECTORY with the AI program CONFIG and INSTRUCTIONS.
 Return its session buffer.  Call ON-FINISHED with the paths the machine
-produced at the end of the first turn whose last line says it has
-finished.  Call ON-STOPPED, with the session buffer displayed, if the
+produced at the end of the first turn ending with the JSON line saying it
+has finished.  Call ON-STOPPED, with the session buffer displayed, if the
 session fails, or a turn ends for a reason other than \"end_turn\",
 before then.  If the session's buffer is killed first, call neither."
   (let* ((default-directory directory)

@@ -19,20 +19,16 @@
     (executing
      . "Use the %s skill to turn the record changes into code by following the implementation plan, committing as you go.")))
 
-(defconst trf-machines--finished-line "{\"finished\": true}"
-  "The line a machine ends its last turn with when it produces nothing for the next.")
-
-(defconst trf-machines--finished-and-produced-line
-  "{\"finished\": true, \"produced\": [\"<path>\"]}"
-  "The line a machine ends its last turn with, listing the paths it produced.")
+(defconst trf-machines--json-line "{\"finished\": true}"
+  "The JSON line a machine that produces nothing for the next ends its last turn with.")
 
 (defconst trf-machines--closing
   '((brainstorming
-     . "When your work is finished, end your last turn with this line alone, listing in \"produced\" the path of each document in which you settled with the record keeper how the record changes are to be implemented:")
+     . "When your work is finished, end your last turn with one JSON line alone, an object holding \"finished\": true and \"produced\": a list holding the path of each document in which you settled with the record keeper how the record changes are to be implemented, each relative to the root of your working tree.")
     (planning
-     . "When your work is finished, end your last turn with this line alone, listing in \"produced\" the path of the implementation plan:")
+     . "When your work is finished, end your last turn with one JSON line alone, an object holding \"finished\": true and \"produced\": a list holding the path of the implementation plan, relative to the root of your working tree.")
     (executing
-     . "When your work is finished, end your last turn with this line alone:"))
+     . "When your work is finished, end your last turn with one JSON line alone:"))
   "What each machine of the implementation workflow is told about finishing.")
 
 (defconst trf-machines--reading
@@ -48,10 +44,10 @@
             (list :work (format (alist-get slug trf-machines--work)
                                 (plist-get machine :skill))
                   :reading (alist-get slug trf-machines--reading)
-                  :closing (concat (alist-get slug trf-machines--closing) "\n"
-                                   (if (eq slug 'executing)
-                                       trf-machines--finished-line
-                                     trf-machines--finished-and-produced-line))))))
+                  :closing (if (eq slug 'executing)
+                               (concat (alist-get slug trf-machines--closing) "\n"
+                                       trf-machines--json-line)
+                             (alist-get slug trf-machines--closing))))))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-machines-implementation-workflow ()
@@ -83,8 +79,8 @@
                  "test cites is shown as untested. If you cannot assess at all, say so "
                  "and why under every record change.")
           :closing (concat "When you have assessed every record change, "
-                           "end your last turn with this line alone:\n"
-                           trf-machines--finished-line))))
+                           "end your last turn with one JSON line alone:\n"
+                           trf-machines--json-line))))
 
 (defun trf-machines-change-line (change)
   "Return the line naming CHANGE."

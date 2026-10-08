@@ -43,15 +43,16 @@ or the name of the machine that stops instead of finishing."
        (unwind-protect
            (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
                      ((symbol-function 'trf-session-run)
-                      (lambda (machine directory config instructions on-finished on-stopped)
-                        (let ((name (plist-get machine :name)))
+                      (lambda (directory config instructions on-finished on-stopped)
+                        (let ((name (progn (string-match "\\`You are the \\([^.]+\\)\\." instructions)
+                                           (match-string 1 instructions))))
                           (setq ,runs (append ,runs (list (list name directory config
                                                                 instructions))))
                           (if (equal ,finishing name)
                               (funcall on-stopped)
                             (let ((produced
-                                   (when (memq (plist-get machine :slug) '(brainstorming planning))
-                                     (list (format "docs/plans/%s.md" (plist-get machine :slug))))))
+                                   (when (member name '("brainstorming machine" "planning machine"))
+                                     (list (format "docs/plans/%s.md" (car (split-string name)))))))
                               (when (equal name "reconciliation assessor")
                                 (with-temp-file (expand-file-name
                                                  (trf-machines-record-implementation-report-file)
@@ -1211,6 +1212,85 @@ Every other call to `trf-git' runs git."
       (with-current-buffer buffer
         (set-buffer-modified-p nil))
       (kill-buffer buffer))))
+
+(deftest trf-accept-leaves-emacs-lock-and-auto-save-files-out-of-the-codebase ()
+  "An edit not saved when offered leaves its lock and auto-save files out of the codebase."
+  (let* ((directory (trf-test-implemented-worktree))
+         (file (expand-file-name "src/widget.el" directory))
+         (buffer (find-file-noselect file))
+         offered)
+    (trf-test-build directory)
+    (with-current-buffer buffer
+      (revert-buffer t t t)
+      (auto-save-mode 1)
+      (goto-char (point-max))
+      (insert ";; unsaved\n")
+      (do-auto-save t))
+    (assert-true (file-symlink-p (expand-file-name "src/.#widget.el" directory)))
+    (assert-true (file-exists-p (expand-file-name "src/#widget.el#" directory)))
+    (trf-test-offering-saves nil offered
+      (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                      #'trf-accept-record-implementation-report)))
+    ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding a modified buffer's lock file
+    (assert-equal "" (trf-test-git trf-test-root "ls-files" "src/.#widget.el" "src/#widget.el#"))
+    (assert-nil (file-exists-p directory))
+    (with-current-buffer buffer
+      (set-buffer-modified-p nil))
+    (kill-buffer buffer)))
+
+(deftest trf-accept-brings-in-an-edit-saved-after-the-work-was-brought-in ()
+  "Once the work is brought in and its removal failed, an edit saved before accepting again is brought in too, with no rerun."
+  (let* ((directory (trf-test-implemented-worktree))
+         (branch (trf-worktree-branch directory)))
+    (trf-test-build directory)
+    (trf-test-failing-git-subcommand '("worktree" "remove") "fatal: cannot remove"
+      (trf-test-from-file (trf-test-report-file directory)
+                          #'trf-accept-record-implementation-report))
+    (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; saved later\n")))
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal "(provide 'widget) ; saved later\n" (trf-test-widget))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (trf-test-assert-work-in-progress-removed directory branch)))
+
+(deftest trf-implement-saves-nothing-outside-the-target-product ()
+  "Offering to save before implementing saves no buffer outside the target product, even one saved without asking."
+  (let* ((outside (make-temp-file "trf-outside-" nil ".txt"))
+         (buffer (find-file-noselect outside)))
+    (unwind-protect
+        (progn
+          (with-current-buffer buffer
+            (setq-local buffer-save-without-query t)
+            (insert "unsaved"))
+          (trf-test-implement)
+          ;; F-1 §Rules: Ask the IDE to implement the record changes
+          (assert-true (buffer-modified-p buffer)))
+      (with-current-buffer buffer
+        (set-buffer-modified-p nil))
+      (kill-buffer buffer)
+      (delete-file outside))))
+
+(deftest trf-accept-keeps-a-session-buffer-the-record-keeper-keeps ()
+  "A session buffer the record keeper keeps when it is killed stays recorded for the next accept."
+  (let ((directory (trf-test-implemented-worktree)))
+    (unwind-protect
+        (progn
+          (trf-test-build directory)
+          (with-current-buffer (get-buffer trf-test-machine-buffer-name)
+            (add-hook 'kill-buffer-query-functions #'ignore nil t))
+          (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                          #'trf-accept-record-implementation-report))
+          ;; F-2 §Rules: Accept or reject the record implementation report
+          (assert-true (get-buffer trf-test-machine-buffer-name))
+          ;; F-2 §Rules: Accept or reject the record implementation report
+          (assert-equal (list (get-buffer trf-test-machine-buffer-name))
+                        (delete-dups (copy-sequence
+                                      (gethash directory trf--session-buffers)))))
+      (when (get-buffer trf-test-machine-buffer-name)
+        (with-current-buffer (get-buffer trf-test-machine-buffer-name)
+          (remove-hook 'kill-buffer-query-functions #'ignore t)))
+      (clrhash trf--session-buffers))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

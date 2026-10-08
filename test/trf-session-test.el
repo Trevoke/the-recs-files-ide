@@ -46,10 +46,8 @@
   (lambda (produced) (setcdr finished (list produced))))
 
 (defun trf-session-test-run (on-finished on-stopped)
-  (trf-session-run trf-session-test-machine trf-session-test-directory
-                   trf-session-test-config "Do it." on-finished on-stopped))
-
-(defconst trf-session-test-machine '(:slug planning :name "planning machine"))
+  (trf-session-run trf-session-test-directory trf-session-test-config "Do it."
+                   on-finished on-stopped))
 
 (deftest trf-session-config-is-the-customized-one ()
   "The customized AI program config is used without asking."
@@ -118,7 +116,7 @@
        (list finished stopped (mapcar #'car calls))))))
 
 (deftest trf-session-stopped-when-turn-ends-short ()
-  "A turn refused or cut off by a limit, without the finished line, stops the machine once."
+  "A turn refused or cut off by a limit, without the JSON line, stops the machine once."
   (dolist (reason '("refusal" "max_tokens" "max_turn_requests"))
     (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends reason)))
       ;; UW-1 §Extensions: Turn record changes into code
@@ -128,7 +126,7 @@
                     (format "a %s turn displays the session buffer" reason)))))
 
 (deftest trf-session-waits-when-turn-ends-normally ()
-  "A turn that ends normally without the finished line leaves the machine at work."
+  "A turn that ends normally without the JSON line leaves the machine at work."
   (dolist (reason '("end_turn" nil))
     (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends reason)))
       ;; UW-1 §Main success scenario: Turn record changes into code
@@ -138,7 +136,7 @@
       (assert-nil displayed (format "a %S turn displays no buffer" reason)))))
 
 (deftest trf-session-finished-with-what-it-produced ()
-  "A turn ending with the finished line and what was produced finishes the machine with those paths."
+  "A turn ending with the JSON line and what was produced finishes the machine with those paths."
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)))
      (trf-session-test-run (trf-session-test-finishing finished) #'ignore)
@@ -152,7 +150,7 @@
      (assert-equal '(("docs/plans/a-plan.md")) (cdr finished)))))
 
 (deftest trf-session-finished-without-anything-produced ()
-  "A turn ending with the finished line alone finishes the machine with nothing produced."
+  "A turn ending with the JSON line alone finishes the machine with nothing produced."
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)))
      (trf-session-test-run (trf-session-test-finishing finished) #'ignore)
@@ -174,8 +172,8 @@
      (trf-session-test-settle)
      (list (cdr finished) stopped))))
 
-(deftest trf-session-at-work-after-a-turn-without-the-finished-line ()
-  "A turn that ends without the finished line, as when asking the record keeper, neither finishes nor stops the machine."
+(deftest trf-session-at-work-after-a-turn-without-the-json-line ()
+  "A turn that ends without the JSON line, as when asking the record keeper, neither finishes nor stops the machine."
   ;; UW-1 §Main success scenario: Turn record changes into code
   (assert-equal '(nil 0) (trf-session-test-turn-says "Which of these should the widget do?\n")))
 
@@ -187,13 +185,13 @@
     (assert-equal '(nil 0) (trf-session-test-turn-says "Done.\n" line)
                   (format "%S does not finish the machine" line))))
 
-(deftest trf-session-at-work-when-the-finished-line-is-not-last ()
-  "The finished line followed by more text does not finish the machine."
+(deftest trf-session-at-work-when-the-json-line-is-not-last ()
+  "The JSON line followed by more text does not finish the machine."
   ;; UW-1 §Main success scenario: Turn record changes into code
   (assert-equal '(nil 0) (trf-session-test-turn-says "{\"finished\": true}\nOne more question?\n")))
 
-(deftest trf-session-finished-line-of-an-earlier-turn-does-not-count ()
-  "Text from an earlier turn does not count toward the finished line of the next."
+(deftest trf-session-json-line-of-an-earlier-turn-does-not-count ()
+  "Text from an earlier turn does not count toward the JSON line of the next."
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)))
      (trf-session-test-run (trf-session-test-finishing finished) #'ignore)
@@ -205,7 +203,7 @@
      ;; UW-1 §Main success scenario: Turn record changes into code
      (assert-nil (cdr finished)))))
 
-(deftest trf-session-finished-on-error-after-the-finished-line ()
+(deftest trf-session-finished-on-error-after-the-json-line ()
   "An error once the machine has said it finished finishes it rather than stopping it."
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)) stopped)
@@ -219,7 +217,7 @@
      (assert-nil stopped))))
 
 (deftest trf-session-finished-whatever-the-stop-reason ()
-  "A turn that ends with the finished line finishes the machine, whatever its stop reason."
+  "A turn that ends with the JSON line finishes the machine, whatever its stop reason."
   (dolist (reason '("end_turn" "refusal" "max_tokens" "max_turn_requests"))
     (setq trf-session-test-handlers nil)
     (trf-session-test-with-fake-shell
@@ -230,10 +228,10 @@
        (trf-session-test-settle)
        ;; UW-1 §Main success scenario: Turn record changes into code
        (assert-equal '(nil) (cdr finished)
-                     (format "a %s turn with the finished line finishes the machine" reason))
+                     (format "a %s turn with the JSON line finishes the machine" reason))
        ;; UW-1 §Extensions: Turn record changes into code
        (assert-nil stopped
-                   (format "a %s turn with the finished line does not stop the machine" reason))))))
+                   (format "a %s turn with the JSON line does not stop the machine" reason))))))
 
 (deftest trf-session-abandoned-when-buffer-killed ()
   "A session cleaned up before it finishes calls neither continuation."
@@ -247,8 +245,8 @@
      ;; UW-1 §Extensions: Turn record changes into code
      (assert-nil called))))
 
-(deftest trf-session-finished-line-right-after-an-earlier-message ()
-  "A finished line streamed straight after an earlier message's text still finishes the machine."
+(deftest trf-session-json-line-right-after-an-earlier-message ()
+  "The JSON line streamed straight after an earlier message's text still finishes the machine."
   ;; docs/knowledge-base/agent-shell-agent-messages.org §agent-shell streams each chunk of an agent message as an event
   ;; UW-1 §Main success scenario: Turn record changes into code
   (assert-equal '((nil) 0) (trf-session-test-turn-says "All done." "{\"finished\": true}")))
