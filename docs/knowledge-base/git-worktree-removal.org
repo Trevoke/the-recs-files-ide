@@ -2,14 +2,16 @@
 #+STARTUP: overview
 
 Not a project document. This records how git behaves when a worktree and its
-branch are removed, as established by a run of git 2.54.0 on 2026-10-08.
+branch are removed, as established by runs of git 2.54.0 and GNU Emacs 30.2 on 2026-10-08.
 
 *What it establishes.* =git worktree remove= removes a worktree whose only
 untracked files are excluded through =info/exclude= or ignored through
 =.gitignore=, and refuses one holding untracked files that are not ignored, or
 modified tracked files, unless given =--force=. =git branch -d= refuses a branch
 while a worktree has it checked out, and deletes a branch merged into the
-current branch once its worktree is detached or removed.
+current branch once its worktree is detached or removed. An Emacs buffer
+modified in memory leaves a lock file in the worktree, which makes
+=git worktree remove= refuse it until the buffer is marked unmodified.
 
 * git worktree remove removes a worktree holding only excluded or ignored files
 
@@ -37,6 +39,14 @@ In the run below, =trf/merged= holds a commit that =main= has merged with
 =merged= has it checked out; once =git checkout --detach= has detached that
 worktree, the branch is deleted, exit 0, and the detached worktree is then
 removed, exit 0.
+
+* git worktree remove refuses a worktree holding a modified buffer's lock file
+
+In the second run below (GNU Emacs 30.2), an Emacs buffer visiting
+=widget.el= in a worktree and modified in memory leaves the lock file
+=.#widget.el= there, an untracked file, so =git worktree remove= refuses it,
+exit 128. Once =set-buffer-modified-p= has marked the buffer unmodified, the
+lock file is gone and the worktree is removed, exit 0.
 
 * The run
 
@@ -111,5 +121,45 @@ $ git worktree list
 <tmp>/root      03e594b [main]
 <tmp>/modified  471708a [trf/modified]
 <tmp>/untracked 471708a [trf/untracked]
+exit 0
+#+end_example
+
+* The second run
+
+Run with =bash lock-run.sh <empty directory>=; the script writes that directory
+as =<tmp>= in its output.
+
+#+begin_src sh
+set -u
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@b GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@b
+tmp=$(cd "$1" && pwd -P)
+main() {
+  cd "$tmp"
+  emacs --version | head -1
+  git init --quiet --initial-branch=main root && cd root
+  echo one > widget.el && git add widget.el && git commit --quiet --message init
+  git worktree add --quiet -b trf/work ../work HEAD
+  emacs -Q --batch --eval '(progn
+    (find-file "../work/widget.el")
+    (insert "edit\n")
+    (princ (format "modified: %s\n" (buffer-modified-p)))
+    (princ (shell-command-to-string "git -C ../work status --porcelain --untracked-files=all"))
+    (princ (shell-command-to-string "git worktree remove ../work; echo exit $?"))
+    (set-buffer-modified-p nil)
+    (princ (format "modified: %s\n" (buffer-modified-p)))
+    (princ (shell-command-to-string "git -C ../work status --porcelain --untracked-files=all"))
+    (princ (shell-command-to-string "git worktree remove ../work; echo exit $?")))'
+}
+main 2>&1 | sed "s|$tmp|<tmp>|g"
+#+end_src
+
+#+begin_example
+GNU Emacs 30.2
+modified: t
+?? .#widget.el
+fatal: '../work' contains modified or untracked files, use --force to delete it
+exit 128
+modified: nil
 exit 0
 #+end_example

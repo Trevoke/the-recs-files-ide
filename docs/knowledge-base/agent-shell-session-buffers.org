@@ -1,0 +1,94 @@
+#+TITLE: Killing an agent-shell Session Buffer — Reference
+#+STARTUP: overview
+
+Not a project document. This records what killing an agent-shell session
+buffer does, as read in the source of agent-shell 0.86.2, acp 0.15.1 and
+shell-maker 0.97.5, the versions under =ide/elpa/= and pinned for the tests in
+=Elkfile= (=agent-shell= at tag =v0.86.2=).
+
+*What it establishes.* =kill-buffer= is the clean way to end a session: the
+buffer's kill hook shuts down its ACP client, which deletes the AI program's
+process. That process is not the buffer's process, and neither it nor the
+buffer's own process asks anything on exit; killing the buffer can ask only
+about queued prompts, and about saving the transcript when agent-shell keeps no
+transcript file.
+
+* Killing a session buffer shuts down its ACP client
+
+=agent-shell.el=, in the function that sets up a new shell buffer:
+
+#+begin_example
+      (add-hook 'kill-buffer-hook #'agent-shell--clean-up nil t)
+#+end_example
+
+=agent-shell.el=, =agent-shell--clean-up= emits the =clean-up= event, then
+calls =agent-shell--shutdown=, then kills the session's diff and viewport
+buffers. =agent-shell--shutdown= calls:
+
+#+begin_example
+    (acp-shutdown :client (map-elt (agent-shell--state) :client))
+#+end_example
+
+=acp.el=, =acp-shutdown=:
+
+#+begin_example
+  (when-let* ((process (map-elt client :process)))
+    (when (process-live-p process)
+      (delete-process process))
+    (map-put! client :process nil))
+#+end_example
+
+and then kills the client's log and traffic buffers.
+
+* The ACP process is not the session buffer's process
+
+=acp.el=, =acp--start-client= starts the AI program with =make-process=
+given no =:buffer=, and with =:noquery t=:
+
+#+begin_example
+    (let ((process (make-process
+                    ...
+                    :stderr stderr-buffer
+                    :connection-type 'pipe
+                    :noquery t
+#+end_example
+
+The session buffer's own process is shell-maker's placeholder.
+=shell-maker.el=, =shell-maker--initialize=, which =shell-maker-start-v2= calls:
+
+#+begin_example
+        (start-process (shell-maker-process-name config)
+                       (shell-maker-buffer config) "hexl")
+      (file-error (start-process
+                   (shell-maker-process-name config)
+                   (shell-maker-buffer config) "cat")))
+    (set-process-query-on-exit-flag (shell-maker--process) nil)
+#+end_example
+
+So =process-kill-buffer-query-function= asks nothing for either process.
+
+* Killing a session buffer asks about queued prompts and an unsaved transcript
+
+=agent-shell.el= adds one buffer-local kill query:
+
+#+begin_example
+      (add-hook 'kill-buffer-query-functions
+                #'agent-shell--prompt-queue-confirm-kill-buffer nil t)
+#+end_example
+
+=agent-shell-prompt-queue.el=, =agent-shell--prompt-queue-confirm-kill-buffer=
+asks for confirmation when prompts are queued, "unless running in batch mode",
+for example "2 prompts queued.  Kill anyway? (y or n)".
+
+=shell-maker.el=, =shell-maker--initialize= adds =shell-maker-kill-buffer-query=
+to =kill-buffer-query-functions=. It asks "Save transcript for <buffer>?" when
+=shell-maker-prompt-before-killing-buffer= is non-nil and the buffer is
+modified. =agent-shell.el=, in the same setup as the kill hook, turns that off
+for a shell with a transcript file:
+
+#+begin_example
+      (if agent-shell--transcript-file
+          ;; Prefer agent-shell--transcript-file over shell-maker's own
+          ;; transcript capability, so don't prompt to save on kill.
+          (setq-local shell-maker-prompt-before-killing-buffer nil)
+#+end_example

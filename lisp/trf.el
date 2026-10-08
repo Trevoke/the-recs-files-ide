@@ -82,6 +82,10 @@
     (special-mode)
     (display-buffer (current-buffer))))
 
+;; F-2 §Produces: Accept or reject the record implementation report
+(defvar trf--session-buffers (make-hash-table :test #'equal)
+  "The machines' session buffers, keyed by the worktree they work in.")
+
 (defun trf--run-machines (machines directory config changes previous-handoff on-done
                                     &optional ide-instruction)
   "Run MACHINES in turn in DIRECTORY with the AI program CONFIG on CHANGES.
@@ -89,12 +93,14 @@ Give the first PREVIOUS-HANDOFF and IDE-INSTRUCTION; call ON-DONE once the last 
   (if (null machines)
       (funcall on-done)
     (let ((machine (car machines)))
-      (trf-session-run
-       machine directory config
-       (trf-machines-instructions machine changes previous-handoff ide-instruction)
-       (lambda (handoff)
-         (trf--run-machines (cdr machines) directory config changes handoff on-done))
-       #'ignore))))
+      (push (trf-session-run
+             machine directory config
+             (trf-machines-instructions machine changes previous-handoff ide-instruction)
+             (lambda (handoff)
+               (trf--run-machines (cdr machines) directory config changes handoff on-done))
+             #'ignore)
+            (gethash (file-name-as-directory (expand-file-name directory))
+                     trf--session-buffers)))))
 
 (defun trf--assess (directory config changes)
   "Run the reconciliation assessor in DIRECTORY with CONFIG on CHANGES, then open its report."
@@ -155,38 +161,54 @@ From inside a worktree, return the target product's root it was created from."
   (and file (string-prefix-p directory (expand-file-name file))))
 
 ;; F-2 §Produces: Accept or reject the record implementation report
-(defun trf--kill-buffers-visiting (directory)
-  "Kill the buffers visiting files in DIRECTORY; return nil once the record keeper keeps one."
-  (catch 'kept
-    (dolist (buffer (buffer-list) t)
-      (when (trf--in-directory-p directory (buffer-file-name buffer))
-        (with-current-buffer buffer
-          (when (buffer-modified-p)
-            (unless (kill-buffer--possibly-save buffer)
-              (throw 'kept nil))
-            (set-buffer-modified-p nil)))
-        (kill-buffer buffer)))))
+(defun trf--buffers-visiting (directory)
+  "Return the buffers visiting files in DIRECTORY."
+  (seq-filter (lambda (buffer) (trf--in-directory-p directory (buffer-file-name buffer)))
+              (buffer-list)))
 
 ;; F-2 §Produces: Accept or reject the record implementation report
-(defun trf--kill-buffers-in (directory)
-  "Kill the buffers whose directory is in DIRECTORY, deleting their processes."
-  (dolist (buffer (buffer-list))
-    (when (and (buffer-live-p buffer)
-               (trf--in-directory-p directory
-                                    (buffer-local-value 'default-directory buffer)))
-      (dolist (process (process-list))
-        (when (eq (process-buffer process) buffer)
-          (delete-process process)))
-      (kill-buffer buffer))))
+;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding a modified buffer's lock file
+(defun trf--let-go-of-modified-buffers-p (directory)
+  "Ask about each modified buffer visiting a file in DIRECTORY.
+Return nil once the record keeper keeps one; otherwise mark them all unmodified
+and return non-nil."
+  (let ((modified (seq-filter #'buffer-modified-p (trf--buffers-visiting directory))))
+    (unless (seq-some (lambda (buffer)
+                        (with-current-buffer buffer
+                          (not (kill-buffer--possibly-save buffer))))
+                      modified)
+      (dolist (buffer modified)
+        (with-current-buffer buffer
+          (set-buffer-modified-p nil)))
+      t)))
+
+;; F-2 §Produces: Accept or reject the record implementation report
+;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer shuts down its ACP client
+;; docs/knowledge-base/agent-shell-session-buffers.org §The ACP process is not the session buffer's process
+;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
+(defun trf--release-buffers (directory root)
+  "Kill the buffers visiting files in DIRECTORY and its session buffers.
+Move every other buffer whose directory is in DIRECTORY to ROOT."
+  (let ((key (file-name-as-directory (expand-file-name directory))))
+    (mapc #'kill-buffer (trf--buffers-visiting directory))
+    (dolist (buffer (gethash key trf--session-buffers))
+      (when (buffer-live-p buffer)
+        (kill-buffer buffer)))
+    (remhash key trf--session-buffers)
+    (dolist (buffer (buffer-list))
+      (when (trf--in-directory-p directory (buffer-local-value 'default-directory buffer))
+        (with-current-buffer buffer
+          (setq default-directory (file-name-as-directory root)))))))
 
 ;; F-2 §Produces: Accept or reject the record implementation report
 (defun trf--remove-work-in-progress (directory)
-  "Remove the work in progress DIRECTORY and the buffers in it.
-Signal `quit' when the record keeper keeps a buffer visiting one of its files."
-  (unless (trf--kill-buffers-visiting directory)
+  "Remove the work in progress DIRECTORY and release the buffers in it.
+Signal `quit' when the record keeper keeps a modified buffer visiting one of its files."
+  (unless (trf--let-go-of-modified-buffers-p directory)
     (signal 'quit nil))
-  (trf-worktree-remove directory)
-  (trf--kill-buffers-in directory))
+  (let ((root (trf-worktree-root directory)))
+    (trf-worktree-remove directory)
+    (trf--release-buffers directory root)))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-accept-record-implementation-report ()

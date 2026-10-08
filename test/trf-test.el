@@ -956,6 +956,8 @@ Every other call to `trf-git' runs git."
                                                   "refs/recs/implemented")))
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-true (file-exists-p (trf-test-report-file directory)))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-true (find-buffer-visiting (trf-test-report-file directory)))
     (delete-file (expand-file-name "src/scratch.el" directory))
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
@@ -1007,30 +1009,44 @@ Every other call to `trf-git' runs git."
     ;; F-2 §Produces: Accept or reject the record implementation report
     (trf-test-assert-work-in-progress-removed directory branch)))
 
-(deftest trf-accept-kills-the-buffers-in-the-work-in-progress ()
-  "Accepting kills the buffers in the worktree that visit no file, ending their processes unasked."
+(deftest trf-accept-moves-the-record-keepers-buffers-to-the-root ()
+  "Accepting moves a buffer of the record keeper's in the worktree to the root, keeping its process."
   (let* ((directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory))
          (shell (generate-new-buffer "*trf test shell*"))
-         (session (generate-new-buffer "*trf test session*"))
-         (process nil))
+         process)
+    (unwind-protect
+        (progn
+          (trf-test-build directory)
+          (with-current-buffer shell
+            (setq default-directory directory)
+            (setq process (make-process :name "trf-test-shell" :buffer shell
+                                        :command '("sleep" "60"))))
+          (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                          #'trf-accept-record-implementation-report))
+          ;; F-2 §Produces: Accept or reject the record implementation report
+          (assert-true (buffer-live-p shell))
+          ;; F-2 §Produces: Accept or reject the record implementation report
+          (assert-true (process-live-p process))
+          ;; F-2 §Produces: Accept or reject the record implementation report
+          (assert-equal (file-name-as-directory trf-test-root)
+                        (buffer-local-value 'default-directory shell))
+          ;; F-2 §Produces: Accept or reject the record implementation report
+          (trf-test-assert-work-in-progress-removed directory branch))
+      (when (process-live-p process)
+        (delete-process process))
+      (kill-buffer shell))))
+
+(deftest trf-accept-kills-the-machines-session-buffers ()
+  "Accepting kills the session buffers of the machines that worked on it."
+  (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
-    (with-current-buffer shell
-      (setq default-directory directory))
-    (with-current-buffer session
-      (setq default-directory directory)
-      (setq process (make-process :name "trf-test-session" :buffer session
-                                  :command '("sleep" "60"))))
+    (with-current-buffer (get-buffer trf-test-machine-buffer-name)
+      (setq default-directory trf-test-root))
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
-    (assert-nil (buffer-live-p shell))
-    ;; F-2 §Produces: Accept or reject the record implementation report
-    (assert-nil (buffer-live-p session))
-    ;; F-2 §Produces: Accept or reject the record implementation report
-    (assert-nil (process-live-p process))
-    ;; F-2 §Produces: Accept or reject the record implementation report
-    (trf-test-assert-work-in-progress-removed directory branch)))
+    (assert-nil (get-buffer trf-test-machine-buffer-name))))
 
 (deftest trf-accept-stops-when-the-record-keeper-keeps-a-modified-buffer ()
   "When the record keeper keeps a modified buffer of the work, accepting stops; accepting again removes it."
@@ -1053,6 +1069,7 @@ Every other call to `trf-git' runs git."
     ;; F-2 §Produces: Accept or reject the record implementation report
     (assert-match (regexp-quote branch) (trf-test-git trf-test-root "branch" "--list" branch))
     (assert-true (buffer-live-p buffer))
+    (assert-true (find-buffer-visiting (trf-test-report-file directory)))
     (cl-letf (((symbol-function 'kill-buffer--possibly-save) (lambda (_) t)))
       (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                       #'trf-accept-record-implementation-report)))
