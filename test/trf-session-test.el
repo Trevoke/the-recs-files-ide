@@ -281,5 +281,10 @@
   ;; UW-1 §Main success scenario: Turn record changes into code
   (assert-equal '(nil 0) (trf-session-test-turn-says "{\"finished\": true}\n```json\n")))
 
+(deftest trf-session-finished-with-the-json-line-followed-by-a-stray-closing-fence ()
+  "The JSON line followed by a closing fence that no fence opened still finishes the machine."
+  ;; UW-1 §Main success scenario: Turn record changes into code
+  (assert-equal '((nil) 0) (trf-session-test-turn-says "Done.\n{\"finished\": true}\n```\n")))
+
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here

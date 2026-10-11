@@ -34,9 +34,10 @@
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; F-2 §Produces: Accept or reject the record implementation report
 (defconst trf-machines--executing-stops-before-bringing-the-work-in
-  (concat "Do not use the recs-finishing-a-development-branch skill, and do not merge, push or "
-          "remove anything: the record keeper accepts or rejects the record implementation "
-          "report afterwards. Once every task of the implementation plan is done, run the tests.")
+  (concat "Do not use the recs-finishing-a-development-branch skill or any other skill that "
+          "finishes a development branch, and do not merge, push, or remove the branch or the "
+          "working tree: the record keeper accepts or rejects the record implementation report "
+          "afterwards. Once every task of the implementation plan is done, run the tests.")
   "What the executing machine is told about where its work ends.")
 
 (defconst trf-machines--reading
