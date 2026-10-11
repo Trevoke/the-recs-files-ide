@@ -31,6 +31,14 @@
      . "When your work is finished, end your last turn with one JSON line alone:"))
   "What each machine of the implementation workflow is told about finishing.")
 
+;; UW-1 §Main success scenario: Turn record changes into code
+;; F-2 §Produces: Accept or reject the record implementation report
+(defconst trf-machines--executing-stops-before-bringing-the-work-in
+  (concat "Do not use the recs-finishing-a-development-branch skill, and do not merge, push or "
+          "remove anything: the record keeper accepts or rejects the record implementation "
+          "report afterwards. Once every task of the implementation plan is done, run the tests.")
+  "What the executing machine is told about where its work ends.")
+
 (defconst trf-machines--reading
   '((planning . "Read what the brainstorming machine produced; it settles how the record changes are to be implemented:")
     (executing . "Follow the implementation plan the planning machine produced:"))
@@ -45,7 +53,8 @@
                                 (plist-get machine :skill))
                   :reading (alist-get slug trf-machines--reading)
                   :closing (if (eq slug 'executing)
-                               (concat (alist-get slug trf-machines--closing) "\n"
+                               (concat trf-machines--executing-stops-before-bringing-the-work-in
+                                       "\n\n" (alist-get slug trf-machines--closing) "\n"
                                        trf-machines--json-line)
                              (alist-get slug trf-machines--closing))))))
 
