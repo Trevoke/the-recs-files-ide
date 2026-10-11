@@ -1,0 +1,31 @@
+* ADR-3 Machines end their work with one JSON line
+
+** Context
+
+ADR-2 Talk to machines over ACP has the IDE learn of the end of a machine's
+work from ACP messages. ACP reports the end of each turn, and a turn also ends
+when a machine asks the record keeper a question. ACP carries a machine's
+messages as text, with no structured output. The brainstorming machine and the
+planning machine write files whose names their skills choose, and the next
+machine of the implementation workflow works from those files.
+
+** Decision
+
+The IDE instructs each machine to end its work with one line of JSON in its
+last message: {"finished": true, "produced": [the paths it wrote]} from the
+brainstorming machine and the planning machine, and {"finished": true} from
+the executing machine and the reconciliation assessor. The line may sit inside
+a code fence.
+
+** Status
+
+Accepted.
+
+** Consequences
+
+- Any AI program that follows instructions can end its work this way.
+- A turn that ends without the line leaves the machine at work.
+- The IDE gives the produced paths to the next machine of the implementation
+  workflow.
+- A machine that never writes the line is never taken to have finished.
+- When ACP carries structured output, this decision is revisited.

@@ -65,3 +65,69 @@ machine start again on it") and *a point at it.
 - Precondition :: a work in progress exists.
 - Covers :: finding the works in progress; starting a stopped machine again;
   continuing the implementation workflow to a record implementation report.
+
+* Structured end of a machine's work over ACP
+
+ADR-3 Machines end their work with one JSON line is what stands today.
+To take up when ACP carries structured output: where the AI program advertises
+it, the IDE asks for that JSON by schema and keeps the JSON line as the
+fallback. ADR-2 Talk to machines over ACP keeps this inside ACP: no route
+outside ACP is taken.
+
+State as of 2026-10-11:
+
+** ACP itself
+
+- Stable schema v1.25.0 (2026-10-09): `session/prompt` carries `sessionId`,
+  `prompt` and `_meta`; its response carries `stopReason` and `_meta`. No output
+  schema or response format, in stable, unstable or v2 alpha.
+- Discussion #2147 "Add structured agent output support" (2026-09-11, open):
+  proposes a capability-gated `responseFormat: {type: "json", name, schema}` on
+  `session/prompt` for v2. One comment (2026-10-06) proposes negotiated text
+  formats instead (`text/markdown`, `text/org`, an `accept` list) and offers to
+  draft an RFD. No RFD or PR yet.
+  https://github.com/orgs/agentclientprotocol/discussions/2147
+- Extensions are allowed: `_meta` on messages, `_`-prefixed methods,
+  capabilities advertised at `initialize`.
+- MCP over ACP (`McpServer` type `acp`, `mcp/message`) is unstable; no agent
+  advertises `mcpCapabilities.acp`.
+
+** Claude Code
+
+- ACP adapter: agentclientprotocol/claude-agent-acp v0.89.1 (2026-10-10).
+- The Agent SDK has `outputFormat: {type: "json_schema", schema}`, with the
+  result in `structured_output`.
+- Reachable only through Claude-specific `_meta.claudeCode.options` on
+  `session/new`, for the whole session; the result arrives in the
+  `_claude/sdkMessage` extension notification (with
+  `_meta.claudeCode.emitRawSDKMessages`), not in the prompt response.
+- An extension would need a change to the adapter: map the schema to
+  `outputFormat` for the turn, and return `structured_output` in the prompt
+  response's `_meta`.
+
+** Codex
+
+- ACP adapter: agentclientprotocol/codex-acp v2.2.2 (2026-10-10);
+  zed-industries/codex-acp is archived.
+- The app-server's `turn/start` accepts `outputSchema`; the ACP adapter does
+  not expose it.
+- An extension would need a change to the adapter: pass the schema to
+  `turn/start` and return the result.
+
+** Antigravity
+
+- Google's agent platform; Antigravity CLI (`agy`) replaced Gemini CLI for
+  individual accounts (gemini-cli discussions #27274, 2026-05-19, and #28017,
+  2026-06-18). Gemini CLI still runs over ACP with an API key.
+- `agy` has no ACP mode (google-antigravity/antigravity-cli#31, open).
+- Google's ACP agent `antigravity-acp` 1.3.0 (ACP registry, 2026-10-02):
+  advertises `mcpCapabilities` http and sse; `_meta` used for auth only; no
+  schema or response format.
+- Structured output exists only outside ACP: `agy -p --output-format json
+  --json-schema <schema>`, result in `structured_output`.
+- An extension would need Google's ACP agent to support it.
+
+** acp.el
+
+- v0.15.1 sends `_meta` on `session/new`, load, resume and fork, but not on
+  `session/prompt`; it would need that to send a per-turn schema.
