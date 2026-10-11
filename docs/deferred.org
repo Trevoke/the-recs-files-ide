@@ -68,8 +68,7 @@ machine start again on it") and *a point at it.
 
 * Structured end of a machine's work over ACP
 
-Today a machine ends its last turn with one JSON line (`{"finished": true,
-"produced": [...]}`), read from its message text, inside a code fence or not.
+ADR-3 Machines end their work with one JSON line is what stands today.
 To take up when ACP carries structured output: where the AI program advertises
 it, the IDE asks for that JSON by schema and keeps the JSON line as the
 fallback. ADR-2 Talk to machines over ACP keeps this inside ACP: no route
