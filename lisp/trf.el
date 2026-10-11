@@ -86,6 +86,7 @@
 (defvar trf--session-buffers (make-hash-table :test #'equal)
   "The machines' session buffers, keyed by the worktree they work in.")
 
+;; ADR-3 §Consequences: Machines end their work with one JSON line
 (defun trf--run-machines (machines directory config changes produced on-done
                                     &optional ide-instruction)
   "Run MACHINES in turn in DIRECTORY with the AI program CONFIG on CHANGES.

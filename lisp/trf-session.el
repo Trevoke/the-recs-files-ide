@@ -18,7 +18,7 @@ The record keeper picks it through agent-shell."
   (or trf-ai-program-config
       (agent-shell-select-config :prompt "AI program for the machines: ")))
 
-;; UW-1 §Main success scenario: Turn record changes into code
+;; ADR-3 §Decision: Machines end their work with one JSON line
 (defun trf-session--without-closing-fences (lines)
   "Return LINES without the code fence closings that end them."
   (let ((lines (reverse lines)))
@@ -26,7 +26,7 @@ The record keeper picks it through agent-shell."
       (setq lines (cdr lines)))
     (nreverse lines)))
 
-;; UW-1 §Main success scenario: Turn record changes into code
+;; ADR-3 §Decision: Machines end their work with one JSON line
 (defun trf-session--finished (text)
   "Return a list holding the paths produced when TEXT ends with the JSON line saying finished.
 Return nil when it does not."
@@ -53,6 +53,8 @@ Return nil when it does not."
   (not (member stop-reason '(nil "end_turn"))))
 
 ;; ADR-2 §Decision: Talk to machines over ACP
+;; ADR-3 §Decision: Machines end their work with one JSON line
+;; ADR-3 §Consequences: Machines end their work with one JSON line
 ;; docs/knowledge-base/agent-shell-agent-messages.org §agent-shell streams each chunk of an agent message as an event
 ;; docs/knowledge-base/agent-shell-agent-messages.org §A turn's end carries no message text
 (defun trf-session-run (directory config instructions on-finished on-stopped)

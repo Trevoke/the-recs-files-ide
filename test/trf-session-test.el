@@ -129,7 +129,7 @@
   "A turn that ends normally without the JSON line leaves the machine at work."
   (dolist (reason '("end_turn" nil))
     (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends reason)))
-      ;; UW-1 §Main success scenario: Turn record changes into code
+      ;; ADR-3 §Consequences: Machines end their work with one JSON line
       ;; UW-1 §Extensions: Turn record changes into code
       (assert-equal 0 stopped (format "a %S turn does not stop the machine" reason))
       (assert-nil finished (format "a %S turn does not finish the machine" reason))
@@ -146,7 +146,7 @@
      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
      (assert-nil (cdr finished) "ON-FINISHED runs after the event handler returns")
      (trf-session-test-settle)
-     ;; UW-1 §Main success scenario: Turn record changes into code
+     ;; ADR-3 §Decision: Machines end their work with one JSON line
      (assert-equal '(("docs/plans/a-plan.md")) (cdr finished)))))
 
 (deftest trf-session-finished-without-anything-produced ()
@@ -157,7 +157,7 @@
      (trf-session-test-say "All assessed.\n{\"finished\": true}\n")
      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
      (trf-session-test-settle)
-     ;; UW-1 §Main success scenario: Turn record changes into code
+     ;; ADR-3 §Decision: Machines end their work with one JSON line
      (assert-equal '(nil) (cdr finished)))))
 
 (defun trf-session-test-turn-says (&rest chunks)
@@ -174,20 +174,20 @@
 
 (deftest trf-session-at-work-after-a-turn-without-the-json-line ()
   "A turn that ends without the JSON line, as when asking the record keeper, neither finishes nor stops the machine."
-  ;; UW-1 §Main success scenario: Turn record changes into code
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
   (assert-equal '(nil 0) (trf-session-test-turn-says "Which of these should the widget do?\n")))
 
 (deftest trf-session-at-work-after-malformed-json ()
   "A last line that is not valid JSON, or does not say finished, does not finish the machine."
   (dolist (line '("{\"finished\": true," "{\"finished\": false}" "{\"produced\": [\"a.md\"]}"
                   "[\"finished\", true]" "finished: true"))
-    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Consequences: Machines end their work with one JSON line
     (assert-equal '(nil 0) (trf-session-test-turn-says "Done.\n" line)
                   (format "%S does not finish the machine" line))))
 
 (deftest trf-session-at-work-when-the-json-line-is-not-last ()
   "The JSON line followed by more text does not finish the machine."
-  ;; UW-1 §Main success scenario: Turn record changes into code
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
   (assert-equal '(nil 0) (trf-session-test-turn-says "{\"finished\": true}\nOne more question?\n")))
 
 (deftest trf-session-json-line-of-an-earlier-turn-does-not-count ()
@@ -200,7 +200,7 @@
      (trf-session-test-say " true}")
      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
      (trf-session-test-settle)
-     ;; UW-1 §Main success scenario: Turn record changes into code
+     ;; ADR-3 §Consequences: Machines end their work with one JSON line
      (assert-nil (cdr finished)))))
 
 (deftest trf-session-finished-on-error-after-the-json-line ()
@@ -211,7 +211,7 @@
      (trf-session-test-say "{\"finished\": true}")
      (trf-session-test-fire 'error)
      (trf-session-test-settle)
-     ;; UW-1 §Main success scenario: Turn record changes into code
+     ;; ADR-3 §Decision: Machines end their work with one JSON line
      (assert-equal '(nil) (cdr finished))
      ;; UW-1 §Extensions: Turn record changes into code
      (assert-nil stopped))))
@@ -226,7 +226,7 @@
        (trf-session-test-say "{\"finished\": true}")
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason reason)))
        (trf-session-test-settle)
-       ;; UW-1 §Main success scenario: Turn record changes into code
+       ;; ADR-3 §Decision: Machines end their work with one JSON line
        (assert-equal '(nil) (cdr finished)
                      (format "a %s turn with the JSON line finishes the machine" reason))
        ;; UW-1 §Extensions: Turn record changes into code
@@ -248,12 +248,12 @@
 (deftest trf-session-json-line-right-after-an-earlier-message ()
   "The JSON line streamed straight after an earlier message's text still finishes the machine."
   ;; docs/knowledge-base/agent-shell-agent-messages.org §agent-shell streams each chunk of an agent message as an event
-  ;; UW-1 §Main success scenario: Turn record changes into code
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
   (assert-equal '((nil) 0) (trf-session-test-turn-says "All done." "{\"finished\": true}")))
 
 (deftest trf-session-finished-with-the-json-line-fenced-as-json ()
   "The JSON line alone in a code fence opened with ```json finishes the machine."
-  ;; UW-1 §Main success scenario: Turn record changes into code
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
   (assert-equal '((("docs/plans/a-plan.md")) 0)
                 (trf-session-test-turn-says
                  "The plan is written.\n\n```json\n"
@@ -261,29 +261,29 @@
 
 (deftest trf-session-finished-with-the-json-line-fenced-with-tildes ()
   "The JSON line alone in a code fence of tildes finishes the machine."
-  ;; UW-1 §Main success scenario: Turn record changes into code
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
   (assert-equal '((nil) 0)
                 (trf-session-test-turn-says "Done.\n~~~\n{\"finished\": true}\n~~~~\n")))
 
 (deftest trf-session-at-work-when-text-follows-the-fenced-json-line ()
   "The fenced JSON line followed by more text does not finish the machine."
-  ;; UW-1 §Main success scenario: Turn record changes into code
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
   (assert-equal '(nil 0)
                 (trf-session-test-turn-says "```\n{\"finished\": true}\n```\nAnything else?\n")))
 
 (deftest trf-session-finished-with-the-json-line-in-an-unclosed-fence ()
   "The JSON line ending a turn inside a code fence never closed still finishes the machine."
-  ;; UW-1 §Main success scenario: Turn record changes into code
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
   (assert-equal '((nil) 0) (trf-session-test-turn-says "```json\n{\"finished\": true}\n")))
 
 (deftest trf-session-at-work-when-the-json-line-is-followed-by-an-opening-fence ()
   "A fence line with an info string after the JSON line is not a closing fence, so the machine is not finished."
-  ;; UW-1 §Main success scenario: Turn record changes into code
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
   (assert-equal '(nil 0) (trf-session-test-turn-says "{\"finished\": true}\n```json\n")))
 
 (deftest trf-session-finished-with-the-json-line-followed-by-a-stray-closing-fence ()
   "The JSON line followed by a closing fence that no fence opened still finishes the machine."
-  ;; UW-1 §Main success scenario: Turn record changes into code
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
   (assert-equal '((nil) 0) (trf-session-test-turn-says "Done.\n{\"finished\": true}\n```\n")))
 
 (provide 'trf-session-test)

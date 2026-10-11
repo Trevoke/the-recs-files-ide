@@ -19,9 +19,11 @@
     (executing
      . "Use the %s skill to turn the record changes into code by following the implementation plan, committing as you go.")))
 
+;; ADR-3 §Decision: Machines end their work with one JSON line
 (defconst trf-machines--json-line "{\"finished\": true}"
   "The JSON line a machine that produces nothing for the next ends its last turn with.")
 
+;; ADR-3 §Decision: Machines end their work with one JSON line
 (defconst trf-machines--closing
   '((brainstorming
      . "When your work is finished, end your last turn with one JSON line alone, an object holding \"finished\": true and \"produced\": a list holding the path of each document in which you settled with the record keeper how the record changes are to be implemented, each relative to the root of your working tree.")
@@ -40,6 +42,7 @@
           "afterwards. Once every task of the implementation plan is done, run the tests.")
   "What the executing machine is told about where its work ends.")
 
+;; ADR-3 §Consequences: Machines end their work with one JSON line
 (defconst trf-machines--reading
   '((planning . "Read what the brainstorming machine produced; it settles how the record changes are to be implemented:")
     (executing . "Follow the implementation plan the planning machine produced:"))
@@ -74,6 +77,7 @@
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; UW-1 §Extensions: Turn record changes into code
+;; ADR-3 §Decision: Machines end their work with one JSON line
 (defun trf-machines-reconciliation-assessor ()
   "Return the reconciliation assessor."
   (let ((report (trf-machines-record-implementation-report-file)))
@@ -101,6 +105,7 @@
           (plist-get change :status)
           (plist-get change :path)))
 
+;; ADR-3 §Consequences: Machines end their work with one JSON line
 (defun trf-machines-instructions (machine changes &optional produced ide-instruction)
   "Return MACHINE's instructions for CHANGES, given the paths PRODUCED by the machine before.
 IDE-INSTRUCTION, when given, is a paragraph of its own."

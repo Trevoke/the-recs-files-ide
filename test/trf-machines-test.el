@@ -29,9 +29,9 @@
     (assert-match "You are the planning machine\\." text)
     (assert-match "- UW-1 Order a widget (modified): docs/user-workflows/uw-1-order-a-widget.org" text)
     (assert-match "recs-writing-plans" text)
-    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Consequences: Machines end their work with one JSON line
     (assert-match "Read what the brainstorming machine produced[^\n]*:\n- docs/plans/x-design\\.md" text)
-    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Decision: Machines end their work with one JSON line
     (assert-match "end your last turn with one JSON line alone, an object holding \"finished\": true and \"produced\": a list holding the path of the implementation plan, relative to the root of your working tree\\.$" text)
     (assert-nil (string-match-p "<path>" text))))
 
@@ -40,16 +40,16 @@
   (let ((text (trf-machines-instructions (nth 2 (trf-machines-implementation-workflow))
                                          trf-machines-test-changes
                                          '("docs/plans/x-plan.md"))))
-    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Consequences: Machines end their work with one JSON line
     (assert-match "Follow the implementation plan the planning machine produced:\n- docs/plans/x-plan\\.md" text)
-    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Decision: Machines end their work with one JSON line
     (assert-match "\n{\"finished\": true}$" text)))
 
 (deftest trf-machines-brainstorming-machine-says-what-it-produced ()
   "The brainstorming machine is told to list in produced where it settled how to implement the record changes."
   (let ((text (trf-machines-instructions (car (trf-machines-implementation-workflow))
                                          trf-machines-test-changes)))
-    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Decision: Machines end their work with one JSON line
     (assert-match "end your last turn with one JSON line alone, an object holding \"finished\": true and \"produced\": a list holding the path of each document in which you settled with the record keeper how the record changes are to be implemented, each relative to the root of your working tree\\.$" text)
     (assert-nil (string-match-p "<path>" text))
     (assert-nil (string-match-p "produced:\n" text))))
@@ -76,7 +76,7 @@
   (let ((text (trf-machines-instructions (trf-machines-reconciliation-assessor)
                                          trf-machines-test-changes)))
     (assert-match "The record implementation report is \\.trf/record-implementation-report\\.org; change no other file\\." text)
-    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Decision: Machines end their work with one JSON line
     (assert-match "\n{\"finished\": true}$" text)
     (assert-nil (string-match-p "produced" text))))
 
@@ -118,6 +118,7 @@
     ;; F-2 §Produces: Accept or reject the record implementation report
     (assert-match "Do not use the recs-finishing-a-development-branch skill or any other skill that finishes a development branch, and do not merge, push, or remove the branch or the working tree: the record keeper accepts or rejects the record implementation report afterwards\\." text)
     ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Decision: Machines end their work with one JSON line
     (assert-match "Once every task of the implementation plan is done, run the tests\\.\n\nWhen your work is finished, end your last turn with one JSON line alone:\n{\"finished\": true}$" text)))
 
 (deftest trf-machines-only-the-executing-machine-is-told-to-stop-before-bringing-the-work-in ()

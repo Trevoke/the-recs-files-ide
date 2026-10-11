@@ -179,9 +179,9 @@ IMPLEMENT defaults to `trf-test-implement'."
     (assert-equal '("brainstorming machine" "planning machine" "executing machine"
                     "reconciliation assessor")
                   (mapcar #'car runs))
-    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Consequences: Machines end their work with one JSON line
     (assert-match "^- docs/plans/brainstorming\\.md$" (nth 3 (nth 1 runs)))
-    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; ADR-3 §Consequences: Machines end their work with one JSON line
     (assert-match "^- docs/plans/planning\\.md$" (nth 3 (nth 2 runs)))
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-equal 1 (length (delete-dups (mapcar (lambda (run) (nth 1 run)) runs))))))
