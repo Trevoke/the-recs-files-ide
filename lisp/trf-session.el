@@ -19,10 +19,19 @@ The record keeper picks it through agent-shell."
       (agent-shell-select-config :prompt "AI program for the machines: ")))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
+(defun trf-session--without-closing-fences (lines)
+  "Return LINES without the code fence closings that end them."
+  (let ((lines (reverse lines)))
+    (while (and lines (string-match-p "\\`\\(?:`\\{3,\\}\\|~\\{3,\\}\\)\\'" (car lines)))
+      (setq lines (cdr lines)))
+    (nreverse lines)))
+
+;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-session--finished (text)
   "Return a list holding the paths produced when TEXT ends with the JSON line saying finished.
 Return nil when it does not."
-  (when-let* ((line (car (last (split-string (or text "") "[\r\n]+" t "[ \t]+")))))
+  (when-let* ((line (car (last (trf-session--without-closing-fences
+                                (split-string (or text "") "[\r\n]+" t "[ \t]+"))))))
     (let ((start 0) found)
       (while (and (not found) (string-match "{" line start))
         (let ((position (match-beginning 0)))

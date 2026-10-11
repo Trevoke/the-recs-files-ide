@@ -251,5 +251,35 @@
   ;; UW-1 §Main success scenario: Turn record changes into code
   (assert-equal '((nil) 0) (trf-session-test-turn-says "All done." "{\"finished\": true}")))
 
+(deftest trf-session-finished-with-the-json-line-fenced-as-json ()
+  "The JSON line alone in a code fence opened with ```json finishes the machine."
+  ;; UW-1 §Main success scenario: Turn record changes into code
+  (assert-equal '((("docs/plans/a-plan.md")) 0)
+                (trf-session-test-turn-says
+                 "The plan is written.\n\n```json\n"
+                 "{\"finished\": true, \"produced\": [\"docs/plans/a-plan.md\"]}\n```\n")))
+
+(deftest trf-session-finished-with-the-json-line-fenced-with-tildes ()
+  "The JSON line alone in a code fence of tildes finishes the machine."
+  ;; UW-1 §Main success scenario: Turn record changes into code
+  (assert-equal '((nil) 0)
+                (trf-session-test-turn-says "Done.\n~~~\n{\"finished\": true}\n~~~~\n")))
+
+(deftest trf-session-at-work-when-text-follows-the-fenced-json-line ()
+  "The fenced JSON line followed by more text does not finish the machine."
+  ;; UW-1 §Main success scenario: Turn record changes into code
+  (assert-equal '(nil 0)
+                (trf-session-test-turn-says "```\n{\"finished\": true}\n```\nAnything else?\n")))
+
+(deftest trf-session-finished-with-the-json-line-in-an-unclosed-fence ()
+  "The JSON line ending a turn inside a code fence never closed still finishes the machine."
+  ;; UW-1 §Main success scenario: Turn record changes into code
+  (assert-equal '((nil) 0) (trf-session-test-turn-says "```json\n{\"finished\": true}\n")))
+
+(deftest trf-session-at-work-when-the-json-line-is-followed-by-an-opening-fence ()
+  "A fence line with an info string after the JSON line is not a closing fence, so the machine is not finished."
+  ;; UW-1 §Main success scenario: Turn record changes into code
+  (assert-equal '(nil 0) (trf-session-test-turn-says "{\"finished\": true}\n```json\n")))
+
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here
