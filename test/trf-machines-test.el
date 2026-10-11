@@ -111,15 +111,15 @@
     (assert-match "produced[^\n]*:\n- a\\.md\n\n" text)))
 
 (deftest trf-machines-executing-machine-stops-before-bringing-the-work-in ()
-  "The executing machine is told to run the tests once the plan is done, and not to merge, push, or remove the branch or the working tree."
+  "The executing machine is told not to merge, push, or remove the branch or the working tree."
   (let ((text (trf-machines-instructions (nth 2 (trf-machines-implementation-workflow))
                                          trf-machines-test-changes '("docs/plans/x-plan.md"))))
     ;; UW-1 §Main success scenario: Turn record changes into code
     ;; F-2 §Produces: Accept or reject the record implementation report
     (assert-match "Do not use the recs-finishing-a-development-branch skill or any other skill that finishes a development branch, and do not merge, push, or remove the branch or the working tree: the record keeper accepts or rejects the record implementation report afterwards\\." text)
-    ;; UW-1 §Main success scenario: Turn record changes into code
     ;; ADR-3 §Decision: Machines end their work with one JSON line
-    (assert-match "Once every task of the implementation plan is done, run the tests\\.\n\nWhen your work is finished, end your last turn with one JSON line alone:\n{\"finished\": true}$" text)))
+    (assert-match "afterwards\\.\n\nWhen your work is finished, end your last turn with one JSON line alone:\n{\"finished\": true}$" text)
+    (assert-nil (string-match-p "run the tests" text))))
 
 (deftest trf-machines-only-the-executing-machine-is-told-to-stop-before-bringing-the-work-in ()
   "Only the executing machine is told not to merge, push, or remove the branch or the working tree."
