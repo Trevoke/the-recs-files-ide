@@ -87,6 +87,8 @@ gives nil."
       found)))
 
 (defun trf-session--stopped-p (stop-reason)
+  "Return non-nil when a turn that ended for STOP-REASON stopped the machine.
+Every reason but \"end_turn\", or none, does."
   (not (member stop-reason '(nil "end_turn"))))
 
 ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript

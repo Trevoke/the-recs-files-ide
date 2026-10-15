@@ -118,7 +118,8 @@
   "The worktrees whose machines are at work, keyed as `trf--session-buffers' is.")
 
 (defun trf--worktree-key (directory)
-  "Return the key DIRECTORY's worktree has in `trf--session-buffers' and `trf--stopped-machines'."
+  "Return the key DIRECTORY's worktree has in the IDE's tables.
+They are `trf--session-buffers', `trf--stopped-machines' and `trf--machines-at-work'."
   (file-name-as-directory (expand-file-name directory)))
 
 ;; F-2 §Rules: Accept or reject the record implementation report
