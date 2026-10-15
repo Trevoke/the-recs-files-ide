@@ -208,18 +208,18 @@ Then run the rest."
         buffer)
     (trf--unmarking-on-failure directory
       (setq buffer (trf-session-continue
-                  session-buffer session-id config message
-                  (trf--carrying-on machines directory config changes on-done)
-                  (trf--on-stopped machines directory config changes on-done
-                                   (lambda () buffer))
-                  (lambda (reason)
-                    ;; F-2 §Rules: Accept or reject the record implementation report
-                    (trf--done-working directory)
-                    ;; MSG-12: Machine cannot be continued
-                    ;; UW-1 §Extensions: Turn record changes into code
-                    (message "%s\n%s\n%s" trf-machine-cannot-be-continued-message
-                             (plist-get machine :name)
-                             (trf-record-changes-reason (or reason "")))))))
+                    session-buffer session-id config message
+                    (trf--carrying-on machines directory config changes on-done)
+                    (trf--on-stopped machines directory config changes on-done
+                                     (lambda () buffer))
+                    (lambda (reason)
+                      ;; F-2 §Rules: Accept or reject the record implementation report
+                      (trf--done-working directory)
+                      ;; MSG-12: Machine cannot be continued
+                      ;; UW-1 §Extensions: Turn record changes into code
+                      (message "%s\n%s\n%s" trf-machine-cannot-be-continued-message
+                               (plist-get machine :name)
+                               (trf-record-changes-reason (or reason "")))))))
     (when buffer
       (push buffer (gethash (trf--worktree-key directory) trf--session-buffers)))))
 

@@ -1780,5 +1780,67 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
                   messages)))
 
+(defun trf-test-listening-run (directory _config instructions on-finished on-stopped)
+  "Run the machine INSTRUCTIONS name in a buffer of its own that the IDE listens to, and finish it.
+The reconciliation assessor writes the record implementation report in DIRECTORY first."
+  (let* ((name (when (string-match "\\`You are the \\([^.]+\\)\\." instructions)
+                 (match-string 1 instructions)))
+         (buffer (generate-new-buffer (format "*trf listening %s*" name)))
+         handlers)
+    (cl-letf (((symbol-function 'agent-shell-subscribe-to)
+               (lambda (&rest args)
+                 (let ((handler (plist-get args :on-event)))
+                   (when (eq (plist-get args :event) 'clean-up)
+                     (with-current-buffer (plist-get args :shell-buffer)
+                       (add-hook 'kill-buffer-hook
+                                 (lambda () (funcall handler '((:event . clean-up))))
+                                 nil t)))
+                   (push (cons (plist-get args :event) handler) handlers)))))
+      (trf-session--listen buffer on-finished on-stopped))
+    (when (equal name "reconciliation assessor")
+      (with-temp-file (expand-file-name (trf-machines-record-implementation-report-file) directory)
+        (insert "Assessed by the reconciliation assessor.")))
+    (dolist (event (list (list 'agent-message-chunk
+                               (list (cons :text-chunk
+                                           (if (member name '("brainstorming machine" "planning machine"))
+                                               (format "{\"finished\": true, \"produced\": [\"docs/plans/%s.md\"]}"
+                                                       (car (split-string name)))
+                                             "{\"finished\": true}"))))
+                         (list 'turn-complete (list (cons :stop-reason "end_turn")))))
+      (dolist (handler (reverse handlers))
+        (when (eq (car handler) (car event))
+          (funcall (cdr handler) (list (cons :event (car event)) (cons :data (cadr event)))))))
+    buffer))
+
+(deftest trf-accept-ending-the-machines-stops-none-of-them ()
+  "Accepting ends the session buffers of the machines that worked on it without stopping any of them."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let (messages directory buffers)
+    (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
+              ((symbol-function 'trf-session-run) #'trf-test-listening-run)
+              ((symbol-function 'agent-shell-session-id) (lambda (&rest _) "session-1"))
+              ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
+              ((symbol-function 'message)
+               (lambda (format-string &rest args)
+                 (push (apply #'format format-string args) messages))))
+      (trf-test-implement)
+      (trf-test-settle #'trf-test-report-shown-p)
+      (setq directory (trf-worktree-of (buffer-file-name (window-buffer (selected-window))))
+            buffers (copy-sequence (gethash directory trf--session-buffers)))
+      (trf-test-build directory)
+      (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                      #'trf-accept-record-implementation-report))
+      (trf-test-settle (lambda () t))
+      (accept-process-output nil 0.05))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal 4 (length buffers))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-nil (seq-some #'buffer-live-p buffers))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-nil (seq-find (lambda (text) (string-prefix-p "A machine stopped before finishing:" text))
+                          messages))
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-nil (gethash directory trf--stopped-machines))))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here
