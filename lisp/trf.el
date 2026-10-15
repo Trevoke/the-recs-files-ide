@@ -449,21 +449,27 @@ Return nil when there is none."
     nil))
 
 ;; UW-1 §Extensions 3-5a: Turn record changes into code
-;; F-3 §Produces: Continue a stopped machine on its work in progress
+;; F-3 §Rules: Continue a stopped machine on its work in progress
 ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
 ;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it
 (defun trf--interrupting-instead (restart &rest args)
   "Around RESTART with ARGS: in a machine's session buffer, interrupt the machine and continue it.
+While the machine is at work, ask the record keeper first, and leave it at work on no.
 Anywhere else, run RESTART."
   (let* ((buffer (or (and (fboundp 'agent-shell--current-shell)
                           (ignore-errors (agent-shell--current-shell)))
                      (current-buffer)))
          (directory (trf--machines-work-in-progress buffer)))
-    (if (not directory)
-        (apply restart args)
+    (cond
+     ((not directory)
+      (apply restart args))
+     ((and (gethash directory trf--machines-at-work)
+           (not (y-or-n-p "Stop the machine at work and continue it? ")))
+      nil)
+     (t
       (trf-session-end-buffer buffer)
       ;; F-3 §Rules: Continue a stopped machine on its work in progress
-      (run-at-time 0 nil #'trf--continue-from-a-restart directory))))
+      (run-at-time 0 nil #'trf--continue-from-a-restart directory)))))
 
 ;; F-3 §Rules: Continue a stopped machine on its work in progress
 (defun trf--continue-from-a-restart (directory)

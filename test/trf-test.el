@@ -1912,14 +1912,15 @@ The reconciliation assessor writes the record implementation report in DIRECTORY
 
 (defun trf-test-interrupting (command)
   "Leave the planning machine at work, run COMMAND in its session buffer, and continue it.
-Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
+Return (STOPPED MESSAGES PROMPTS CONTINUED QUESTIONS) once the IDE has settled, QUESTIONS being
+what the record keeper was asked to answer yes or no to, answered yes."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (let ((trf-test-listening-at-work "planning machine")
-        messages prompts continued buffer)
+        messages prompts continued buffer questions)
     (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
               ((symbol-function 'trf-session-run) #'trf-test-listening-run)
               ((symbol-function 'agent-shell-session-id) (lambda (&rest _) "session-1"))
-              ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
+              ((symbol-function 'y-or-n-p) (lambda (prompt &rest _) (push prompt questions) t))
               ((symbol-function 'read-string)
                (lambda (prompt &rest _) (push prompt prompts) "Go on."))
               ((symbol-function 'trf-session-continue)
@@ -1937,12 +1938,14 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
         (setq-local agent-shell--state (list (cons :session (list (cons :id "session-1")))))
         (funcall command))
       (trf-test-settle (lambda () continued)))
-    (list (not (buffer-live-p buffer)) messages prompts continued)))
+    (list (not (buffer-live-p buffer)) messages prompts continued questions)))
 
 (deftest trf-restart-in-a-machines-buffer-interrupts-and-continues-it ()
   "agent-shell's restart in a machine's session buffer stops the machine and continues it in its session."
-  (pcase-let ((`(,killed ,messages ,prompts ,continued)
+  (pcase-let ((`(,killed ,messages ,prompts ,continued ,questions)
                (trf-test-interrupting (lambda () (agent-shell-restart)))))
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal '("Stop the machine at work and continue it? " "Implement these record changes? ") questions)
     ;; UW-1 §Extensions 3-5a: Turn record changes into code
     ;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it
     (assert-true killed)
@@ -1958,8 +1961,10 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
 
 (deftest trf-reload-in-a-machines-buffer-interrupts-and-continues-it ()
   "agent-shell's reload in a machine's session buffer stops the machine and continues it in its session."
-  (pcase-let ((`(,killed ,messages ,_prompts ,continued)
+  (pcase-let ((`(,killed ,messages ,_prompts ,continued ,questions)
                (trf-test-interrupting (lambda () (agent-shell-reload)))))
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal '("Stop the machine at work and continue it? " "Implement these record changes? ") questions)
     ;; UW-1 §Extensions 3-5a: Turn record changes into code
     ;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it
     (assert-true killed)
@@ -2203,6 +2208,50 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
           (with-current-buffer buffer
             (let ((kill-buffer-query-functions nil))
               (kill-buffer buffer))))))))
+
+(deftest trf-restart-in-a-machines-buffer-leaves-it-at-work-on-no ()
+  "Answering no to stopping the machine at work leaves it at work: nothing is ended, stopped or restarted."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let ((trf-test-listening-at-work "planning machine")
+        restarted messages continued buffer directory)
+    (advice-add 'agent-shell-restart :override (lambda (&rest _) (setq restarted t))
+                '((name . trf-test-restart) (depth . 100)))
+    (unwind-protect
+        (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
+                  ((symbol-function 'trf-session-run) #'trf-test-listening-run)
+                  ((symbol-function 'agent-shell-session-id) (lambda (&rest _) "session-1"))
+                  ((symbol-function 'y-or-n-p)
+                   (lambda (prompt &rest _) (not (equal prompt "Stop the machine at work and continue it? "))))
+                  ((symbol-function 'read-string) (lambda (&rest _) (error "Asked")))
+                  ((symbol-function 'trf-session-continue)
+                   (lambda (&rest args) (push args continued) nil))
+                  ((symbol-function 'message)
+                   (lambda (format-string &rest args)
+                     (push (apply #'format format-string args) messages))))
+          (trf-test-implement)
+          (trf-test-settle (lambda () (trf-test-listening-buffer "planning machine")))
+          (setq buffer (trf-test-listening-buffer "planning machine")
+                directory (file-name-as-directory
+                           (car (directory-files (expand-file-name ".worktrees/" trf-test-root) t
+                                                 "\\`trf-"))))
+          (with-current-buffer buffer
+            (setq major-mode 'agent-shell-mode)
+            (agent-shell-restart))
+          (trf-test-settle (lambda () t))
+          (accept-process-output nil 0.05)
+          ;; F-3 §Rules: Continue a stopped machine on its work in progress
+          (assert-true (buffer-live-p buffer))
+          ;; F-3 §Rules: Continue a stopped machine on its work in progress
+          (assert-nil restarted)
+          ;; F-3 §Rules: Continue a stopped machine on its work in progress
+          ;; MSG-10: Machine stopped before finishing
+          (assert-nil messages)
+          ;; F-3 §Rules: Continue a stopped machine on its work in progress
+          (assert-nil (gethash directory trf--stopped-machines))
+          ;; F-3 §Rules: Continue a stopped machine on its work in progress
+          (assert-true (gethash directory trf--machines-at-work))
+          (assert-nil continued))
+      (advice-remove 'agent-shell-restart 'trf-test-restart))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here
