@@ -55,16 +55,15 @@ An answer to the implementation workflow's question changes a record.
 
 * Resume a work in progress (user workflow)
 
-A placeholder, not yet dressed. When written, UW-1 3a ("record keeper has that
-machine start again on it") and *a point at it.
+A placeholder, not yet dressed. When written, UW-1 *a points at it.
 
 - Primary actor :: record keeper
 - Trigger :: the record keeper returns to a work in progress: after a machine
   of the implementation workflow stopped, after abandoning it, or after the IDE
   was restarted.
 - Precondition :: a work in progress exists.
-- Covers :: finding the works in progress; starting a stopped machine again;
-  continuing the implementation workflow to a record implementation report.
+- Covers :: finding the works in progress; continuing the implementation
+  workflow to a record implementation report.
 
 * Structured end of a machine's work over ACP
 
