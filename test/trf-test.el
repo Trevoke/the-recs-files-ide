@@ -116,14 +116,14 @@ IMPLEMENT defaults to `trf-test-implement'."
     (assert-equal worktrees (trf-test-git trf-test-root "worktree" "list" "--porcelain"))))
 
 (deftest trf-implement-without-record-changes ()
-  "With no record changes the IDE gives MSG-1 and does nothing else."
+  "With no record changes the IDE gives MSG-1: No record changes to implement, and does nothing else."
   ;; F-1 §Rules: Ask the IDE to implement the record changes
   ;; UW-1 §Minimal guarantee: Turn record changes into code
   ;; MSG-1: No record changes to implement
   (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement.")))
 
 (deftest trf-implement-mid-merge-without-record-changes ()
-  "Mid merge, the IDE gives MSG-3 even when there are no record changes."
+  "Mid merge, the IDE gives MSG-3: Finish the merge or rebase first, even when there are no record changes."
   (trf-test-leave-in-progress trf-test-root 'merge)
   ;; UW-1 §Extensions: Turn record changes into code
   ;; MSG-3: Finish the merge or rebase first
@@ -132,7 +132,7 @@ IMPLEMENT defaults to `trf-test-implement'."
      "The target product is in the middle of a merge or rebase; finish it first.")))
 
 (deftest trf-implement-mid-merge-with-record-changes ()
-  "Mid merge, the IDE gives MSG-3 and asks nothing."
+  "Mid merge, the IDE gives MSG-3: Finish the merge or rebase first, and asks nothing."
   (trf-test-leave-in-progress trf-test-root 'merge)
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   ;; UW-1 §Extensions: Turn record changes into code
@@ -250,7 +250,7 @@ IMPLEMENT defaults to `trf-test-implement'."
     (assert-nil (trf-test-report-shown-p))))
 
 (deftest trf-implement-refused-commit ()
-  "When the record changes cannot be committed, MSG-4 is given and no machine runs."
+  "When the record changes cannot be committed, the IDE gives MSG-4: Record changes could not be committed, and no machine runs."
   (trf-test-write-files trf-test-root
                         (list trf-test-record-change
                               '(".git/hooks/pre-commit"
@@ -351,14 +351,14 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
   (trf-test-git directory "commit" "--quiet" "--all" "--message" "Build"))
 
 (deftest trf-accept-outside-work-in-progress ()
-  "Outside any work in progress, accepting gives MSG-2."
+  "Outside any work in progress, accepting gives MSG-2: No work in progress to accept or reject."
   ;; MSG-2: No work in progress to accept or reject
   (assert-equal '(user-error "There is no work in progress here to accept or reject.")
                 (trf-test-from-file (expand-file-name "docs/vision.org" trf-test-root)
                                     #'trf-accept-record-implementation-report)))
 
 (deftest trf-reject-outside-work-in-progress ()
-  "Outside any work in progress, rejecting gives MSG-2."
+  "Outside any work in progress, rejecting gives MSG-2: No work in progress to accept or reject."
   ;; MSG-2: No work in progress to accept or reject
   (assert-equal '(user-error "There is no work in progress here to accept or reject.")
                 (trf-test-from-file (expand-file-name "docs/vision.org" trf-test-root)
@@ -380,7 +380,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
     (assert-nil (trf-record-changes trf-test-root))))
 
 (deftest trf-accept-mid-merge ()
-  "Mid merge, accepting gives MSG-3 and keeps the work in progress."
+  "Mid merge, accepting gives MSG-3: Finish the merge or rebase first, and keeps the work in progress."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-leave-in-progress trf-test-root 'merge)
     ;; UW-1 §Extensions: Turn record changes into code
@@ -391,7 +391,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
        "The target product is in the middle of a merge or rebase; finish it first."))))
 
 (deftest trf-accept-on-another-branch ()
-  "With the codebase on another branch, accepting gives MSG-8 and keeps the work in progress."
+  "With the codebase on another branch, accepting gives MSG-8: Target product is not on the primary git branch, and keeps the work in progress."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-git trf-test-root "checkout" "--quiet" "-b" "side")
@@ -402,7 +402,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
      '(user-error "The target product is not on the primary git branch:\nmain"))))
 
 (deftest trf-accept-on-a-detached-codebase ()
-  "With the codebase detached, accepting gives MSG-8 and keeps the work in progress."
+  "With the codebase detached, accepting gives MSG-8: Target product is not on the primary git branch, and keeps the work in progress."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
@@ -413,7 +413,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
      '(user-error "The target product is not on the primary git branch:\nmain"))))
 
 (deftest trf-accept-refused-by-the-target-product ()
-  "When the work cannot be brought in, accepting gives MSG-5 with git's reason and changes nothing."
+  "When the work cannot be brought in, accepting gives MSG-5: Work cannot be brought into the codebase, with git's reason and changes nothing."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-write-files trf-test-root '(("src/widget.el" . "(provide 'widget) ; local\n")))
@@ -551,7 +551,7 @@ Every other call to `trf-git' runs git."
          ,@body))))
 
 (deftest trf-implement-git-fails-checking-for-an-operation-in-progress ()
-  "When git fails checking for a merge or rebase, implementing gives MSG-7 with git's output."
+  "When git fails checking for a merge or rebase, implementing gives MSG-7: Git could not do what the IDE asked, with git's output."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   ;; F-1 §Rules: Ask the IDE to implement the record changes
   ;; MSG-7: Git could not do what the IDE asked
@@ -560,7 +560,7 @@ Every other call to `trf-git' runs git."
    (lambda () (trf-test-failing-git 'trf-git-operation-in-progress-p "fatal: broken" (trf-test-implement)))))
 
 (deftest trf-implement-git-fails-without-a-reason ()
-  "When git fails reading the record changes and says nothing, implementing gives MSG-7 with no reason given."
+  "When git fails reading the record changes and says nothing, implementing gives MSG-7: Git could not do what the IDE asked, with no reason given."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   ;; F-1 §Rules: Ask the IDE to implement the record changes
   ;; MSG-7: Git could not do what the IDE asked
@@ -569,7 +569,7 @@ Every other call to `trf-git' runs git."
    (lambda () (trf-test-failing-git 'trf-record-changes "" (trf-test-implement)))))
 
 (deftest trf-implement-git-fails-creating-the-worktree ()
-  "When git fails creating the worktree, implementing gives MSG-7 and keeps the record changes' commit."
+  "When git fails creating the worktree, implementing gives MSG-7: Git could not do what the IDE asked, and keeps the record changes' commit."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (let (runs refusal)
     (trf-test-with-machines runs 'now
@@ -584,7 +584,7 @@ Every other call to `trf-git' runs git."
     (assert-nil runs)))
 
 (deftest trf-accept-git-fails-checking-whether-the-codebase-moved ()
-  "When git fails checking whether the codebase moved, accepting gives MSG-7 and keeps the work in progress."
+  "When git fails checking whether the codebase moved, accepting gives MSG-7: Git could not do what the IDE asked, and keeps the work in progress."
   (let* ((directory (trf-test-implemented-worktree))
          (state (trf-test-state directory)))
     (trf-test-failing-git 'trf-worktree-codebase-moved-p "fatal: bad object"
@@ -597,7 +597,7 @@ Every other call to `trf-git' runs git."
     (assert-equal state (trf-test-state directory))))
 
 (deftest trf-accept-git-fails-after-bringing-the-work-in ()
-  "When git fails marking the record changes implemented after the merge, accepting gives MSG-7, not MSG-5."
+  "When git fails marking the record changes implemented after the merge, accepting gives MSG-7: Git could not do what the IDE asked, not MSG-5: Work cannot be brought into the codebase."
   (let* ((directory (trf-test-implemented-worktree))
          (base (trf-worktree-base directory)))
     (trf-test-build directory)
@@ -668,7 +668,7 @@ Every other call to `trf-git' runs git."
                   (string-trim (trf-test-git trf-test-root "rev-parse" "refs/recs/implemented")))))
 
 (deftest trf-implement-on-a-detached-codebase ()
-  "On a detached codebase, the IDE gives MSG-8, asks nothing, commits nothing and starts no work."
+  "On a detached codebase, the IDE gives MSG-8: Target product is not on the primary git branch, asks nothing, commits nothing and starts no work."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
   ;; UW-1 §Extensions: Turn record changes into code
@@ -676,14 +676,14 @@ Every other call to `trf-git' runs git."
   (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain")))
 
 (deftest trf-implement-on-a-detached-codebase-gives-msg-8-before-msg-1 ()
-  "On a detached codebase without record changes, the IDE gives MSG-8 rather than MSG-1."
+  "On a detached codebase without record changes, the IDE gives MSG-8: Target product is not on the primary git branch, rather than MSG-1: No record changes to implement."
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
   ;; UW-1 §Extensions: Turn record changes into code
   ;; MSG-8: Target product is not on the primary git branch
   (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain")))
 
 (deftest trf-implement-mid-rebase-gives-msg-3-before-msg-8 ()
-  "Mid rebase, with the codebase detached, the IDE gives MSG-3 rather than MSG-8."
+  "Mid rebase, with the codebase detached, the IDE gives MSG-3: Finish the merge or rebase first, rather than MSG-8: Target product is not on the primary git branch."
   (trf-test-leave-in-progress trf-test-root 'rebase)
   (assert-equal "" (trf-test-git trf-test-root "branch" "--show-current"))
   ;; UW-1 §Extensions: Turn record changes into code
@@ -693,7 +693,7 @@ Every other call to `trf-git' runs git."
      "The target product is in the middle of a merge or rebase; finish it first.")))
 
 (deftest trf-implement-on-another-branch ()
-  "On another branch, the IDE gives MSG-8, asks nothing, commits nothing and starts no work."
+  "On another branch, the IDE gives MSG-8: Target product is not on the primary git branch, asks nothing, commits nothing and starts no work."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-git trf-test-root "checkout" "--quiet" "-b" "side")
   ;; UW-1 §Extensions: Turn record changes into code
@@ -725,7 +725,7 @@ Every other call to `trf-git' runs git."
     (assert-equal 4 (length runs))))
 
 (deftest trf-implement-on-main-when-the-target-product-names-another-primary-git-branch ()
-  "On main, when the target product names another primary git branch, the IDE gives MSG-8 with it."
+  "On main, when the target product names another primary git branch, the IDE gives MSG-8: Target product is not on the primary git branch, with it."
   (trf-test-write-primary-git-branch trf-test-root "trunk")
   (trf-test-commit-primary-git-branch)
   (trf-test-write-files trf-test-root (list trf-test-record-change))
@@ -734,7 +734,7 @@ Every other call to `trf-git' runs git."
   (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\ntrunk")))
 
 (deftest trf-accept-on-main-when-the-target-product-names-another-primary-git-branch ()
-  "On main, when the target product names another primary git branch, accepting gives MSG-8 with it."
+  "On main, when the target product names another primary git branch, accepting gives MSG-8: Target product is not on the primary git branch, with it."
   (trf-test-write-primary-git-branch trf-test-root "trunk")
   (trf-test-commit-primary-git-branch)
   (trf-test-git trf-test-root "checkout" "--quiet" "-b" "trunk")
@@ -748,7 +748,7 @@ Every other call to `trf-git' runs git."
      '(user-error "The target product is not on the primary git branch:\ntrunk"))))
 
 (deftest trf-accept-off-the-primary-git-branch-once-the-codebase-has-moved ()
-  "Off the primary git branch, once the codebase has moved, accepting gives MSG-8 and reruns nothing."
+  "Off the primary git branch, once the codebase has moved, accepting gives MSG-8: Target product is not on the primary git branch, and reruns nothing."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-write-files trf-test-root '(("src/other.el" . "(provide 'other)\n")))
@@ -762,7 +762,7 @@ Every other call to `trf-git' runs git."
      '(user-error "The target product is not on the primary git branch:\nmain"))))
 
 (deftest trf-accept-mid-rebase-off-the-primary-git-branch-gives-msg-3-before-msg-8 ()
-  "Mid rebase, with the codebase detached, accepting gives MSG-3 rather than MSG-8."
+  "Mid rebase, with the codebase detached, accepting gives MSG-3: Finish the merge or rebase first, rather than MSG-8: Target product is not on the primary git branch."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-leave-in-progress trf-test-root 'rebase)
     (assert-equal "" (trf-test-git trf-test-root "branch" "--show-current"))
@@ -786,7 +786,7 @@ Every other call to `trf-git' runs git."
      '(user-error "The target product is not on the primary git branch:\ntrunk"))))
 
 (deftest trf-implement-detached-when-the-target-product-names-no-primary-git-branch ()
-  "Detached, with all local variables allowed, when the target product's .dir-locals.el names nil, the IDE gives MSG-9."
+  "Detached, with all local variables allowed, when the target product's .dir-locals.el names nil, the IDE gives MSG-9: No primary git branch is named."
   (trf-test-write-primary-git-branch trf-test-root nil)
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
   (let ((enable-local-variables :all))
@@ -809,7 +809,7 @@ Every other call to `trf-git' runs git."
     (assert-nil (file-exists-p marker))))
 
 (deftest trf-implement-when-the-target-product-names-an-empty-primary-git-branch ()
-  "When the target product's .dir-locals.el names an empty string, the IDE gives MSG-9."
+  "When the target product's .dir-locals.el names an empty string, the IDE gives MSG-9: No primary git branch is named."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-write-primary-git-branch trf-test-root "")
   ;; UW-1 §Extensions: Turn record changes into code
@@ -817,7 +817,7 @@ Every other call to `trf-git' runs git."
   (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first.")))
 
 (deftest trf-implement-when-the-target-product-names-no-primary-git-branch ()
-  "When the target product's .dir-locals.el names nil, the IDE gives MSG-9."
+  "When the target product's .dir-locals.el names nil, the IDE gives MSG-9: No primary git branch is named."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-write-primary-git-branch trf-test-root nil)
   ;; UW-1 §Extensions: Turn record changes into code
@@ -834,7 +834,7 @@ Every other call to `trf-git' runs git."
     (trf-test-assert-implement-refuses '(user-error "There are no record changes to implement."))))
 
 (deftest trf-implement-when-no-primary-git-branch-is-named ()
-  "When no primary git branch is named, the IDE gives MSG-9, asks nothing, commits nothing and starts no work."
+  "When no primary git branch is named, the IDE gives MSG-9: No primary git branch is named, asks nothing, commits nothing and starts no work."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (let ((trf-primary-git-branch nil))
     ;; UW-1 §Extensions: Turn record changes into code
@@ -842,7 +842,7 @@ Every other call to `trf-git' runs git."
     (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
 (deftest trf-implement-when-an-empty-primary-git-branch-is-named ()
-  "When the IDE setting names an empty primary git branch, the IDE gives MSG-9."
+  "When the IDE setting names an empty primary git branch, the IDE gives MSG-9: No primary git branch is named."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (let ((trf-primary-git-branch ""))
     ;; UW-1 §Extensions: Turn record changes into code
@@ -850,7 +850,7 @@ Every other call to `trf-git' runs git."
     (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
 (deftest trf-implement-detached-when-no-primary-git-branch-is-named-gives-msg-9-before-msg-8 ()
-  "Detached, when no primary git branch is named, the IDE gives MSG-9 rather than MSG-8."
+  "Detached, when no primary git branch is named, the IDE gives MSG-9: No primary git branch is named, rather than MSG-8: Target product is not on the primary git branch."
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
   (let ((trf-primary-git-branch nil))
     ;; UW-1 §Extensions: Turn record changes into code
@@ -858,14 +858,14 @@ Every other call to `trf-git' runs git."
     (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
 (deftest trf-implement-when-no-primary-git-branch-is-named-gives-msg-9-before-msg-1 ()
-  "Without record changes, when no primary git branch is named, the IDE gives MSG-9 rather than MSG-1."
+  "Without record changes, when no primary git branch is named, the IDE gives MSG-9: No primary git branch is named, rather than MSG-1: No record changes to implement."
   (let ((trf-primary-git-branch nil))
     ;; UW-1 §Extensions: Turn record changes into code
     ;; MSG-9: No primary git branch is named
     (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
 (deftest trf-implement-mid-merge-when-no-primary-git-branch-is-named-gives-msg-3-before-msg-9 ()
-  "Mid merge, when no primary git branch is named, the IDE gives MSG-3 rather than MSG-9."
+  "Mid merge, when no primary git branch is named, the IDE gives MSG-3: Finish the merge or rebase first, rather than MSG-9: No primary git branch is named."
   (trf-test-leave-in-progress trf-test-root 'merge)
   (let ((trf-primary-git-branch nil))
     ;; UW-1 §Extensions: Turn record changes into code
@@ -875,7 +875,7 @@ Every other call to `trf-git' runs git."
        "The target product is in the middle of a merge or rebase; finish it first."))))
 
 (deftest trf-accept-when-no-primary-git-branch-is-named ()
-  "When no primary git branch is named, accepting gives MSG-9 and keeps the work in progress."
+  "When no primary git branch is named, accepting gives MSG-9: No primary git branch is named, and keeps the work in progress."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (let ((trf-primary-git-branch nil))
@@ -884,7 +884,7 @@ Every other call to `trf-git' runs git."
       (trf-test-assert-accept-refuses directory '(user-error "Please set a primary git branch first.")))))
 
 (deftest trf-accept-mid-merge-when-no-primary-git-branch-is-named-gives-msg-3-before-msg-9 ()
-  "Mid merge, when no primary git branch is named, accepting gives MSG-3 rather than MSG-9."
+  "Mid merge, when no primary git branch is named, accepting gives MSG-3: Finish the merge or rebase first, rather than MSG-9: No primary git branch is named."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-leave-in-progress trf-test-root 'merge)
     (let ((trf-primary-git-branch nil))
@@ -896,7 +896,7 @@ Every other call to `trf-git' runs git."
          "The target product is in the middle of a merge or rebase; finish it first.")))))
 
 (deftest trf-accept-outside-work-in-progress-when-no-primary-git-branch-is-named ()
-  "Outside any work in progress, when no primary git branch is named, accepting gives MSG-2."
+  "Outside any work in progress, when no primary git branch is named, accepting gives MSG-2: No work in progress to accept or reject."
   (let ((trf-primary-git-branch nil))
     ;; F-2 §Rules: Accept or reject the record implementation report
     ;; MSG-2: No work in progress to accept or reject
@@ -905,7 +905,7 @@ Every other call to `trf-git' runs git."
                                       #'trf-accept-record-implementation-report))))
 
 (deftest trf-accept-when-the-target-product-names-no-primary-git-branch ()
-  "When the target product's .dir-locals.el names nil, accepting gives MSG-9 and keeps the work in progress."
+  "When the target product's .dir-locals.el names nil, accepting gives MSG-9: No primary git branch is named, and keeps the work in progress."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-write-primary-git-branch trf-test-root nil)
@@ -914,7 +914,7 @@ Every other call to `trf-git' runs git."
     (trf-test-assert-accept-refuses directory '(user-error "Please set a primary git branch first."))))
 
 (deftest trf-accept-refused-by-the-target-product-without-a-reason ()
-  "When the work cannot be brought in and git says nothing, accepting gives MSG-5 with no reason given."
+  "When the work cannot be brought in and git says nothing, accepting gives MSG-5: Work cannot be brought into the codebase, with no reason given."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-failing-git-subcommand "merge" ""
@@ -964,7 +964,7 @@ Every other call to `trf-git' runs git."
     (trf-test-assert-work-in-progress-removed directory branch)))
 
 (deftest trf-accept-git-fails-removing-the-work-in-progress ()
-  "When git refuses to remove the worktree, accepting gives MSG-7; accepting again removes it."
+  "When git refuses to remove the worktree, accepting gives MSG-7: Git could not do what the IDE asked; accepting again removes it."
   (let* ((directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory))
          (base (trf-worktree-base directory)))
@@ -1000,7 +1000,7 @@ Every other call to `trf-git' runs git."
     (assert-match (regexp-quote branch) (trf-test-git trf-test-root "branch" "--list" branch))))
 
 (deftest trf-accept-git-fails-deleting-the-branch ()
-  "When git fails deleting the branch of the work in progress, accepting gives MSG-7; accepting again removes the work."
+  "When git fails deleting the branch of the work in progress, accepting gives MSG-7: Git could not do what the IDE asked; accepting again removes the work."
   (let* ((directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory)))
     (trf-test-build directory)
@@ -1322,7 +1322,7 @@ Every other call to `trf-git' runs git."
     (list messages runs)))
 
 (deftest trf-implement-gives-msg-10-with-the-reason-a-machine-gives ()
-  "When a machine stops with a reason, the IDE gives MSG-10 naming the machine and its reason."
+  "When a machine stops with a reason, the IDE gives MSG-10: Machine stopped before finishing, naming the machine and its reason."
   (pcase-let ((`(,messages ,_runs) (trf-test-stopping '("planning machine" "Which widget first?"))))
     ;; MSG-10: Machine stopped before finishing
     ;; UW-1 §Extensions: Turn record changes into code
@@ -1331,7 +1331,7 @@ Every other call to `trf-git' runs git."
                   messages)))
 
 (deftest trf-implement-gives-msg-10-without-a-reason ()
-  "When a machine stops without a reason, as when its turn is cut short, the IDE gives MSG-10 with no reason given."
+  "When a machine stops without a reason, as when its turn is cut short, the IDE gives MSG-10: Machine stopped before finishing, with no reason given."
   (pcase-let ((`(,messages ,_runs) (trf-test-stopping "executing machine")))
     ;; MSG-10: Machine stopped before finishing
     ;; UW-1 §Extensions: Turn record changes into code
@@ -1348,7 +1348,7 @@ Every other call to `trf-git' runs git."
                   (trf-test-git trf-test-root "branch" "--list" "trf/*"))))
 
 (deftest trf-implement-gives-msg-10-without-a-reason-when-the-reason-is-blank ()
-  "When a machine stops with a reason of only whitespace, the IDE gives MSG-10 with no reason given."
+  "When a machine stops with a reason of only whitespace, the IDE gives MSG-10: Machine stopped before finishing, with no reason given."
   (pcase-let ((`(,messages ,_runs) (trf-test-stopping '("planning machine" "  \t "))))
     ;; MSG-10: Machine stopped before finishing
     ;; UW-1 §Extensions: Turn record changes into code
@@ -1407,13 +1407,13 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
          ,@body))))
 
 (deftest trf-continue-outside-any-work-in-progress ()
-  "Outside any work in progress, continuing a stopped machine gives MSG-11."
+  "Outside any work in progress, continuing a stopped machine gives MSG-11: No stopped machine to continue."
   ;; F-3 §Rules: Continue a stopped machine on its work in progress
   ;; MSG-11: No stopped machine to continue
   (assert-equal '(user-error "There is no stopped machine here to continue.") (trf-test-continue)))
 
 (deftest trf-continue-where-no-machine-stopped ()
-  "In a work in progress where no machine stopped, continuing a stopped machine gives MSG-11."
+  "In a work in progress where no machine stopped, continuing a stopped machine gives MSG-11: No stopped machine to continue."
   (let ((directory (trf-test-implemented-worktree)))
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
     ;; MSG-11: No stopped machine to continue
@@ -1440,7 +1440,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
       (assert-true (trf-test-report-shown-p)))))
 
 (deftest trf-continue-gives-msg-12-with-the-ai-programs-reason ()
-  "A machine that cannot be continued gives MSG-12 with the AI program's reason, keeps the work in progress, and leaves nothing to continue."
+  "A machine that cannot be continued gives MSG-12: Machine cannot be continued, with the AI program's reason, keeps the work in progress, and leaves nothing to continue."
   (let (continued result)
     (trf-test-with-a-stopped-machine "planning machine"
       (trf-test-continuing continued '(cannot "Resource not found: session-1")
@@ -1458,7 +1458,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (assert-equal '(user-error "There is no stopped machine here to continue.") result)))
 
 (deftest trf-continue-gives-msg-12-without-a-reason ()
-  "A machine that cannot be continued, with no reason from the AI program, gives MSG-12 with no reason given."
+  "A machine that cannot be continued, with no reason from the AI program, gives MSG-12: Machine cannot be continued, with no reason given."
   (let (continued)
     (trf-test-with-a-stopped-machine "executing machine"
       (trf-test-continuing continued '(cannot nil)
@@ -1469,7 +1469,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
                       messages)))))
 
 (deftest trf-continue-remembers-a-machine-that-stops-again ()
-  "A continued machine that stops again gives MSG-10 and can be continued again in the buffer it works in."
+  "A continued machine that stops again gives MSG-10: Machine stopped before finishing, and can be continued again in the buffer it works in."
   (let (continued)
     (trf-test-with-a-stopped-machine "planning machine"
       (trf-test-continuing continued '(stop "Still unsure.")
@@ -1540,7 +1540,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
       (set-buffer-modified-p nil))))
 
 (deftest trf-continue-twice-gives-msg-11 ()
-  "Once the stopped machine has been continued and finished, continuing gives MSG-11."
+  "Once the stopped machine has been continued and finished, continuing gives MSG-11: No stopped machine to continue."
   (let (continued result)
     (trf-test-with-a-stopped-machine "planning machine"
       (trf-test-continuing continued '(finish ("docs/plans/planning.md"))
@@ -1616,7 +1616,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
         (assert-nil continued)))))
 
 (deftest trf-accept-while-machines-are-at-work ()
-  "While the machines are at work on the work in progress, accepting gives MSG-13 and brings nothing in."
+  "While the machines are at work on the work in progress, accepting gives MSG-13: No record implementation report to accept, and brings nothing in."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (let ((trf-test-listening-at-work "planning machine"))
     (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
@@ -1637,7 +1637,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
          directory '(user-error "There is no record implementation report here to accept yet."))))))
 
 (deftest trf-accept-after-a-machine-stopped-without-a-report ()
-  "After a machine stopped, with no record implementation report, accepting gives MSG-13 and brings nothing in."
+  "After a machine stopped, with no record implementation report, accepting gives MSG-13: No record implementation report to accept, and brings nothing in."
   (trf-test-with-a-stopped-machine "executing machine"
     (trf-test-build directory)
     ;; F-2 §Rules: Accept or reject the record implementation report
@@ -1646,7 +1646,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (trf-test-assert-accept-refuses directory '(user-error "There is no record implementation report here to accept yet."))))
 
 (deftest trf-accept-after-a-continue-until-the-assessor-finishes ()
-  "After a stopped machine is continued, accepting gives MSG-13 until the reconciliation assessor finishes, then brings the work in."
+  "After a stopped machine is continued, accepting gives MSG-13: No record implementation report to accept, until the reconciliation assessor finishes, then brings the work in."
   (let (continued on-finished)
     (trf-test-with-a-stopped-machine "executing machine"
       (trf-test-build directory)
@@ -1702,7 +1702,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (assert-equal status (trf-test-git directory "status" "--porcelain"))))
 
 (deftest trf-accept-on-a-moved-codebase-reruns-then-waits-for-the-new-report ()
-  "Accepting a report on a moved codebase reruns the workflow and deletes the old report; accepting during the rerun gives MSG-13."
+  "Accepting a report on a moved codebase reruns the workflow and deletes the old report; accepting during the rerun gives MSG-13: No record implementation report to accept."
   (let ((directory (trf-test-implemented-worktree))
         runs refusal)
     (trf-test-build directory)
@@ -1726,7 +1726,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
                   (mapcar #'car runs))))
 
 (deftest trf-accept-mid-merge-without-a-report-gives-msg-13-before-msg-3 ()
-  "Mid merge, with no record implementation report, accepting gives MSG-13 rather than MSG-3."
+  "Mid merge, with no record implementation report, accepting gives MSG-13: No record implementation report to accept, rather than MSG-3: Finish the merge or rebase first."
   (trf-test-with-a-stopped-machine "executing machine"
     (trf-test-leave-in-progress trf-test-root 'merge)
     ;; F-2 §Rules: Accept or reject the record implementation report
@@ -1805,7 +1805,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
       (trf-test-assert-accept-refuses directory '(user-error "There is no record implementation report here to accept yet.")))))
 
 (deftest trf-implement-gives-msg-10-when-a-session-buffer-is-killed ()
-  "A machine whose session buffer is killed mid-work, which stops it with no reason, gives MSG-10 with no reason given."
+  "A machine whose session buffer is killed mid-work, which stops it with no reason, gives MSG-10: Machine stopped before finishing, with no reason given."
   (pcase-let ((`(,messages ,_runs) (trf-test-stopping '("planning machine" nil "session-1"))))
     ;; UW-1 §Extensions: Turn record changes into code
     ;; MSG-10: Machine stopped before finishing

@@ -39,7 +39,7 @@
 
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-record-changes-refuse-operation-in-progress (root)
-  "Give MSG-3 when ROOT is mid merge, rebase, cherry-pick, revert or bisect."
+  "Give MSG-3: Finish the merge or rebase first, when ROOT is mid merge, rebase, cherry-pick, revert or bisect."
   (when (trf-git-operation-in-progress-p root)
     ;; MSG-3: Finish the merge or rebase first
     (user-error "%s" trf-record-changes-operation-in-progress-message)))

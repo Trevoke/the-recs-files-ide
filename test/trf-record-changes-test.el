@@ -295,7 +295,7 @@
                     (trf-test-git root "log" "-1" "--format=format:%B")))))
 
 (deftest trf-record-changes-commit-refused-leaves-the-index ()
-  "When git refuses the commit, the index is as it was before and MSG-4 is given with git's reason."
+  "When git refuses the commit, the index is as it was before and the IDE gives MSG-4: Record changes could not be committed, with git's reason."
   (let* ((root trf-record-changes-test-root)
          (hook (expand-file-name ".git/hooks/pre-commit" root)))
     (trf-record-changes-test-mark-implemented)
@@ -319,7 +319,7 @@
       (assert-equal head (trf-test-head root)))))
 
 (deftest trf-record-changes-commit-refused-by-a-hook-that-stages ()
-  "When a hook stages an edit and refuses the commit, the index is as it was and MSG-4 is given with git's reason."
+  "When a hook stages an edit and refuses the commit, the index is as it was and the IDE gives MSG-4: Record changes could not be committed, with git's reason."
   (let* ((root trf-record-changes-test-root)
          (hook (expand-file-name ".git/hooks/pre-commit" root)))
     (trf-record-changes-test-mark-implemented)
@@ -344,7 +344,7 @@
 
 (defun trf-record-changes-test-commit-with-stale-index-lock (files)
   "Commit the record changes after writing FILES, with a stale index lock.
-Assert MSG-4 is given with git's reason, and the status and HEAD are unchanged."
+Assert the IDE gives MSG-4: Record changes could not be committed, with git's reason, and the status and HEAD are unchanged."
   (let ((root trf-record-changes-test-root))
     (trf-record-changes-test-mark-implemented)
     (trf-test-write-files root files)
@@ -374,12 +374,12 @@ Assert MSG-4 is given with git's reason, and the status and HEAD are unchanged."
         (assert-equal head (trf-test-head root))))))
 
 (deftest trf-record-changes-commit-refused-new-record-change-with-stale-index-lock ()
-  "With a stale index lock, a new record change is not committed and MSG-4 is given with git's reason."
+  "With a stale index lock, a new record change is not committed and the IDE gives MSG-4: Record changes could not be committed, with git's reason."
   (trf-record-changes-test-commit-with-stale-index-lock
    '(("docs/features/f-1-order.org" . "* F-1 Order\n"))))
 
 (deftest trf-record-changes-commit-refused-modified-record-change-with-stale-index-lock ()
-  "With a stale index lock, a modified record change is not committed and MSG-4 is given with git's reason."
+  "With a stale index lock, a modified record change is not committed and the IDE gives MSG-4: Record changes could not be committed, with git's reason."
   (trf-record-changes-test-commit-with-stale-index-lock
    '(("docs/vision.org" . "#+TITLE: Vision\n\nMore.\n"))))
 
@@ -402,7 +402,7 @@ Assert MSG-4 is given with git's reason, and the status and HEAD are unchanged."
       (delete-file stderr-file))))
 
 (deftest trf-record-changes-commit-refused-with-a-corrupt-index ()
-  "With a corrupt index, the record changes are not committed and MSG-4 is given with git's output."
+  "With a corrupt index, the record changes are not committed and the IDE gives MSG-4: Record changes could not be committed, with git's output."
   (let* ((root trf-record-changes-test-root)
          (index (expand-file-name ".git/index" root)))
     (trf-record-changes-test-mark-implemented)
@@ -483,7 +483,7 @@ Return what was signalled, and the status before and after."
       (assert-equal "" (trf-test-git root "status" "--porcelain")))))
 
 (deftest trf-record-changes-commit-refused-without-a-reason ()
-  "When git refuses the commit and gives no reason, MSG-4 is given alone."
+  "When git refuses the commit and gives no reason, the IDE gives MSG-4: Record changes could not be committed, alone."
   (let* ((root trf-record-changes-test-root)
          (hook (expand-file-name ".git/hooks/pre-commit" root)))
     (trf-record-changes-test-mark-implemented)
@@ -571,23 +571,23 @@ Return the error signalled, the status before and after, and HEAD before and aft
     (assert-equal head-before head-after)))
 
 (deftest trf-record-changes-commit-refused-mid-merge ()
-  "Mid merge, the record changes are not committed and MSG-3 is given."
+  "Mid merge, the record changes are not committed and the IDE gives MSG-3: Finish the merge or rebase first."
   (trf-record-changes-test-refuses-in-progress 'merge))
 
 (deftest trf-record-changes-commit-refused-mid-rebase ()
-  "Mid rebase, the record changes are not committed and MSG-3 is given."
+  "Mid rebase, the record changes are not committed and the IDE gives MSG-3: Finish the merge or rebase first."
   (trf-record-changes-test-refuses-in-progress 'rebase))
 
 (deftest trf-record-changes-commit-refused-mid-cherry-pick ()
-  "Mid cherry-pick, the record changes are not committed and MSG-3 is given."
+  "Mid cherry-pick, the record changes are not committed and the IDE gives MSG-3: Finish the merge or rebase first."
   (trf-record-changes-test-refuses-in-progress 'cherry-pick))
 
 (deftest trf-record-changes-commit-refused-mid-revert ()
-  "Mid revert, the record changes are not committed and MSG-3 is given."
+  "Mid revert, the record changes are not committed and the IDE gives MSG-3: Finish the merge or rebase first."
   (trf-record-changes-test-refuses-in-progress 'revert))
 
 (deftest trf-record-changes-commit-refused-mid-bisect ()
-  "Mid bisect, the record changes are not committed and MSG-3 is given."
+  "Mid bisect, the record changes are not committed and the IDE gives MSG-3: Finish the merge or rebase first."
   (trf-record-changes-test-refuses-in-progress 'bisect))
 
 (deftest trf-record-changes-in-a-commit ()
