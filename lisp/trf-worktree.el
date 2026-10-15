@@ -165,8 +165,7 @@
   (let ((root (trf-worktree-root directory))
         (branch (trf-worktree-branch directory)))
     (trf-git directory "checkout" "--quiet" "--detach")
-    (when (trf-worktree--branch-exists-p directory)
-      (trf-git root "branch" "--quiet" "-d" branch))
+    (trf-git root "branch" "--quiet" "-d" branch)
     (trf-git root "worktree" "remove" directory)))
 
 (provide 'trf-worktree)
