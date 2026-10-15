@@ -15,10 +15,12 @@
 (defconst trf-test-record-change '("docs/features/f-1-order.org" . "* F-1 Order\n"))
 
 (setup-each ()
+  (trf-test-enter-a-temporary-directory)
   (setq trf-test-root (trf-test-make-target-product))
   (trf-test-git trf-test-root "update-ref" "refs/recs/implemented" "HEAD"))
 
 (teardown-each ()
+  (trf-test-leave-the-temporary-directory)
   (dolist (buffer (buffer-list))
     (when (and (buffer-file-name buffer)
                (string-prefix-p trf-test-root (buffer-file-name buffer)))
@@ -2054,6 +2056,24 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
              (lambda () (interactive) (signal 'quit nil))))
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
     (assert-nil (trf--continue-from-a-restart trf-test-root))))
+
+(deftest trf-test-write-files-writes-only-under-the-temporary-directory ()
+  "The tests' file writer refuses a root that is not a directory under the temporary directory."
+  (let* ((scratch (make-temp-file "trf-scratch-" t))
+         (default-directory (file-name-as-directory scratch)))
+    (unwind-protect
+        (progn
+          (assert-equal 'error (car (condition-case err
+                                        (trf-test-write-files nil '(("src/widget.el" . "x")))
+                                      (error err))))
+          (assert-equal 'error (car (condition-case err
+                                        (trf-test-write-files "src" '(("widget.el" . "x")))
+                                      (error err))))
+          (assert-equal 'error (car (condition-case err
+                                        (trf-test-write-files (expand-file-name "~/") '(("x" . "x")))
+                                      (error err))))
+          (assert-nil (directory-files scratch nil "\\`[^.]")))
+      (delete-directory scratch t))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

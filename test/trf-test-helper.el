@@ -78,8 +78,31 @@ Signal unless git then says it is in progress."
       (unless (string-match-p banner status)
         (error "git status does not say %s is in progress: %s" operation status)))))
 
+(defun trf-test-under-the-temporary-directory (root)
+  "Signal unless ROOT is an absolute directory under `temporary-file-directory'."
+  (unless (and (stringp root)
+               (file-name-absolute-p root)
+               (string-prefix-p (file-name-as-directory (file-truename temporary-file-directory))
+                                (file-name-as-directory (file-truename root))))
+    (error "Not a directory under %s: %S" temporary-file-directory root)))
+
+(defvar trf-test-saved-directory nil
+  "The `default-directory' a test found, to restore once it is over.")
+
+(defun trf-test-enter-a-temporary-directory ()
+  "Make `default-directory' the temporary directory for the test about to run."
+  (setq trf-test-saved-directory default-directory
+        default-directory (file-name-as-directory temporary-file-directory)))
+
+(defun trf-test-leave-the-temporary-directory ()
+  "Give back the `default-directory' the test found."
+  (when trf-test-saved-directory
+    (setq default-directory trf-test-saved-directory
+          trf-test-saved-directory nil)))
+
 (defun trf-test-write-files (root files)
-  "Write FILES, an alist of (path . content), under ROOT."
+  "Write FILES, an alist of (path . content), under ROOT, a directory under the temporary directory."
+  (trf-test-under-the-temporary-directory root)
   (dolist (file files)
     (let ((path (expand-file-name (car file) root)))
       (make-directory (file-name-directory path) t)

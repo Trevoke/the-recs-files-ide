@@ -1,6 +1,7 @@
 ;;; trf-session-test.el --- Tests for trf-session -*- lexical-binding: t; -*-
 
 (require 'e-unit)
+(require 'trf-test-helper)
 (require 'trf-session)
 
 (defvar trf-session-test-directory nil)
@@ -11,9 +12,11 @@
 (defconst trf-session-test-config '((:identifier . fake)))
 
 (setup-each ()
+  (trf-test-enter-a-temporary-directory)
   (setq trf-session-test-directory (file-name-as-directory (make-temp-file "trf-wt-" t)))
   (setq trf-session-test-handlers nil))
 (teardown-each ()
+  (trf-test-leave-the-temporary-directory)
   (delete-directory trf-session-test-directory t)
   (when (get-buffer trf-session-test-buffer-name)
     (kill-buffer trf-session-test-buffer-name)))
@@ -741,6 +744,28 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
       ;; UW-1 §Extensions: Turn record changes into code
       ;; docs/knowledge-base/agent-shell-session-resume.org §An agent process that dies between turns gives no event, and a function added to its sentinel hears it
       (assert-equal 1 stops))))
+
+(deftest trf-session-at-work-when-the-json-line-follows-a-closed-fence ()
+  "The JSON line after a closed code block, with a stray closing fence after it, leaves the machine at work."
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
+  (assert-equal '(nil 0)
+                (trf-session-test-turn-says
+                 "```elisp\n(code)\n```\nDone.\n{\"finished\": true}\n```\n")))
+
+(deftest trf-session-finished-with-the-json-line-fenced-after-a-closed-block ()
+  "The JSON line in a code fence opened after an earlier closed block finishes the machine."
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  (assert-equal '((nil) 0)
+                (trf-session-test-turn-says
+                 "```elisp\n(code)\n```\nDone.\n```json\n{\"finished\": true}\n```\n")))
+
+(deftest trf-session-at-work-when-the-closing-fence-does-not-match ()
+  "A closing fence of the other character, or of fewer marks, does not close the fence the JSON line is in."
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  (assert-equal '(nil 0) (trf-session-test-turn-says "~~~~\n{\"finished\": true}\n```\n"))
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  (assert-equal '(nil 0) (trf-session-test-turn-says "````\n{\"finished\": true}\n```\n")))
 
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here

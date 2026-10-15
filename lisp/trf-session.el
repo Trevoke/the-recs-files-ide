@@ -19,16 +19,38 @@ The record keeper picks it through agent-shell."
       (agent-shell-select-config :prompt "AI program for the machines: ")))
 
 ;; ADR-3 §Decision: Machines end their work with one JSON line
+(defun trf-session--fence (line)
+  "Return (MARK COUNT INFO) when LINE is a code fence, or nil."
+  (when (string-match "\\`\\(`\\{3,\\}\\|~\\{3,\\}\\)\\(.*\\)\\'" line)
+    (list (aref line 0) (length (match-string 1 line)) (string-trim (match-string 2 line)))))
+
+(defun trf-session--closes-p (fence line)
+  "Return non-nil when LINE closes the code fence FENCE opened."
+  (when-let* ((closing (trf-session--fence line)))
+    (and (eq (car closing) (car fence))
+         (>= (nth 1 closing) (nth 1 fence))
+         (string-empty-p (nth 2 closing)))))
+
 (defun trf-session--without-closing-fences (lines)
-  "Return LINES without the code fence closings that end them, when a fence opened before.
-Closing fences that no fence opened are kept."
-  (let ((kept (reverse lines)))
-    (while (and kept (string-match-p "\\`\\(?:`\\{3,\\}\\|~\\{3,\\}\\)\\'" (car kept)))
-      (setq kept (cdr kept)))
-    (if (seq-some (lambda (line) (string-match-p "\\`\\(?:`\\{3,\\}\\|~\\{3,\\}\\)" line))
-                  (cdr kept))
-        (nreverse kept)
-      lines)))
+  "Return LINES without the closing fences that end them, when the line before them is in a fence they close.
+Otherwise return LINES as they are."
+  (let ((trailing 0))
+    (while (and (< trailing (length lines))
+                (let ((fence (trf-session--fence (nth (- (length lines) trailing 1) lines))))
+                  (and fence (string-empty-p (nth 2 fence)))))
+      (setq trailing (1+ trailing)))
+    (let* ((last (- (length lines) trailing 1))
+           (open nil))
+      (when (>= last 0)
+        (dotimes (index last)
+          (let ((line (nth index lines)))
+            (if open
+                (when (trf-session--closes-p open line)
+                  (setq open nil))
+              (setq open (trf-session--fence line))))))
+      (if (and open (> trailing 0) (trf-session--closes-p open (nth (1+ last) lines)))
+          (seq-take lines (1+ last))
+        lines))))
 
 ;; ADR-3 §Decision: Machines end their work with one JSON line
 (defun trf-session--ending (text)

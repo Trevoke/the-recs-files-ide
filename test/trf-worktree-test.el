@@ -6,8 +6,12 @@
 
 (defvar trf-worktree-test-root nil)
 
-(setup-each () (setq trf-worktree-test-root (trf-test-make-target-product)))
-(teardown-each () (delete-directory trf-worktree-test-root t))
+(setup-each ()
+  (trf-test-enter-a-temporary-directory)
+  (setq trf-worktree-test-root (trf-test-make-target-product)))
+(teardown-each ()
+  (trf-test-leave-the-temporary-directory)
+  (delete-directory trf-worktree-test-root t))
 
 (defun trf-worktree-test-read (directory file)
   (with-temp-buffer

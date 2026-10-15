@@ -8,10 +8,12 @@
 (defvar trf-emacs-test-state nil)
 
 (setup-each ()
+  (trf-test-enter-a-temporary-directory)
   (setq trf-emacs-test-root (trf-test-make-target-product))
   (setq trf-emacs-test-state (file-name-as-directory (make-temp-file "trf-state-" t))))
 
 (teardown-each ()
+  (trf-test-leave-the-temporary-directory)
   (dolist (buffer (buffer-list))
     (when (and (buffer-file-name buffer)
                (string-prefix-p trf-emacs-test-root (buffer-file-name buffer)))

@@ -7,8 +7,12 @@
 
 (defvar trf-record-changes-test-root nil)
 
-(setup-each () (setq trf-record-changes-test-root (trf-test-make-target-product)))
-(teardown-each () (delete-directory trf-record-changes-test-root t))
+(setup-each ()
+  (trf-test-enter-a-temporary-directory)
+  (setq trf-record-changes-test-root (trf-test-make-target-product)))
+(teardown-each ()
+  (trf-test-leave-the-temporary-directory)
+  (delete-directory trf-record-changes-test-root t))
 
 (defun trf-record-changes-test-mark-implemented ()
   (trf-test-git trf-record-changes-test-root "update-ref" "refs/recs/implemented" "HEAD"))

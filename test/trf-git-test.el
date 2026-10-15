@@ -6,8 +6,12 @@
 
 (defvar trf-git-test-root nil)
 
-(setup-each () (setq trf-git-test-root (trf-test-make-target-product)))
-(teardown-each () (delete-directory trf-git-test-root t))
+(setup-each ()
+  (trf-test-enter-a-temporary-directory)
+  (setq trf-git-test-root (trf-test-make-target-product)))
+(teardown-each ()
+  (trf-test-leave-the-temporary-directory)
+  (delete-directory trf-git-test-root t))
 
 (deftest trf-git-returns-output ()
   "trf-git returns git's standard output."
