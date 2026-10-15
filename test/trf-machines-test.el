@@ -138,7 +138,7 @@
       ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
       ;; ADR-4 §Consequences: Machines ask the record keeper through ACP elicitation
       ;; ADR-3 §Decision: Machines end their work with one JSON line
-      (assert-match (regexp-quote "\n\nAsk the record keeper questions only through the device your AI program offers for asking questions, not in your message text. If you have a question and your AI program offers no such device, stop, and end your last turn with one JSON line alone: {\"finished\": false, \"reason\": \"<your question>\"}.\n\n")
+      (assert-match (regexp-quote "\n\nAsk the record keeper questions only through the device your AI program offers for asking questions, not in your message text. If you have a question and your AI program offers no such device, stop, and end your last turn with one JSON line alone, an object holding \"finished\": false and \"reason\": your question.\n\n")
                     text
                     (plist-get machine :name)))))
 

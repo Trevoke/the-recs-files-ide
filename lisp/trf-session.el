@@ -28,9 +28,10 @@ The record keeper picks it through agent-shell."
 
 ;; ADR-3 §Decision: Machines end their work with one JSON line
 (defun trf-session--ending (text)
-  "Return how TEXT's last line says the machine ended, or nil when it does not say.
-That is (finished PRODUCED) with the paths it produced, or (stopped REASON) with
-the reason it gives for stopping before finishing."
+  "Return how the last line of TEXT says the machine ended.
+A machine that finished gives (finished PRODUCED), with the paths it produced.
+A machine that stopped before finishing gives (stopped REASON), with the reason
+it gives.  A last line that says neither gives nil."
   (when-let* ((line (car (last (trf-session--without-closing-fences
                                 (split-string (or text "") "[\r\n]+" t "[ \t]+"))))))
     (let ((start 0) found)
@@ -78,13 +79,14 @@ Return its buffer."
 ;; docs/knowledge-base/agent-shell-agent-messages.org §A turn's end carries no message text
 (defun trf-session-run (directory config instructions on-finished on-stopped)
   "Run a machine in DIRECTORY with the AI program CONFIG and INSTRUCTIONS.
-Return its session buffer.  Call ON-FINISHED with the paths the machine
-produced at the end of the first turn ending with the JSON line saying it
-has finished.  Call ON-STOPPED, with the session buffer displayed, with the
-reason the machine gives when a turn ends with the JSON line saying it stopped
-before finishing, or with nil if the session fails, or a turn ends for a reason
-other than \"end_turn\", before then.  If the session's buffer is killed
-first, call neither."
+Return its session buffer.
+Call ON-FINISHED with the paths the machine produced, at the end of the first
+turn ending with the JSON line saying it has finished.
+Call ON-STOPPED with the session buffer displayed, before then, in three cases.
+When a turn ends with the JSON line saying the machine stopped before finishing,
+pass the reason it gives.  When the session fails, pass nil.  When a turn ends
+for a reason other than \"end_turn\", pass nil.
+If the session's buffer is killed first, call neither."
   (let* ((default-directory directory)
          (buffer (trf-session--start config))
          (text "")

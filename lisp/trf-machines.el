@@ -112,8 +112,8 @@
 (defconst trf-machines--asking
   (concat "Ask the record keeper questions only through the device your AI program offers for "
           "asking questions, not in your message text. If you have a question and your AI program "
-          "offers no such device, stop, and end your last turn with one JSON line alone: "
-          "{\"finished\": false, \"reason\": \"<your question>\"}.")
+          "offers no such device, stop, and end your last turn with one JSON line alone, an object "
+          "holding \"finished\": false and \"reason\": your question.")
   "What every machine is told about asking the record keeper questions.")
 
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
