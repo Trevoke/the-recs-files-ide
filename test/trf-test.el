@@ -2154,5 +2154,37 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
       (set-window-configuration configuration)
       (kill-buffer other))))
 
+(deftest trf-accept-ends-the-other-machines-when-the-record-keeper-keeps-one ()
+  "When the record keeper quits the question of ending one machine's session, accepting ends the others and moves the kept one out of the work in progress."
+  (let* ((directory (file-name-as-directory (expand-file-name "work" trf-test-root)))
+         (key (trf--worktree-key directory))
+         (kept (generate-new-buffer "*trf kept machine*"))
+         (ended (generate-new-buffer "*trf ended machine*")))
+    (make-directory directory t)
+    (unwind-protect
+        (progn
+          (dolist (buffer (list kept ended))
+            (with-current-buffer buffer
+              (setq default-directory directory)))
+          (with-current-buffer kept
+            (add-hook 'kill-buffer-query-functions (lambda () (signal 'quit nil)) nil t))
+          (puthash key (list kept ended) trf--session-buffers)
+          (condition-case nil
+              (trf--kill-the-works-buffers directory trf-test-root)
+            (quit nil))
+          ;; F-2 §Rules: Accept or reject the record implementation report
+          (assert-nil (buffer-live-p ended))
+          ;; F-2 §Rules: Accept or reject the record implementation report
+          (assert-equal (list kept) (gethash key trf--session-buffers))
+          ;; F-2 §Produces: Accept or reject the record implementation report
+          (assert-equal (file-name-as-directory trf-test-root)
+                        (buffer-local-value 'default-directory kept)))
+      (remhash key trf--session-buffers)
+      (dolist (buffer (list kept ended))
+        (when (buffer-live-p buffer)
+          (with-current-buffer buffer
+            (let ((kill-buffer-query-functions nil))
+              (kill-buffer buffer))))))))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here

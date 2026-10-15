@@ -10,7 +10,10 @@
 (setup-each ()
   (trf-test-enter-a-temporary-directory)
   (setq trf-emacs-test-root (trf-test-make-target-product))
-  (setq trf-emacs-test-state (file-name-as-directory (make-temp-file "trf-state-" t))))
+  (condition-case err
+      (setq trf-emacs-test-state (file-name-as-directory (make-temp-file "trf-state-" t)))
+    (error (delete-directory trf-emacs-test-root t)
+           (signal (car err) (cdr err)))))
 
 (teardown-each ()
   (unwind-protect
@@ -22,8 +25,9 @@
             (with-current-buffer buffer
               (set-buffer-modified-p nil))
             (kill-buffer buffer))))
-    (delete-directory trf-emacs-test-root t)
-    (delete-directory trf-emacs-test-state t)))
+    (unwind-protect
+        (delete-directory trf-emacs-test-root t)
+      (delete-directory trf-emacs-test-state t))))
 
 (defmacro trf-emacs-test-with-the-ides-files-kept (&rest body)
   "Run BODY with the IDE keeping its files under `trf-emacs-test-state'."

@@ -35,13 +35,13 @@
             (append-to-file (point-min) (point-max) exclude)))))))
 
 (defun trf-worktree--write (directory file content)
-  "Write CONTENT to FILE under DIRECTORY's .trf/."
+  "Write CONTENT to FILE under DIRECTORY's state directory."
   (let ((coding-system-for-write 'utf-8-unix))
     (with-temp-file (expand-file-name (concat trf-worktree-state-directory file) directory)
       (insert content "\n"))))
 
 (defun trf-worktree--read (directory file)
-  "Return the content of FILE under DIRECTORY's .trf/."
+  "Return the content of FILE under DIRECTORY's state directory."
   (with-temp-buffer
     (let ((coding-system-for-read 'utf-8-unix))
       (insert-file-contents (expand-file-name (concat trf-worktree-state-directory file) directory)))

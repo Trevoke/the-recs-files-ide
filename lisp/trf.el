@@ -344,7 +344,9 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
     ;; F-2 §Rules: Accept or reject the record implementation report
     (let ((kept (seq-filter (lambda (buffer)
                               (when (buffer-live-p buffer)
-                                (kill-buffer buffer))
+                                (condition-case nil
+                                    (kill-buffer buffer)
+                                  (quit nil)))
                               (buffer-live-p buffer))
                             (delete-dups (copy-sequence (gethash key trf--session-buffers))))))
       (if kept
