@@ -59,8 +59,9 @@ The record keeper asks to implement the record changes.
 - 2e. No primary git branch is named :: IDE gives MSG-9: No primary git branch
   is named; the use case ends.
 - 3a. A machine of the implementation workflow stops before finishing :: IDE
-  keeps the work in progress and shows the record keeper why; record keeper has
-  that machine start again on it, at step 3.
+  gives MSG-10: Machine stopped before finishing, with the reason it gave; IDE
+  keeps the work in progress; record keeper has that machine start again on it,
+  at step 3.
 - 4a. A machine has a question and its AI program offers no device for
   questions :: the machine stops before finishing, with the question as its
   reason; continues at 3a.
