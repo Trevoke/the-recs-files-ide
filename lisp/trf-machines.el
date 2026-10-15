@@ -105,6 +105,11 @@
           (plist-get change :status)
           (plist-get change :path)))
 
+;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+(defconst trf-machines--asking
+  "Ask the record keeper questions only through the device your AI program offers for asking questions, not in your message text."
+  "What every machine is told about asking the record keeper questions.")
+
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
 (defun trf-machines-instructions (machine changes &optional produced ide-instruction)
   "Return MACHINE's instructions for CHANGES, given the paths PRODUCED by the machine before.
@@ -116,6 +121,7 @@ IDE-INSTRUCTION, when given, is a paragraph of its own."
                (concat "The record changes:\n"
                        (mapconcat #'trf-machines-change-line changes "\n"))
                (plist-get machine :work)
+               trf-machines--asking
                ide-instruction
                (when (and produced (plist-get machine :reading))
                  (concat (plist-get machine :reading) "\n"

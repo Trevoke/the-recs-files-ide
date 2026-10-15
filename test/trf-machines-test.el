@@ -130,5 +130,14 @@
                                 (trf-machines-instructions machine trf-machines-test-changes))
                 (plist-get machine :name))))
 
+(deftest trf-machines-ask-the-record-keeper-only-through-the-device-for-questions ()
+  "Every machine is told to ask the record keeper questions only through its AI program's device for asking questions."
+  (dolist (machine (append (trf-machines-implementation-workflow)
+                           (list (trf-machines-reconciliation-assessor))))
+    (let ((text (trf-machines-instructions machine trf-machines-test-changes '("a.md"))))
+      ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+      (assert-match "\n\nAsk the record keeper questions only through the device your AI program offers for asking questions, not in your message text\\.\n\n" text
+                    (plist-get machine :name)))))
+
 (provide 'trf-machines-test)
 ;;; trf-machines-test.el ends here
