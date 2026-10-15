@@ -37,10 +37,9 @@
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; F-2 §Produces: Accept or reject the record implementation report
 (defconst trf-machines--executing-stops-before-bringing-the-work-in
-  (concat "Do not use the recs-finishing-a-development-branch skill or any other skill that "
-          "finishes a development branch, and do not merge, push, or remove the branch or the "
-          "working tree: the record keeper accepts or rejects the record implementation report "
-          "afterwards.")
+  (concat "Do not use any skill that finishes a development branch, and do not merge, push, "
+          "or remove the branch or the working tree: the record keeper accepts or rejects the "
+          "record implementation report afterwards.")
   "What the executing machine is told about where its work ends.")
 
 ;; ADR-3 §Consequences: Machines end their work with one JSON line

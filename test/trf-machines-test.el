@@ -120,7 +120,8 @@
                                          trf-machines-test-changes '("docs/plans/x-plan.md"))))
     ;; UW-1 §Main success scenario: Turn record changes into code
     ;; F-2 §Produces: Accept or reject the record implementation report
-    (assert-match "Do not use the recs-finishing-a-development-branch skill or any other skill that finishes a development branch, and do not merge, push, or remove the branch or the working tree: the record keeper accepts or rejects the record implementation report afterwards\\." text)
+    (assert-match "Do not use any skill that finishes a development branch, and do not merge, push, or remove the branch or the working tree: the record keeper accepts or rejects the record implementation report afterwards\\." text)
+    (assert-nil (string-match-p "recs-finishing-a-development-branch" text))
     ;; ADR-3 §Decision: Machines end their work with one JSON line
     (assert-match "afterwards\\.\n\nWhen your work is finished, end your last turn with one JSON line alone:\n{\"finished\": true}$" text)
     (assert-nil (string-match-p "run the tests" text))))
@@ -130,7 +131,7 @@
   (dolist (machine (list (car (trf-machines-implementation-workflow))
                          (nth 1 (trf-machines-implementation-workflow))
                          (trf-machines-reconciliation-assessor)))
-    (assert-nil (string-match-p "recs-finishing-a-development-branch"
+    (assert-nil (string-match-p "finishes a development branch"
                                 (trf-machines-instructions machine trf-machines-test-changes))
                 (plist-get machine :name))))
 
