@@ -348,6 +348,7 @@
                   "{\"finished\": false, \"reason\": null}"))
     (let ((result (trf-session-test-stopping "Hmm.\n" line)))
       ;; ADR-3 §Decision: Machines end their work with one JSON line
+      ;; ADR-3 §Consequences: Machines end their work with one JSON line
       ;; UW-1 §Extensions: Turn record changes into code
       (assert-equal (list nil '(nil) (list (get-buffer trf-session-test-buffer-name))) result
                     (format "%S stops the machine with no reason" line)))))

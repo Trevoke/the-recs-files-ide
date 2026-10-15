@@ -52,6 +52,7 @@ gives nil."
               (cond ((eq finished t)
                      (setq found (list 'finished (when (listp produced)
                                                    (seq-filter #'stringp produced)))))
+                    ;; ADR-3 §Consequences: Machines end their work with one JSON line
                     ;; UW-1 §Extensions: Turn record changes into code
                     ((eq finished :false)
                      (setq found (list 'stopped (when (stringp reason) reason)))))))))
