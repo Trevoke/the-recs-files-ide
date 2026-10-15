@@ -49,7 +49,7 @@
 (defconst trf-git-failed-message
   "Git could not do what the IDE asked:")
 
-;; UW-1 §Extensions: Turn record changes into code
+;; UW-1 §Extensions 7a: Turn record changes into code
 (defconst trf-codebase-moved-instruction
   "The codebase has moved since this work started; bring the work up to date with it.")
 
@@ -67,7 +67,10 @@
       (hack-dir-local-variables-non-file-buffer))
     trf-primary-git-branch))
 
-;; UW-1 §Extensions: Turn record changes into code
+;; UW-1 §Extensions 2d: Turn record changes into code
+;; UW-1 §Extensions 2e: Turn record changes into code
+;; UW-1 §Extensions 7c: Turn record changes into code
+;; UW-1 §Extensions 7e: Turn record changes into code
 (defun trf--refuse-unless-on-the-primary-git-branch (root)
   "Signal a `user-error' unless ROOT is on the primary git branch."
   (let ((primary (trf--primary-git-branch root)))
@@ -178,7 +181,7 @@ has finished."
                           (trf--carrying-on machines directory config changes on-done)
                           on-stopped)))
         (error
-         ;; UW-1 §Extensions: Turn record changes into code
+         ;; UW-1 §Extensions 3-5a: Turn record changes into code
          (funcall on-stopped (error-message-string err) nil nil)))
       (when buffer
         (push buffer (gethash (trf--worktree-key directory) trf--session-buffers))))))
@@ -200,7 +203,7 @@ gave, the session's id, and whether it was told anything."
       ;; F-2 §Rules: Accept or reject the record implementation report
       (trf--done-working directory)
       ;; MSG-10: Machine stopped before finishing
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       (message "%s\n%s\n%s" trf-machine-stopped-message (plist-get machine :name)
                (trf-record-changes-reason (or reason "")))
       ;; F-3 §Rules: Continue a stopped machine on its work in progress
@@ -240,7 +243,7 @@ Then run the rest."
                       ;; F-2 §Rules: Accept or reject the record implementation report
                       (trf--done-working directory)
                       ;; MSG-12: Machine cannot be continued
-                      ;; UW-1 §Extensions: Turn record changes into code
+                      ;; UW-1 §Extensions 3-5a1: Turn record changes into code
                       (message "%s\n%s\n%s" trf-machine-cannot-be-continued-message
                                (plist-get machine :name)
                                (trf-record-changes-reason (or reason "")))))))
@@ -255,7 +258,7 @@ Then run the rest."
      (lambda ()
        (let ((report (expand-file-name (trf-machines-record-implementation-report-file)
                                        directory)))
-         ;; UW-1 §Extensions: Turn record changes into code
+         ;; UW-1 §Extensions 7a: Turn record changes into code
          (when-let* ((buffer (find-buffer-visiting report)))
            (with-current-buffer buffer
              (revert-buffer t t t)))
@@ -393,7 +396,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
         (trf-worktree-commit-saved-edits directory)
         (if (and (not brought-in) (trf-worktree-codebase-moved-p directory))
             ;; F-2 §Rules: Accept or reject the record implementation report
-            ;; UW-1 §Extensions: Turn record changes into code
+            ;; UW-1 §Extensions 7a: Turn record changes into code
             (trf--implement directory (trf-session-config)
                             (trf-record-changes-in-commit root (trf-worktree-from directory)
                                                           (trf-worktree-base directory))
@@ -402,7 +405,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
               ;; F-2 §Produces: Accept or reject the record implementation report
               (trf-worktree-accept directory)
             (trf-worktree-merge-failed
-             ;; UW-1 §Extensions: Turn record changes into code
+             ;; UW-1 §Extensions 7b: Turn record changes into code
              ;; MSG-5: Work cannot be brought into the codebase
              (user-error "%s\n%s" trf-work-not-brought-in-message
                          (trf-record-changes-reason (cadr err)))))
@@ -444,7 +447,7 @@ Return nil when there is none."
              trf--session-buffers)
     nil))
 
-;; UW-1 §Extensions: Turn record changes into code
+;; UW-1 §Extensions 3-5a: Turn record changes into code
 ;; F-3 §Produces: Continue a stopped machine on its work in progress
 ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
 ;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it

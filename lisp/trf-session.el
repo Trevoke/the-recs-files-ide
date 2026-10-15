@@ -81,7 +81,7 @@ gives nil."
                      (setq found (list 'finished (when (listp produced)
                                                    (seq-filter #'stringp produced)))))
                     ;; ADR-3 §Consequences: Machines end their work with one JSON line
-                    ;; UW-1 §Extensions: Turn record changes into code
+                    ;; UW-1 §Extensions 3-5a: Turn record changes into code
                     ((eq finished :false)
                      (setq found (list 'stopped (when (stringp reason) reason)))))))))
       found)))
@@ -145,7 +145,7 @@ When BUFFER is killed first, call ON-STOPPED with nil and that session."
          (finish (lambda (produced)
                    (run-at-time 0 nil on-finished produced)))
          ;; ADR-3 §Consequences: Machines end their work with one JSON line
-         ;; UW-1 §Extensions: Turn record changes into code
+         ;; UW-1 §Extensions 3-5a: Turn record changes into code
          (stop (lambda (&optional reason killed)
                  (let ((session-id (when (buffer-live-p buffer)
                                      (agent-shell-session-id :shell-buffer buffer))))
@@ -173,7 +173,7 @@ When BUFFER is killed first, call ON-STOPPED with nil and that session."
                      (cond (ending
                             (setq over t)
                             (funcall end ending))
-                           ;; UW-1 §Extensions: Turn record changes into code
+                           ;; UW-1 §Extensions 3-5a: Turn record changes into code
                            ((trf-session--stopped-p
                              (map-elt (map-elt event :data) :stop-reason))
                             (setq over t)
@@ -188,7 +188,7 @@ When BUFFER is killed first, call ON-STOPPED with nil and that session."
                      (funcall stop)))))
     (when-let* ((process (and (buffer-live-p buffer) (trf-session--process buffer))))
       (when (process-live-p process)
-        ;; UW-1 §Extensions: Turn record changes into code
+        ;; UW-1 §Extensions 3-5a: Turn record changes into code
         ;; docs/knowledge-base/agent-shell-session-resume.org §An agent process that dies between turns gives no event, and a function added to its sentinel hears it
         (add-function :after (process-sentinel process)
                       (lambda (process _event)
@@ -200,7 +200,7 @@ When BUFFER is killed first, call ON-STOPPED with nil and that session."
      :on-event (lambda (_event)
                  (unless over
                    (setq over t)
-                   ;; UW-1 §Extensions: Turn record changes into code
+                   ;; UW-1 §Extensions 3-5a: Turn record changes into code
                    ;; ADR-5 §Decision: Continue a machine in its own ACP session
                    (funcall stop nil t))))))
 

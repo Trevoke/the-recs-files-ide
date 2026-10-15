@@ -87,7 +87,7 @@
   "Return the commit of the record changes the worktree DIRECTORY started from."
   (trf-worktree--read directory "base"))
 
-;; UW-1 §Extensions: Turn record changes into code
+;; UW-1 §Extensions 7a: Turn record changes into code
 (defun trf-worktree-from (directory)
   "Return the commit or tree DIRECTORY's record changes were measured from, or nil when unknown."
   (when (file-exists-p (expand-file-name (concat trf-worktree-state-directory "from") directory))
@@ -109,7 +109,7 @@
       (trf-worktree-branch directory)
     (trf-git-ref-commit directory "HEAD")))
 
-;; UW-1 §Extensions: Turn record changes into code
+;; UW-1 §Extensions 7a: Turn record changes into code
 (defun trf-worktree-codebase-moved-p (directory)
   "Return non-nil when the codebase has moved since DIRECTORY's base."
   (not (trf-git-check directory "merge-base" "--is-ancestor"

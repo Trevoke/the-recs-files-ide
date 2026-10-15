@@ -130,7 +130,7 @@ IMPLEMENT defaults to `trf-test-implement'."
 (deftest trf-implement-mid-merge-without-record-changes ()
   "Mid merge, the IDE gives MSG-3: Finish the merge or rebase first, even when there are no record changes."
   (trf-test-leave-in-progress trf-test-root 'merge)
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 2b: Turn record changes into code
   ;; MSG-3: Finish the merge or rebase first
   (trf-test-assert-implement-refuses
    '(user-error
@@ -140,7 +140,7 @@ IMPLEMENT defaults to `trf-test-implement'."
   "Mid merge, the IDE gives MSG-3: Finish the merge or rebase first, and asks nothing."
   (trf-test-leave-in-progress trf-test-root 'merge)
   (trf-test-write-files trf-test-root (list trf-test-record-change))
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 2b: Turn record changes into code
   ;; MSG-3: Finish the merge or rebase first
   (trf-test-assert-implement-refuses
    '(user-error
@@ -168,11 +168,11 @@ IMPLEMENT defaults to `trf-test-implement'."
               ((symbol-function 'trf-session-config) (lambda () (error "Asked for a config")))
               ((symbol-function 'trf-session-run) (lambda (&rest _) (error "Ran a machine"))))
       (assert-nil (trf-test-implement)))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions *a: Turn record changes into code
     (assert-equal head (trf-test-head trf-test-root))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions *a: Turn record changes into code
     (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions *a: Turn record changes into code
     (assert-nil (file-exists-p (expand-file-name ".worktrees" trf-test-root)))))
 
 (deftest trf-implement-commits-the-record-changes ()
@@ -249,9 +249,9 @@ IMPLEMENT defaults to `trf-test-implement'."
   (let (runs)
     (trf-test-with-machines runs "planning machine"
       (assert-nil (trf-test-implement)))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     (assert-equal '("brainstorming machine" "planning machine") (mapcar #'car runs))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     (assert-nil (trf-test-report-shown-p))))
 
 (deftest trf-implement-refused-commit ()
@@ -264,13 +264,13 @@ IMPLEMENT defaults to `trf-test-implement'."
   (let (runs refusal)
     (trf-test-with-machines runs 'now
       (setq refusal (trf-test-implement)))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2c: Turn record changes into code
     ;; MSG-4: Record changes could not be committed
     (assert-equal '(user-error "The record changes could not be committed:\npre-commit refuses")
                   refusal)
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2c: Turn record changes into code
     (assert-nil runs)
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2c: Turn record changes into code
     (assert-nil (file-exists-p (expand-file-name ".worktrees" trf-test-root)))))
 
 (deftest trf-implement-record-changes-already-committed ()
@@ -302,7 +302,7 @@ IMPLEMENT defaults to `trf-test-implement'."
       (assert-equal "main\n" (trf-test-git trf-test-root "rev-parse" "--abbrev-ref" "HEAD"))
       ;; F-1 §Rules: Ask the IDE to implement the record changes
       (assert-match "^- F-2 Pay$" (trf-test-git trf-test-root "log" "-1" "--format=format:%B"))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions *a: Turn record changes into code
       (assert-equal first-head (string-trim (trf-test-git first "rev-parse" "HEAD")))
       (assert-equal (expand-file-name ".worktrees/" trf-test-root)
                     (file-name-directory (directory-file-name (nth 1 (car runs))))))))
@@ -388,7 +388,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
   "Mid merge, accepting gives MSG-3: Finish the merge or rebase first, and keeps the work in progress."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-leave-in-progress trf-test-root 'merge)
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7d: Turn record changes into code
     ;; MSG-3: Finish the merge or rebase first
     (trf-test-assert-accept-refuses
      directory
@@ -400,7 +400,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-git trf-test-root "checkout" "--quiet" "-b" "side")
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7c: Turn record changes into code
     ;; MSG-8: Target product is not on the primary git branch
     (trf-test-assert-accept-refuses
      directory
@@ -411,7 +411,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7c: Turn record changes into code
     ;; MSG-8: Target product is not on the primary git branch
     (trf-test-assert-accept-refuses
      directory
@@ -426,13 +426,13 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
            (refusal (trf-test-from-file (trf-test-report-file directory)
                                         #'trf-accept-record-implementation-report)))
       (assert-equal 'user-error (car refusal))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7b: Turn record changes into code
       ;; MSG-5: Work cannot be brought into the codebase
       (assert-true (string-prefix-p "The work cannot be brought into the codebase:\n"
                                     (cadr refusal)))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7b: Turn record changes into code
       (assert-match "src/widget\\.el" (cadr refusal))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7b: Turn record changes into code
       (assert-equal state (trf-test-state directory)))))
 
 (deftest trf-accept-on-a-moved-codebase-reruns ()
@@ -455,23 +455,23 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
                   ((symbol-function 'y-or-n-p) (lambda (&rest _) (error "Asked to reread"))))
           (with-current-buffer report
             (trf-accept-record-implementation-report))))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7a: Turn record changes into code
       (assert-equal '("brainstorming machine" "planning machine" "executing machine"
                       "reconciliation assessor")
                     (mapcar #'car runs))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7a: Turn record changes into code
       (assert-equal (make-list 4 directory) (mapcar (lambda (run) (nth 1 run)) runs))
       (assert-equal 1 asked)
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7a: Turn record changes into code
       (assert-match "The codebase has moved since this work started; bring the work up to date with it\\."
                     (nth 3 (car runs)))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7a: Turn record changes into code
       (assert-nil (string-match-p "produced[^\n]*:\nThe codebase has moved" (nth 3 (car runs))))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7a: Turn record changes into code
       (assert-match "^- F-1 Order (added): docs/features/f-1-order\\.org$" (nth 3 (car runs)))
       ;; UW-1 §Main success scenario: Turn record changes into code
       (assert-true (trf-test-report-shown-p))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7a: Turn record changes into code
       (assert-equal "Assessed by the reconciliation assessor."
                     (with-current-buffer (window-buffer (selected-window)) (buffer-string)))
       ;; UW-1 §Minimal guarantee: Turn record changes into code
@@ -483,9 +483,9 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
          (state (trf-test-state directory)))
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-reject-record-implementation-report))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 6a: Turn record changes into code
     (assert-nil (find-buffer-visiting (trf-test-report-file directory)))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 6a: Turn record changes into code
     (assert-equal state (trf-test-state directory))))
 
 (defconst trf-test-other-record-change '("docs/features/f-2-pay.org" . "* F-2 Pay\n"))
@@ -507,7 +507,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
          (base (trf-worktree-base started-later)))
     (assert-nil (trf-test-from-file (trf-test-report-file started-later)
                                     #'trf-accept-record-implementation-report))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7a: Turn record changes into code
     (assert-equal "- F-2 Pay (added): docs/features/f-2-pay.org\n"
                   (trf-test-rerun-record-changes started-first))
     (trf-test-build started-first)
@@ -529,7 +529,7 @@ RECORD-CHANGES is an alist of (path . content), `trf-test-record-change' alone b
     (trf-test-git started-first "merge" "--quiet" "--no-edit" "main")
     (assert-nil (trf-test-from-file (trf-test-report-file started-first)
                                     #'trf-accept-record-implementation-report))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7a: Turn record changes into code
     (assert-equal (concat "- F-1 Order (added): docs/features/f-1-order.org\n"
                           "- F-2 Pay (added): docs/features/f-2-pay.org\n")
                   (trf-test-rerun-record-changes started-later))))
@@ -676,14 +676,14 @@ Every other call to `trf-git' runs git."
   "On a detached codebase, the IDE gives MSG-8: Target product is not on the primary git branch, asks nothing, commits nothing and starts no work."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 2d: Turn record changes into code
   ;; MSG-8: Target product is not on the primary git branch
   (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain")))
 
 (deftest trf-implement-on-a-detached-codebase-gives-msg-8-before-msg-1 ()
   "On a detached codebase without record changes, the IDE gives MSG-8: Target product is not on the primary git branch, rather than MSG-1: No record changes to implement."
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 2d: Turn record changes into code
   ;; MSG-8: Target product is not on the primary git branch
   (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain")))
 
@@ -691,7 +691,7 @@ Every other call to `trf-git' runs git."
   "Mid rebase, with the codebase detached, the IDE gives MSG-3: Finish the merge or rebase first, rather than MSG-8: Target product is not on the primary git branch."
   (trf-test-leave-in-progress trf-test-root 'rebase)
   (assert-equal "" (trf-test-git trf-test-root "branch" "--show-current"))
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 2b: Turn record changes into code
   ;; MSG-3: Finish the merge or rebase first
   (trf-test-assert-implement-refuses
    '(user-error
@@ -701,7 +701,7 @@ Every other call to `trf-git' runs git."
   "On another branch, the IDE gives MSG-8: Target product is not on the primary git branch, asks nothing, commits nothing and starts no work."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-git trf-test-root "checkout" "--quiet" "-b" "side")
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 2d: Turn record changes into code
   ;; MSG-8: Target product is not on the primary git branch
   (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\nmain")))
 
@@ -734,7 +734,7 @@ Every other call to `trf-git' runs git."
   (trf-test-write-primary-git-branch trf-test-root "trunk")
   (trf-test-commit-primary-git-branch)
   (trf-test-write-files trf-test-root (list trf-test-record-change))
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 2d: Turn record changes into code
   ;; MSG-8: Target product is not on the primary git branch
   (trf-test-assert-implement-refuses '(user-error "The target product is not on the primary git branch:\ntrunk")))
 
@@ -746,7 +746,7 @@ Every other call to `trf-git' runs git."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-git trf-test-root "checkout" "--quiet" "main")
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7c: Turn record changes into code
     ;; MSG-8: Target product is not on the primary git branch
     (trf-test-assert-accept-refuses
      directory
@@ -760,7 +760,7 @@ Every other call to `trf-git' runs git."
     (trf-test-git trf-test-root "add" "--all")
     (trf-test-git trf-test-root "commit" "--quiet" "--message" "Other work")
     (trf-test-git trf-test-root "checkout" "--quiet" "-b" "side")
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7c: Turn record changes into code
     ;; MSG-8: Target product is not on the primary git branch
     (trf-test-assert-accept-refuses
      directory
@@ -771,7 +771,7 @@ Every other call to `trf-git' runs git."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-leave-in-progress trf-test-root 'rebase)
     (assert-equal "" (trf-test-git trf-test-root "branch" "--show-current"))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7d: Turn record changes into code
     ;; MSG-3: Finish the merge or rebase first
     (trf-test-assert-accept-refuses
      directory
@@ -784,7 +784,7 @@ Every other call to `trf-git' runs git."
     (trf-test-build directory)
     (trf-test-write-primary-git-branch trf-test-root "trunk")
     (trf-test-write-primary-git-branch directory "main")
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7c: Turn record changes into code
     ;; MSG-8: Target product is not on the primary git branch
     (trf-test-assert-accept-refuses
      directory
@@ -795,7 +795,7 @@ Every other call to `trf-git' runs git."
   (trf-test-write-primary-git-branch trf-test-root nil)
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
   (let ((enable-local-variables :all))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2e: Turn record changes into code
     ;; MSG-9: No primary git branch is named
     (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
@@ -817,7 +817,7 @@ Every other call to `trf-git' runs git."
   "When the target product's .dir-locals.el names an empty string, the IDE gives MSG-9: No primary git branch is named."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-write-primary-git-branch trf-test-root "")
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 2e: Turn record changes into code
   ;; MSG-9: No primary git branch is named
   (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first.")))
 
@@ -825,7 +825,7 @@ Every other call to `trf-git' runs git."
   "When the target product's .dir-locals.el names nil, the IDE gives MSG-9: No primary git branch is named."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (trf-test-write-primary-git-branch trf-test-root nil)
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 2e: Turn record changes into code
   ;; MSG-9: No primary git branch is named
   (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first.")))
 
@@ -842,7 +842,7 @@ Every other call to `trf-git' runs git."
   "When no primary git branch is named, the IDE gives MSG-9: No primary git branch is named, asks nothing, commits nothing and starts no work."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (let ((trf-primary-git-branch nil))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2e: Turn record changes into code
     ;; MSG-9: No primary git branch is named
     (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
@@ -850,7 +850,7 @@ Every other call to `trf-git' runs git."
   "When the IDE setting names an empty primary git branch, the IDE gives MSG-9: No primary git branch is named."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
   (let ((trf-primary-git-branch ""))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2e: Turn record changes into code
     ;; MSG-9: No primary git branch is named
     (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
@@ -858,14 +858,14 @@ Every other call to `trf-git' runs git."
   "Detached, when no primary git branch is named, the IDE gives MSG-9: No primary git branch is named, rather than MSG-8: Target product is not on the primary git branch."
   (trf-test-git trf-test-root "checkout" "--quiet" "--detach")
   (let ((trf-primary-git-branch nil))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2e: Turn record changes into code
     ;; MSG-9: No primary git branch is named
     (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
 (deftest trf-implement-when-no-primary-git-branch-is-named-gives-msg-9-before-msg-1 ()
   "Without record changes, when no primary git branch is named, the IDE gives MSG-9: No primary git branch is named, rather than MSG-1: No record changes to implement."
   (let ((trf-primary-git-branch nil))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2e: Turn record changes into code
     ;; MSG-9: No primary git branch is named
     (trf-test-assert-implement-refuses '(user-error "Please set a primary git branch first."))))
 
@@ -873,7 +873,7 @@ Every other call to `trf-git' runs git."
   "Mid merge, when no primary git branch is named, the IDE gives MSG-3: Finish the merge or rebase first, rather than MSG-9: No primary git branch is named."
   (trf-test-leave-in-progress trf-test-root 'merge)
   (let ((trf-primary-git-branch nil))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2b: Turn record changes into code
     ;; MSG-3: Finish the merge or rebase first
     (trf-test-assert-implement-refuses
      '(user-error
@@ -884,7 +884,7 @@ Every other call to `trf-git' runs git."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (let ((trf-primary-git-branch nil))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7e: Turn record changes into code
       ;; MSG-9: No primary git branch is named
       (trf-test-assert-accept-refuses directory '(user-error "Please set a primary git branch first.")))))
 
@@ -893,7 +893,7 @@ Every other call to `trf-git' runs git."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-leave-in-progress trf-test-root 'merge)
     (let ((trf-primary-git-branch nil))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7d: Turn record changes into code
       ;; MSG-3: Finish the merge or rebase first
       (trf-test-assert-accept-refuses
        directory
@@ -914,7 +914,7 @@ Every other call to `trf-git' runs git."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-write-primary-git-branch trf-test-root nil)
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7e: Turn record changes into code
     ;; MSG-9: No primary git branch is named
     (trf-test-assert-accept-refuses directory '(user-error "Please set a primary git branch first."))))
 
@@ -923,7 +923,7 @@ Every other call to `trf-git' runs git."
   (let ((directory (trf-test-implemented-worktree)))
     (trf-test-build directory)
     (trf-test-failing-git-subcommand "merge" ""
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7b: Turn record changes into code
       ;; MSG-5: Work cannot be brought into the codebase
       (trf-test-assert-accept-refuses
        directory
@@ -1331,7 +1331,7 @@ Every other call to `trf-git' runs git."
   "When a machine stops with a reason, the IDE gives MSG-10: Machine stopped before finishing, naming the machine and its reason."
   (pcase-let ((`(,messages ,_runs) (trf-test-stopping '("planning machine" "Which widget first?"))))
     ;; MSG-10: Machine stopped before finishing
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     ;; ADR-3 §Consequences: Machines end their work with one JSON line
     (assert-equal '("A machine stopped before finishing:\nplanning machine\nWhich widget first?")
                   messages)))
@@ -1340,16 +1340,16 @@ Every other call to `trf-git' runs git."
   "When a machine stops without a reason, as when its turn is cut short, the IDE gives MSG-10: Machine stopped before finishing, with no reason given."
   (pcase-let ((`(,messages ,_runs) (trf-test-stopping "executing machine")))
     ;; MSG-10: Machine stopped before finishing
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     (assert-equal '("A machine stopped before finishing:\nexecuting machine\nNo reason given.")
                   messages)))
 
 (deftest trf-implement-keeps-the-work-in-progress-when-a-machine-stops ()
   "When a machine stops, the work in progress is kept."
   (pcase-let ((`(,_messages ,runs) (trf-test-stopping '("brainstorming machine" "Stuck."))))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     (assert-true (file-exists-p (expand-file-name ".trf/root" (nth 1 (car runs)))))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     (assert-match (regexp-quote "trf/")
                   (trf-test-git trf-test-root "branch" "--list" "trf/*"))))
 
@@ -1357,7 +1357,7 @@ Every other call to `trf-git' runs git."
   "When a machine stops with a reason of only whitespace, the IDE gives MSG-10: Machine stopped before finishing, with no reason given."
   (pcase-let ((`(,messages ,_runs) (trf-test-stopping '("planning machine" "  \t "))))
     ;; MSG-10: Machine stopped before finishing
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
                   messages)))
 
@@ -1453,10 +1453,10 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
         (assert-nil (trf-test-continue widget))
         ;; F-3 §Rules: Continue a stopped machine on its work in progress
         ;; MSG-12: Machine cannot be continued
-        ;; UW-1 §Extensions: Turn record changes into code
+        ;; UW-1 §Extensions 3-5a1: Turn record changes into code
         (assert-equal '("A machine cannot be continued:\nplanning machine\nResource not found: session-1")
                       messages)
-        ;; UW-1 §Extensions: Turn record changes into code
+        ;; UW-1 §Extensions 3-5a1: Turn record changes into code
         (assert-true (file-exists-p (expand-file-name ".trf/root" directory)))
         (setq result (trf-test-continue widget))))
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
@@ -1470,7 +1470,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
       (trf-test-continuing continued '(cannot nil)
         (trf-test-continue widget)
         ;; MSG-12: Machine cannot be continued
-        ;; UW-1 §Extensions: Turn record changes into code
+        ;; UW-1 §Extensions 3-5a1: Turn record changes into code
         (assert-equal '("A machine cannot be continued:\nexecuting machine\nNo reason given.")
                       messages)))))
 
@@ -1638,7 +1638,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
         (trf-test-write-files directory '((".trf/record-implementation-report.org" . "Old report.")))
         ;; F-2 §Rules: Accept or reject the record implementation report
         ;; MSG-13: No record implementation report to accept
-        ;; UW-1 §Extensions: Turn record changes into code
+        ;; UW-1 §Extensions 7f: Turn record changes into code
         (trf-test-assert-accept-refuses
          directory '(user-error "There is no record implementation report here to accept yet."))))))
 
@@ -1648,7 +1648,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (trf-test-build directory)
     ;; F-2 §Rules: Accept or reject the record implementation report
     ;; MSG-13: No record implementation report to accept
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7f: Turn record changes into code
     (trf-test-assert-accept-refuses directory '(user-error "There is no record implementation report here to accept yet."))))
 
 (deftest trf-accept-after-a-continue-until-the-assessor-finishes ()
@@ -1770,7 +1770,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
       (assert-nil (trf-test-implement)))
     (let ((directory (file-name-as-directory
                       (car (directory-files (expand-file-name ".worktrees/" trf-test-root) t "\\`trf-")))))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       ;; MSG-10: Machine stopped before finishing
       (assert-equal '("A machine stopped before finishing:\nbrainstorming machine\nCannot start")
                     messages)
@@ -1813,7 +1813,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
 (deftest trf-implement-gives-msg-10-when-a-session-buffer-is-killed ()
   "A machine whose session buffer is killed mid-work, which stops it with no reason, gives MSG-10: Machine stopped before finishing, with no reason given."
   (pcase-let ((`(,messages ,_runs) (trf-test-stopping '("planning machine" nil "session-1"))))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     ;; MSG-10: Machine stopped before finishing
     (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
                   messages)))
@@ -1887,7 +1887,7 @@ The reconciliation assessor writes the record implementation report in DIRECTORY
     (assert-equal 4 (length buffers))
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-nil (seq-some #'buffer-live-p buffers))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     (assert-nil (seq-find (lambda (text) (string-prefix-p "A machine stopped before finishing:" text))
                           messages))
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
@@ -1926,10 +1926,10 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
   "agent-shell's restart in a machine's session buffer stops the machine and continues it in its session."
   (pcase-let ((`(,killed ,messages ,prompts ,continued)
                (trf-test-interrupting (lambda () (agent-shell-restart)))))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     ;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it
     (assert-true killed)
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     ;; MSG-10: Machine stopped before finishing
     (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
                   messages)
@@ -1943,7 +1943,7 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
   "agent-shell's reload in a machine's session buffer stops the machine and continues it in its session."
   (pcase-let ((`(,killed ,messages ,_prompts ,continued)
                (trf-test-interrupting (lambda () (agent-shell-reload)))))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 3-5a: Turn record changes into code
     ;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it
     (assert-true killed)
     ;; MSG-10: Machine stopped before finishing
@@ -2034,9 +2034,9 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
               (agent-shell-restart))
             (trf-test-settle (lambda () restarted))
             (accept-process-output nil 0.05)
-            ;; UW-1 §Extensions: Turn record changes into code
+            ;; UW-1 §Extensions 3-5a: Turn record changes into code
             (assert-true restarted)
-            ;; UW-1 §Extensions: Turn record changes into code
+            ;; UW-1 §Extensions 3-5a: Turn record changes into code
             (assert-true (buffer-live-p brainstorming))
             ;; MSG-10: Machine stopped before finishing
             (assert-nil messages)

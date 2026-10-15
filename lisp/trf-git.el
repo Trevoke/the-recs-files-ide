@@ -72,7 +72,8 @@ or its standard output when that is empty."
     "sequencer" "BISECT_LOG" "BISECT_START")
   "The files a merge, rebase, cherry-pick, revert or bisect in progress leaves.")
 
-;; UW-1 §Extensions: Turn record changes into code
+;; UW-1 §Extensions 2b: Turn record changes into code
+;; UW-1 §Extensions 7d: Turn record changes into code
 ;; docs/knowledge-base/git-operations-in-progress.org §Each operation in progress leaves its own marker in the git dir
 ;; docs/knowledge-base/git-operations-in-progress.org §A linked worktree's markers are in its own git dir, found with --git-path
 (defun trf-git-operation-in-progress-p (root)

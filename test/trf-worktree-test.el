@@ -62,13 +62,13 @@
     (trf-test-write-files root '(("src/other.el" . "(provide 'other)\n")))
     (trf-test-git root "add" "--all")
     (trf-test-git root "commit" "--quiet" "--message" "Other work")
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7a: Turn record changes into code
     (assert-true (trf-worktree-codebase-moved-p directory))
     (trf-test-git directory "merge" "--quiet" "--no-edit" "main")
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7a: Turn record changes into code
     (assert-nil (trf-worktree-codebase-moved-p directory))
     (trf-test-git directory "checkout" "--quiet" "--detach" "HEAD^")
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7a: Turn record changes into code
     (assert-nil (trf-worktree-codebase-moved-p directory))))
 
 (deftest trf-worktree-accept-brings-the-work-in ()
@@ -199,7 +199,7 @@
       (trf-test-git root "add" "--all")
       (trf-test-git root "commit" "--quiet" "--message" "Other work")
       (trf-test-git root "update-ref" "refs/recs/implemented" "HEAD")
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7a: Turn record changes into code
       (assert-equal implemented (trf-worktree-from directory)))))
 
 (deftest trf-worktree-create-before-any-implementation ()
@@ -208,7 +208,7 @@
          (directory (trf-worktree-create root (trf-test-head root)))
          (empty-tree (string-trim (trf-test-git root "hash-object" "-t" "tree" "/dev/null"))))
     (assert-equal empty-tree (trf-worktree-test-read directory "from"))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7a: Turn record changes into code
     (assert-equal empty-tree (trf-worktree-from directory))))
 
 (deftest trf-worktree-from-unknown ()
@@ -335,7 +335,7 @@
     (trf-test-git root "branch" "--quiet" "-d" (trf-worktree-branch directory))
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-true (trf-worktree-brought-in-p directory))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7a: Turn record changes into code
     (assert-equal moved (trf-worktree-codebase-moved-p directory))))
 
 (deftest trf-worktree-commit-saved-edits-commits-edits-and-new-files ()

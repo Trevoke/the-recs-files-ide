@@ -309,7 +309,7 @@
           (refusal (condition-case err
                        (progn (trf-record-changes-commit root (trf-record-changes root)) nil)
                      (error err))))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 2c: Turn record changes into code
       ;; MSG-4: Record changes could not be committed
       (assert-equal '(user-error "The record changes could not be committed:\npre-commit refuses")
                     refusal)
@@ -333,7 +333,7 @@
           (refusal (condition-case err
                        (progn (trf-record-changes-commit root (trf-record-changes root)) nil)
                      (error err))))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 2c: Turn record changes into code
       ;; MSG-4: Record changes could not be committed
       (assert-equal '(user-error "The record changes could not be committed:\npre-commit refuses")
                     refusal)
@@ -357,10 +357,10 @@ Assert the IDE gives MSG-4: Record changes could not be committed, with git's re
                              (progn (trf-record-changes-commit root changes) nil)
                            (error err))
                        (delete-file (expand-file-name ".git/index.lock" root)))))
-        ;; UW-1 §Extensions: Turn record changes into code
+        ;; UW-1 §Extensions 2c: Turn record changes into code
         ;; MSG-4: Record changes could not be committed
         (assert-equal 'user-error (car refusal))
-        ;; UW-1 §Extensions: Turn record changes into code
+        ;; UW-1 §Extensions 2c: Turn record changes into code
         ;; MSG-4: Record changes could not be committed
         (assert-true (string-prefix-p
                       (concat "The record changes could not be committed:\n"
@@ -417,7 +417,7 @@ Assert the IDE gives MSG-4: Record changes could not be committed, with git's re
             (refusal (condition-case err
                          (progn (trf-record-changes-commit root changes) nil)
                        (error err))))
-        ;; UW-1 §Extensions: Turn record changes into code
+        ;; UW-1 §Extensions 2c: Turn record changes into code
         ;; MSG-4: Record changes could not be committed
         (assert-equal (list 'user-error
                             (concat "The record changes could not be committed:\n" reason))
@@ -490,7 +490,7 @@ Return what was signalled, and the status before and after."
     (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order\n")
                                  (".git/hooks/pre-commit" . "#!/bin/sh\nexit 1\n")))
     (set-file-modes hook #o755)
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2c: Turn record changes into code
     ;; MSG-4: Record changes could not be committed
     (assert-equal '(user-error "The record changes could not be committed:\nNo reason given.")
                   (condition-case err
@@ -560,7 +560,7 @@ Return the error signalled, the status before and after, and HEAD before and aft
 (defun trf-record-changes-test-refuses-in-progress (operation)
   (pcase-let ((`(,refusal ,status-before ,status-after ,head-before ,head-after)
                (trf-record-changes-test-commit-in-progress operation)))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 2b: Turn record changes into code
     ;; MSG-3: Finish the merge or rebase first
     (assert-equal '(user-error
                     "The target product is in the middle of a merge or rebase; finish it first.")
@@ -603,7 +603,7 @@ Return the error signalled, the status before and after, and HEAD before and aft
     (let ((commit (trf-test-head root)))
       (trf-test-write-files root '(("docs/features/f-1-order.org" . "* F-1 Order later\n")
                                    ("docs/features/f-2-pay.org" . "* F-2 Pay\n")))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 7a: Turn record changes into code
       (assert-equal '((:path "docs/features/f-1-order.org" :status added
                        :identifier "F-1" :title "Order")
                       (:path "docs/user-workflows/uw-1-order-a-widget.org" :status modified
@@ -614,7 +614,7 @@ Return the error signalled, the status before and after, and HEAD before and aft
 (deftest trf-record-changes-in-a-commit-from-nothing ()
   "Measured from nothing, the record changes a commit holds are all its records."
   (let ((root trf-record-changes-test-root))
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 7a: Turn record changes into code
     (assert-equal (trf-record-changes root)
                   (trf-record-changes-in-commit root nil (trf-test-head root)))))
 

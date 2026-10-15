@@ -66,9 +66,9 @@
                                          trf-machines-test-changes)))
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-match "For each of the record changes, find the tests that cite it, run them, and assess whether the codebase is reconciled with it\\." text)
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 5a: Turn record changes into code
     (assert-match "a record change that no test cites is shown as untested\\." text)
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 5b: Turn record changes into code
     (assert-match "If you cannot assess at all, say so and why under every record change\\." text)))
 
 (deftest trf-machines-reconciliation-assessor-writes-only-the-report ()
@@ -76,7 +76,7 @@
   (let ((text (trf-machines-instructions (trf-machines-reconciliation-assessor)
                                          trf-machines-test-changes)))
     (assert-match "The record implementation report is \\.trf/record-implementation-report\\.org; change no other file\\." text)
-    ;; UW-1 §Extensions: Turn record changes into code
+    ;; UW-1 §Extensions 5b: Turn record changes into code
     ;; ADR-3 §Decision: Machines end their work with one JSON line
     (assert-match (concat (regexp-quote "\n\nWhen you have written the record implementation report, including when you could not assess, end your last turn with one JSON line alone:\n{\"finished\": true}")
                           "\\'")

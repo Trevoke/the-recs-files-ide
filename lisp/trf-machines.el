@@ -77,7 +77,8 @@
   (concat trf-worktree-state-directory "record-implementation-report.org"))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
-;; UW-1 §Extensions: Turn record changes into code
+;; UW-1 §Extensions 5a: Turn record changes into code
+;; UW-1 §Extensions 5b: Turn record changes into code
 ;; ADR-3 §Decision: Machines end their work with one JSON line
 (defun trf-machines-reconciliation-assessor ()
   "Return the reconciliation assessor."

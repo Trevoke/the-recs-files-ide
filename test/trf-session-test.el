@@ -109,7 +109,7 @@
        (trf-session-test-fire 'error)
        (assert-equal 0 stopped "ON-STOPPED runs after the event handler returns")
        (trf-session-test-settle)
-       ;; UW-1 §Extensions: Turn record changes into code
+       ;; UW-1 §Extensions 3-5a: Turn record changes into code
        (assert-equal 1 stopped)
        (assert-equal 1 (spy-call-count calls))
        (assert-equal (get-buffer trf-session-test-buffer-name)
@@ -132,7 +132,7 @@
   "A turn refused, cut off by a limit, or cancelled by the record keeper, without the JSON line, stops the machine once."
   (dolist (reason '("refusal" "max_tokens" "max_turn_requests" "cancelled"))
     (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends reason)))
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       (assert-equal 1 stopped (format "a %s turn stops the machine once" reason))
       (assert-nil finished (format "a %s turn does not finish the machine" reason))
       (assert-equal (list (get-buffer trf-session-test-buffer-name)) displayed
@@ -143,7 +143,6 @@
   (dolist (reason '("end_turn" nil))
     (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends reason)))
       ;; ADR-3 §Consequences: Machines end their work with one JSON line
-      ;; UW-1 §Extensions: Turn record changes into code
       (assert-equal 0 stopped (format "a %S turn does not stop the machine" reason))
       (assert-nil finished (format "a %S turn does not finish the machine" reason))
       (assert-nil displayed (format "a %S turn displays no buffer" reason)))))
@@ -226,7 +225,7 @@
      (trf-session-test-settle)
      ;; ADR-3 §Decision: Machines end their work with one JSON line
      (assert-equal '(nil) (cdr finished))
-     ;; UW-1 §Extensions: Turn record changes into code
+     ;; UW-1 §Extensions 3-5a: Turn record changes into code
      (assert-nil stopped))))
 
 (deftest trf-session-finished-whatever-the-stop-reason ()
@@ -242,7 +241,7 @@
        ;; ADR-3 §Decision: Machines end their work with one JSON line
        (assert-equal '(nil) (cdr finished)
                      (format "a %s turn with the JSON line finishes the machine" reason))
-       ;; UW-1 §Extensions: Turn record changes into code
+       ;; UW-1 §Extensions 3-5a: Turn record changes into code
        (assert-nil stopped
                    (format "a %s turn with the JSON line does not stop the machine" reason))))))
 
@@ -257,7 +256,7 @@
         (setq trf-session-test-session-id "session-1"))
       (kill-buffer buffer)
       (trf-session-test-settle)
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       ;; ADR-5 §Decision: Continue a machine in its own ACP session
       (assert-equal '((nil "session-1")) stops)
       (assert-nil called))))
@@ -354,7 +353,7 @@
   "A turn ending with the JSON line saying the machine did not finish stops it with its reason, showing its session."
   ;; ADR-3 §Decision: Machines end their work with one JSON line
   ;; ADR-3 §Consequences: Machines end their work with one JSON line
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 3-5a: Turn record changes into code
   (let ((result (trf-session-test-stopping
                   "I need to know one thing.\n"
                   "{\"finished\": false, \"reason\": \"Which widget should be ordered first?\"}")))
@@ -364,7 +363,7 @@
 (deftest trf-session-stopped-with-the-reason-inside-a-code-fence ()
   "The JSON line saying the machine did not finish stops it, inside a code fence too."
   ;; ADR-3 §Decision: Machines end their work with one JSON line
-  ;; UW-1 §Extensions: Turn record changes into code
+  ;; UW-1 §Extensions 3-5a: Turn record changes into code
   (let ((result (trf-session-test-stopping
                   "```json\n{\"finished\": false, \"reason\": \"No device for questions.\"}\n```\n")))
     (assert-equal (list nil '("No device for questions.") (list (get-buffer trf-session-test-buffer-name)))
@@ -377,7 +376,7 @@
     (let ((result (trf-session-test-stopping "Hmm.\n" line)))
       ;; ADR-3 §Decision: Machines end their work with one JSON line
       ;; ADR-3 §Consequences: Machines end their work with one JSON line
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       (assert-equal (list nil '(nil) (list (get-buffer trf-session-test-buffer-name))) result
                     (format "%S stops the machine with no reason" line)))))
 
@@ -397,7 +396,7 @@
      (trf-session-test-fire 'error)
      (trf-session-test-settle)
      ;; ADR-3 §Decision: Machines end their work with one JSON line
-     ;; UW-1 §Extensions: Turn record changes into code
+     ;; UW-1 §Extensions 3-5a: Turn record changes into code
      (assert-equal '("Out of ideas.") reasons)
      (assert-nil (cdr finished)))))
 
@@ -409,7 +408,7 @@
      (trf-session-test-run #'ignore (lambda (reason &rest _) (push reason reasons)))
      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "refusal")))
      (trf-session-test-settle)
-     ;; UW-1 §Extensions: Turn record changes into code
+     ;; UW-1 §Extensions 3-5a: Turn record changes into code
      (assert-equal '(nil) reasons))))
 
 (defconst trf-session-test-resumed-buffer-name "*trf fake resumed machine*")
@@ -516,7 +515,7 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
       (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
       (trf-session-test-settle)
       ;; ADR-3 §Decision: Machines end their work with one JSON line
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       (assert-equal '("Still unsure.") reasons))))
 
 (deftest trf-session-continue-resumes-an-ended-session ()
@@ -613,7 +612,7 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
       (trf-session-test-continue buffer nil (lambda (&rest args) (push args stops)))
       (trf-session-test-fire 'init-finished)
       (trf-session-test-settle)
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       (assert-nil (buffer-live-p buffer))
       (assert-nil stops))))
 
@@ -726,7 +725,7 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
       (trf-session--listen buffer #'ignore (lambda (&rest args) (push args stops)))
       (delete-process process)
       (trf-session-test-settle)
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       ;; docs/knowledge-base/agent-shell-session-resume.org §An agent process that dies between turns gives no event, and a function added to its sentinel hears it
       (assert-equal '((nil "session-1" t)) stops))))
 
@@ -741,7 +740,7 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
       (kill-buffer buffer)
       (delete-process process)
       (trf-session-test-settle)
-      ;; UW-1 §Extensions: Turn record changes into code
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       ;; docs/knowledge-base/agent-shell-session-resume.org §An agent process that dies between turns gives no event, and a function added to its sentinel hears it
       (assert-equal 1 stops))))
 
@@ -777,7 +776,7 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
      (kill-buffer buffer)
      (trf-session-test-settle)
      ;; F-3 §Rules: Continue a stopped machine on its work in progress
-     ;; UW-1 §Extensions: Turn record changes into code
+     ;; UW-1 §Extensions 3-5a: Turn record changes into code
      (assert-equal 1 (length stops)))))
 
 (deftest trf-session-at-work-when-a-stray-fence-follows-the-closing-one ()

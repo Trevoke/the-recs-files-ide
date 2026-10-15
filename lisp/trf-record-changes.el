@@ -38,7 +38,8 @@
       trf-record-changes-no-reason-message
     output))
 
-;; UW-1 §Extensions: Turn record changes into code
+;; UW-1 §Extensions 2b: Turn record changes into code
+;; UW-1 §Extensions 7d: Turn record changes into code
 (defun trf-record-changes-refuse-operation-in-progress (root)
   "Give MSG-3: Finish the merge or rebase first, when ROOT is mid merge, rebase, cherry-pick, revert or bisect."
   (when (trf-git-operation-in-progress-p root)
@@ -130,7 +131,7 @@ Read each as COMMIT holds it, or from disk when COMMIT is nil."
                (seq-remove (lambda (entry) (assoc (car entry) changed))
                            untracked))))))
 
-;; UW-1 §Extensions: Turn record changes into code
+;; UW-1 §Extensions 7a: Turn record changes into code
 (defun trf-record-changes-in-commit (root from commit)
   "Return the record changes of the target product at ROOT as COMMIT holds them, by path.
 Measure them from FROM, a commit or tree; when FROM is nil, from the empty tree."
@@ -222,7 +223,7 @@ Return the commit they are in."
                                                      root paths))))
                 (trf-record-changes--commit-staged root changes untracked))
             (trf-git-error
-             ;; UW-1 §Extensions: Turn record changes into code
+             ;; UW-1 §Extensions 2c: Turn record changes into code
              (user-error "%s\n%s" trf-record-changes-not-committed-message
                          (trf-record-changes-reason (cadr err)))))
         (when (equal head (trf-git-ref-commit root "HEAD"))
