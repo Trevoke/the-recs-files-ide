@@ -10,9 +10,10 @@ claude-agent-acp and codex-acp do. The stand-in is not a real AI program; what
 a real one does on resume is not established here.
 
 *What it establishes.* A buffer whose agent process is running takes a next
-message as a new turn. The process status tells an ended session; agent-shell
-keeps the session's state after its process ends, and a dead buffer cannot be
-prompted back to life. =agent-shell-start= given =:session-id= resumes the
+message as a new turn. agent-shell keeps the session's state after its process
+ends, and the process status tells the session has ended, but only until the
+buffer is given a message: that message starts a new agent process, which
+knows nothing of the session and runs on under the same name. =agent-shell-start= given =:session-id= resumes the
 session in a new buffer with =session/resume=, which replays nothing, under the
 default verbosity, and the elicitation switch holds there. A resume that fails
 starts a new session in its place.
@@ -24,21 +25,25 @@ session whose first turn has ended starts a second turn in the same process:
 the agent answers "reply 2 from pid ..." from the same pid, and the
 subscriptions made for the first turn fire again for the second.
 
-* The process status tells an ended session
+* The process status tells an ended session until its buffer is given a message
 
 In part C, the agent process exits during a turn. agent-shell emits an =error=
 event with code -32603, "Agent process ended before completing request: exited
 abnormally with code 3", and keeps the buffer's state: the session id, the
 client and the process remain, and the process status is =exit=. So
 =(process-live-p (map-elt (map-elt agent-shell--state :client) :process))=,
-read in the session buffer, tells an ended session from one that is going.
+read in the session buffer, tells an ended session from one that is going, but
+only until the buffer is given a message: in part D that message leaves the
+client with a new process, which is not =eq= to the one that ended, whose
+status is =run=, and whose name is the same.
 
-* A dead buffer cannot be prompted
+* A message in a dead buffer reaches a new process without its session
 
 In part D, a message given in the buffer whose process has ended starts the
 agent again without =initialize= or =session/resume= (the agent log shows a new
 pid receiving only =session/prompt=), and the agent refuses the prompt:
-"Session not found: sess-1". An ended session is continued in a new buffer.
+"Session not found: sess-1". The client's process is then a new, live process
+under the old name. An ended session is continued in a new buffer.
 
 * Minimal verbosity sends session/resume
 
@@ -94,7 +99,9 @@ emitted. So a resume is checked by comparing the buffer's session id after
 * The run
 
 Run with =emacs -Q --batch -l resume-run.el <directory of the agent-shell, acp
-and shell-maker builds> fake_agent.py <empty directory>=.
+and shell-maker builds> fake_agent.py <empty directory>=. In the output below,
+the empty directory's name is written as =<tmp>=, by =sed "s|<its name>|<tmp>|g"=
+on the captured output.
 
 =fake_agent.py=:
 
@@ -222,7 +229,12 @@ for line in sys.stdin:
     (rr-wait (lambda () nil) 1)
     (rr-state a "A after death")
     (princ "== D. prompt again in the dead buffer\n")
-    (rr-prompt a "after death")
+    (let ((dead (map-elt (map-elt (buffer-local-value 'agent-shell--state a) :client) :process)))
+      (rr-prompt a "after death")
+      (rr-wait (lambda () nil) 1)
+      (let ((now (map-elt (map-elt (buffer-local-value 'agent-shell--state a) :client) :process)))
+        (princ (format "  [A] the process before the message is the process after it: %S; before: %s, after: %s\n"
+                       (eq dead now) (process-status dead) (process-status now)))))
     (rr-wait (lambda () nil) 1)
     (rr-state a "A after re-prompt")
     (let ((old-id (agent-shell-session-id :shell-buffer a)))
@@ -246,17 +258,17 @@ for line in sys.stdin:
 #+end_src
 
 #+begin_example
-Created <tmp>/.agent-shell/transcripts/2026-10-15-08-23-03.md
-Created <tmp>/.agent-shell/transcripts/2026-10-15-08-23-05.md
+Created <tmp>/.agent-shell/transcripts/2026-10-15-08-31-48.md
+Created <tmp>/.agent-shell/transcripts/2026-10-15-08-31-51.md
 Couldn't resume session sess-unknown. Starting a new one.
 == A. new session, first turn
   [A] event session-selected nil
   [A] event init-finished nil
-  [A] event agent-message-chunk ((:text-chunk . "reply 1 from pid 1219488"))
+  [A] event agent-message-chunk ((:text-chunk . "reply 1 from pid 1259439"))
   [A] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
   [A] session-id="sess-1" client=yes process=acp-client(python3)-3 status=run initialized=t init-finished=t active-requests=nil switch=t
 == B. same live buffer, second turn after the first ended
-  [A] event agent-message-chunk ((:text-chunk . "reply 2 from pid 1219488"))
+  [A] event agent-message-chunk ((:text-chunk . "reply 2 from pid 1259439"))
   [A] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
   turn-complete count=2 chunk count=2
 == C. agent process dies mid-turn
@@ -264,12 +276,13 @@ Couldn't resume session sess-unknown. Starting a new one.
   [A after death] session-id="sess-1" client=yes process=acp-client(python3)-3 status=exit initialized=t init-finished=t active-requests=nil switch=t
 == D. prompt again in the dead buffer
   [A] event error ((:code . -32002) (:message . "Session not found: sess-1"))
+  [A] the process before the message is the process after it: nil; before: exit, after: run
   [A after re-prompt] session-id="sess-1" client=yes process=acp-client(python3)-3 status=run initialized=t init-finished=t active-requests=nil switch=t
 == E. new buffer resuming the session id
   [B] event session-selected ((:session-id . "sess-1"))
   [B] event init-finished nil
   [B] session-id="sess-1" client=yes process=acp-client(python3)-6 status=run initialized=t init-finished=t active-requests=nil switch=t
-  [B] event agent-message-chunk ((:text-chunk . "reply 3 from pid 1219514"))
+  [B] event agent-message-chunk ((:text-chunk . "reply 3 from pid 1259503"))
   [B] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
   old buffer A live? t
   [B] event clean-up nil
@@ -281,28 +294,28 @@ Couldn't resume session sess-unknown. Starting a new one.
   [C] event clean-up nil
   [A] event clean-up nil
 == agent log
-[1219488] started
-[1219488] recv initialize id=1 {"fs": {"readTextFile": true, "writeTextFile": true}, "elicitation": {"form": {}}}
-[1219488] recv session/new id=2 null
-[1219488] recv session/list id=3 null
-[1219488] recv session/prompt id=4 "sess-1"
-[1219488] recv session/list id=5 null
-[1219488] recv session/prompt id=6 "sess-1"
-[1219488] recv session/list id=7 null
-[1219488] recv session/prompt id=8 "sess-1"
-[1219488] dying
-[1219506] started
-[1219506] recv session/prompt id=9 "sess-1"
-[1219514] started
-[1219514] recv initialize id=1 {"fs": {"readTextFile": true, "writeTextFile": true}, "elicitation": {"form": {}}}
-[1219514] recv session/resume id=2 "sess-1"
-[1219514] recv session/list id=3 null
-[1219514] recv session/prompt id=4 "sess-1"
-[1219514] recv session/list id=5 null
-[1219522] started
-[1219522] recv initialize id=1 {"fs": {"readTextFile": true, "writeTextFile": true}, "elicitation": {"form": {}}}
-[1219522] recv session/resume id=2 "sess-unknown"
-[1219522] recv session/list id=3 null
-[1219522] recv session/new id=4 null
-[1219522] recv session/list id=5 null
+[1259439] started
+[1259439] recv initialize id=1 {"fs": {"readTextFile": true, "writeTextFile": true}, "elicitation": {"form": {}}}
+[1259439] recv session/new id=2 null
+[1259439] recv session/list id=3 null
+[1259439] recv session/prompt id=4 "sess-1"
+[1259439] recv session/list id=5 null
+[1259439] recv session/prompt id=6 "sess-1"
+[1259439] recv session/list id=7 null
+[1259439] recv session/prompt id=8 "sess-1"
+[1259439] dying
+[1259490] started
+[1259490] recv session/prompt id=9 "sess-1"
+[1259503] started
+[1259503] recv initialize id=1 {"fs": {"readTextFile": true, "writeTextFile": true}, "elicitation": {"form": {}}}
+[1259503] recv session/resume id=2 "sess-1"
+[1259503] recv session/list id=3 null
+[1259503] recv session/prompt id=4 "sess-1"
+[1259503] recv session/list id=5 null
+[1259511] started
+[1259511] recv initialize id=1 {"fs": {"readTextFile": true, "writeTextFile": true}, "elicitation": {"form": {}}}
+[1259511] recv session/resume id=2 "sess-unknown"
+[1259511] recv session/list id=3 null
+[1259511] recv session/new id=4 null
+[1259511] recv session/list id=5 null
 #+end_example

@@ -329,7 +329,9 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       ;; MSG-11: No stopped machine to continue
       (user-error "%s" trf-no-stopped-machine-message))
     (trf--offer-to-save directory)
-    (let ((message (read-string "Tell the machine: ")))
+    (let ((message ""))
+      (while (string-blank-p message)
+        (setq message (read-string "Tell the machine: ")))
       (remhash (trf--worktree-key directory) trf--stopped-machines)
       (funcall continue message))))
 

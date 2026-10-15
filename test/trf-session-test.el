@@ -30,11 +30,16 @@
      ,@body))
 
 (defun trf-session-test-fire (event &optional data)
-  (funcall (alist-get event trf-session-test-handlers)
-           (list (cons :event event) (cons :data data))))
+  "Fire EVENT with DATA at every handler subscribed to it, in the order they subscribed."
+  (dolist (handler (reverse trf-session-test-handlers))
+    (when (eq (car handler) event)
+      (funcall (cdr handler) (list (cons :event event) (cons :data data))))))
 
 (defun trf-session-test-settle ()
-  (accept-process-output nil 0.05))
+  "Let timers run for 0.05 seconds, however soon a process's output ends a wait."
+  (let ((end (+ (float-time) 0.05)))
+    (while (< (float-time) end)
+      (accept-process-output nil 0.01))))
 
 (defun trf-session-test-say (&rest chunks)
   "Have the machine stream CHUNKS of its message."
@@ -389,17 +394,25 @@
 (defvar-local trf-session-test-session-id nil
   "The session id the fake agent-shell gives a buffer.")
 
+(defun trf-session-test-agent (process-command)
+  "Return a fake agent process running PROCESS-COMMAND."
+  (make-process :name "trf-test-agent" :buffer nil :command process-command :noquery t))
+
+(defun trf-session-test-set-agent (buffer process)
+  "Make PROCESS the agent process of the session in BUFFER."
+  (with-current-buffer buffer
+    (setq-local agent-shell--state (list (cons :client (list (cons :process process)))))))
+
 (defun trf-session-test-session-buffer (process-command id)
-  "Return a fake session buffer for session ID whose agent process runs PROCESS-COMMAND."
+  "Return a fake session buffer for session ID whose machine stopped while its agent ran PROCESS-COMMAND."
   (let ((buffer (get-buffer-create trf-session-test-buffer-name)))
     (with-current-buffer buffer
-      (setq trf-session-test-session-id id)
-      (setq-local agent-shell--state
-                  (list (cons :client
-                              (list (cons :process
-                                          (make-process :name "trf-test-agent" :buffer nil
-                                                        :command process-command
-                                                        :noquery t)))))))
+      (setq trf-session-test-session-id id))
+    (trf-session-test-set-agent buffer (trf-session-test-agent process-command))
+    (trf-session--listen buffer #'ignore #'ignore)
+    (trf-session-test-say "{\"finished\": false, \"reason\": \"Stuck.\"}")
+    (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
+    (setq trf-session-test-handlers nil)
     buffer))
 
 (defmacro trf-session-test-continuing (resumed-id &rest body)
@@ -427,7 +440,9 @@ In BODY, STARTS holds the arguments of each start and INSERTS those of each mess
                                                      :client)
                                             :process)))
                 (delete-process process))
-              (kill-buffer buffer))))))))
+              (with-current-buffer buffer
+                (let ((kill-buffer-query-functions nil))
+                  (kill-buffer buffer))))))))))
 
 (defun trf-session-test-ended-buffer (id)
   "Return a fake session buffer for session ID whose agent process has ended."
@@ -448,7 +463,7 @@ In BODY, STARTS holds the arguments of each start and INSERTS those of each mess
     (let ((buffer (trf-session-test-session-buffer '("sleep" "60") "session-1"))
           (finished (list 'finished)))
       ;; ADR-5 §Decision: Continue a machine in its own ACP session
-      ;; docs/knowledge-base/agent-shell-session-resume.org §The process status tells an ended session
+      ;; docs/knowledge-base/agent-shell-session-resume.org §The process status tells an ended session until its buffer is given a message
       ;; docs/knowledge-base/agent-shell-session-resume.org §A live buffer takes a next message
       (assert-equal buffer (trf-session-test-continue buffer (trf-session-test-finishing finished)))
       ;; ADR-5 §Decision: Continue a machine in its own ACP session
@@ -488,7 +503,7 @@ In BODY, STARTS holds the arguments of each start and INSERTS those of each mess
       (assert-nil inserts)
       (trf-session-test-fire 'init-finished)
       ;; ADR-5 §Decision: Continue a machine in its own ACP session
-      ;; docs/knowledge-base/agent-shell-session-resume.org §A dead buffer cannot be prompted
+      ;; docs/knowledge-base/agent-shell-session-resume.org §A message in a dead buffer reaches a new process without its session
       (assert-nil (buffer-live-p buffer))
       ;; F-3 §Rules: Continue a stopped machine on its work in progress
       (assert-equal (list "Use the blue widget." resumed)
@@ -542,6 +557,52 @@ In BODY, STARTS holds the arguments of each start and INSERTS those of each mess
       ;; ADR-5 §Consequences: Continue a machine in its own ACP session
       (assert-equal '(nil) (cdr cannot))
       (assert-nil starts))))
+
+(deftest trf-session-continue-resumes-when-a-new-process-replaced-the-stopped-one ()
+  "A machine whose stopped agent process was replaced by another, as a message in its buffer does, is resumed."
+  (trf-session-test-continuing "session-1"
+    (let ((buffer (trf-session-test-session-buffer '("true") "session-1")))
+      (trf-session-test-set-agent buffer (trf-session-test-agent '("sleep" "60")))
+      (trf-session-test-continue buffer)
+      ;; ADR-5 §Decision: Continue a machine in its own ACP session
+      ;; docs/knowledge-base/agent-shell-session-resume.org §The process status tells an ended session until its buffer is given a message
+      ;; docs/knowledge-base/agent-shell-session-resume.org §A message in a dead buffer reaches a new process without its session
+      (assert-equal "session-1" (plist-get (car starts) :session-id))
+      (assert-nil inserts)
+      (delete-process (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer) :client)
+                               :process)))))
+
+(deftest trf-session-continue-leaves-the-stopped-turns-listener-quiet ()
+  "In a going session, the listener of the turn the machine stopped in stays quiet through the next turn."
+  (trf-session-test-continuing "unused"
+    (let ((buffer (trf-session-test-session-buffer '("sleep" "60") "session-1"))
+          (calls 0)
+          (finished (list 'finished)))
+      (setq trf-session-test-handlers nil)
+      (trf-session--listen buffer (lambda (_) (cl-incf calls)) (lambda (_) (cl-incf calls)))
+      (trf-session-test-say "{\"finished\": false, \"reason\": \"Stuck.\"}")
+      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
+      (trf-session-test-settle)
+      (trf-session-test-continue buffer (trf-session-test-finishing finished))
+      (trf-session-test-say "{\"finished\": true}")
+      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
+      (trf-session-test-settle)
+      ;; ADR-3 §Decision: Machines end their work with one JSON line
+      (assert-equal 1 calls)
+      ;; ADR-3 §Decision: Machines end their work with one JSON line
+      (assert-equal '(nil) (cdr finished)))))
+
+(deftest trf-session-continue-ends-the-old-buffer-without-asking ()
+  "Once a resume succeeds, the old session buffer is ended without its kill questions."
+  (trf-session-test-continuing "session-1"
+    (let ((buffer (trf-session-test-ended-buffer "session-1")))
+      (with-current-buffer buffer
+        (add-hook 'kill-buffer-query-functions #'ignore nil t))
+      (trf-session-test-continue buffer)
+      (trf-session-test-fire 'init-finished)
+      ;; ADR-5 §Decision: Continue a machine in its own ACP session
+      ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
+      (assert-nil (buffer-live-p buffer)))))
 
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here

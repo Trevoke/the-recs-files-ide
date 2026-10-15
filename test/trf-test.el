@@ -1430,7 +1430,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (trf-test-with-a-stopped-machine "planning machine"
       (trf-test-continuing continued '(cannot "Resource not found: session-1")
         (assert-nil (trf-test-continue widget))
-          ;; F-3 §Rules: Continue a stopped machine on its work in progress
+        ;; F-3 §Rules: Continue a stopped machine on its work in progress
         ;; MSG-12: Machine cannot be continued
         ;; UW-1 §Extensions: Turn record changes into code
         (assert-equal '("A machine cannot be continued:\nplanning machine\nResource not found: session-1")
@@ -1492,7 +1492,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
                        (mapc actor list)
                        (length list))))
             (trf-test-continue widget)))
-          ;; F-3 §Rules: Continue a stopped machine on its work in progress
+        ;; F-3 §Rules: Continue a stopped machine on its work in progress
         (assert-equal (list buffer) offered)))
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
     (assert-equal 0 continued-when-offered)
@@ -1510,7 +1510,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
       (trf-test-continuing continued '(stop "Again.")
         (trf-test-offering-saves nil offered
           (assert-nil (trf-test-continue widget))))
-        ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
       (assert-nil (string-match-p ";; unsaved"
                                   (with-temp-buffer
                                     (insert-file-contents widget)
@@ -1541,7 +1541,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (assert-true (gethash directory trf--stopped-machines))
     (trf-test-build directory)
     (assert-nil (trf-test-from-file widget #'trf-accept-record-implementation-report))
-      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
     (assert-nil (gethash directory trf--stopped-machines))))
 
 (deftest trf-continue-after-an-accept-reruns-gives-msg-11 ()
@@ -1564,6 +1564,39 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (assert-nil continued)
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-equal 6 count)))
+
+(deftest trf-continue-asks-again-until-told-something ()
+  "An empty or blank answer to what to tell the machine is asked again; the machine is told the first real answer."
+  (let (continued answers)
+    (trf-test-with-a-stopped-machine "planning machine"
+      (trf-test-continuing continued '(stop "Again.")
+        (let ((replies (list "" "   " "Use the blue widget.")))
+          (cl-letf (((symbol-function 'read-string)
+                     (lambda (prompt &rest _)
+                       (push prompt answers)
+                       (pop replies))))
+            (with-current-buffer (find-file-noselect widget)
+              (trf-continue-stopped-machine))))))
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal '("Tell the machine: " "Tell the machine: " "Tell the machine: ") answers)
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal "Use the blue widget." (nth 1 (car continued)))))
+
+(deftest trf-continue-keeps-the-stop-when-the-record-keeper-quits ()
+  "Quitting the question of what to tell the machine keeps it stopped, to continue later."
+  (let (continued)
+    (trf-test-with-a-stopped-machine "planning machine"
+      (trf-test-continuing continued '(stop "Again.")
+        (cl-letf (((symbol-function 'read-string) (lambda (&rest _) (signal 'quit nil))))
+          (assert-equal '(quit)
+                        (condition-case err
+                            (with-current-buffer (find-file-noselect widget)
+                              (trf-continue-stopped-machine))
+                          (quit err))))
+        ;; F-3 §Rules: Continue a stopped machine on its work in progress
+        (assert-true (gethash directory trf--stopped-machines))
+        ;; F-3 §Rules: Continue a stopped machine on its work in progress
+        (assert-nil continued)))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

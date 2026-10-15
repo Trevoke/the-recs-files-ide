@@ -79,6 +79,9 @@ Return its buffer."
       (setq-local agent-shell-elicitation--experimental-feature-enabled t))
     buffer))
 
+(defvar-local trf-session--stopped-process nil
+  "The agent process the machine in this buffer stopped in.")
+
 ;; ADR-3 §Decision: Machines end their work with one JSON line
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
 ;; docs/knowledge-base/agent-shell-agent-messages.org §agent-shell streams each chunk of an agent message as an event
@@ -99,7 +102,10 @@ If BUFFER is killed first, call neither."
          ;; ADR-3 §Consequences: Machines end their work with one JSON line
          ;; UW-1 §Extensions: Turn record changes into code
          (stop (lambda (&optional reason)
-                 (when (buffer-live-p buffer) (display-buffer buffer))
+                 (when (buffer-live-p buffer)
+                   (with-current-buffer buffer
+                     (setq trf-session--stopped-process (trf-session--process buffer)))
+                   (display-buffer buffer))
                  (run-at-time 0 nil on-stopped reason)))
          (end (lambda (ending)
                 (pcase ending
@@ -150,12 +156,19 @@ Return its session buffer.  Call ON-FINISHED and ON-STOPPED as
     (trf-session--listen buffer on-finished on-stopped)
     buffer))
 
-;; docs/knowledge-base/agent-shell-session-resume.org §The process status tells an ended session
+(defun trf-session--process (buffer)
+  "Return the agent process of the session in BUFFER."
+  (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer) :client) :process))
+
+;; docs/knowledge-base/agent-shell-session-resume.org §The process status tells an ended session until its buffer is given a message
+;; docs/knowledge-base/agent-shell-session-resume.org §A message in a dead buffer reaches a new process without its session
 (defun trf-session--going-p (buffer)
-  "Return non-nil while the AI program of the session in BUFFER is running."
+  "Return non-nil while the agent process the machine in BUFFER stopped in still runs it."
   (and (buffer-live-p buffer)
-       (process-live-p (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer) :client)
-                                :process))))
+       (let ((stopped (buffer-local-value 'trf-session--stopped-process buffer)))
+         (and stopped
+              (eq stopped (trf-session--process buffer))
+              (process-live-p stopped)))))
 
 (defun trf-session--give (buffer message on-finished on-stopped)
   "Give MESSAGE to the machine in BUFFER as its next message, listening afresh."
@@ -165,7 +178,7 @@ Return its session buffer.  Call ON-FINISHED and ON-STOPPED as
 ;; ADR-5 §Decision: Continue a machine in its own ACP session
 ;; ADR-5 §Consequences: Continue a machine in its own ACP session
 ;; docs/knowledge-base/agent-shell-session-resume.org §A live buffer takes a next message
-;; docs/knowledge-base/agent-shell-session-resume.org §A dead buffer cannot be prompted
+;; docs/knowledge-base/agent-shell-session-resume.org §A message in a dead buffer reaches a new process without its session
 ;; docs/knowledge-base/agent-shell-session-resume.org §A resume that fails starts a new session
 (defun trf-session-continue (buffer config message on-finished on-stopped on-cannot-continue)
   "Continue the machine whose session is in BUFFER, giving it MESSAGE as its next message.
@@ -196,7 +209,10 @@ cannot be resumed."
                        (setq settled t)
                        (if (equal (agent-shell-session-id :shell-buffer resumed) asked)
                            (progn
-                             (kill-buffer buffer)
+                             ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
+                             (with-current-buffer buffer
+                               (let ((kill-buffer-query-functions nil))
+                                 (kill-buffer buffer)))
                              (trf-session--give resumed message on-finished on-stopped))
                          (kill-buffer resumed)
                          (funcall cannot nil)))))
