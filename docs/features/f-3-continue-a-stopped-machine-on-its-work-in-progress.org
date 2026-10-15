@@ -1,7 +1,7 @@
 * F-3 Continue a stopped machine on its work in progress
 
 Takes: a work in progress whose machine stopped before finishing, and what the
-record keeper tells that machine.
+record keeper tells that machine when it was told something before it stopped.
 
 Produces: that machine at work again on the work in progress as it stands,
 with everything it was told and said before it stopped, asking the record
@@ -11,8 +11,12 @@ implementation report.
 
 ** Rules
 
-- The IDE asks the record keeper what to tell the machine, and gives it to the
-  machine as its next message.
+- When the machine was told something before it stopped, the IDE asks the
+  record keeper what to tell it, and gives it to the machine as its next
+  message.
+- When the machine stopped before it was told anything, the IDE starts it with
+  the instructions it gives it at first, including the paths the machine
+  before it produced, and asks the record keeper nothing.
 - Outside a work in progress whose machine stopped since the IDE last started,
   the IDE gives MSG-11: No stopped machine to continue.
 - When the machine cannot be continued, the IDE gives MSG-12: Machine cannot be
