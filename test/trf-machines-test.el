@@ -131,23 +131,24 @@
                 (plist-get machine :name))))
 
 (deftest trf-machines-ask-the-record-keeper-only-through-the-device-for-questions ()
-  "Every machine is told to ask the record keeper questions only through its AI program's device for asking questions."
+  "Every machine is told to ask only through its AI program's device for questions, and to stop with its question when there is none."
   (dolist (machine (append (trf-machines-implementation-workflow)
                            (list (trf-machines-reconciliation-assessor))))
     (let ((text (trf-machines-instructions machine trf-machines-test-changes '("a.md"))))
       ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
-      (assert-match "\n\nAsk the record keeper questions only through the device your AI program offers for asking questions, not in your message text\\.\n\n" text
+      ;; ADR-4 §Consequences: Machines ask the record keeper through ACP elicitation
+      ;; ADR-3 §Decision: Machines end their work with one JSON line
+      (assert-match (regexp-quote "\n\nAsk the record keeper questions only through the device your AI program offers for asking questions, not in your message text. If you have a question and your AI program offers no such device, stop, and end your last turn with one JSON line alone: {\"finished\": false, \"reason\": \"<your question>\"}.\n\n")
+                    text
                     (plist-get machine :name)))))
 
-(deftest trf-machines-brainstorming-machine-settles-what-the-records-do-not ()
-  "The brainstorming machine settles with the record keeper what the records do not settle, or on its own without a device for questions."
+(deftest trf-machines-brainstorming-machine-asks-the-record-keeper-what-the-records-do-not-settle ()
+  "The brainstorming machine is told to ask the record keeper whatever the records do not settle."
   (let ((text (trf-machines-instructions (car (trf-machines-implementation-workflow))
                                          trf-machines-test-changes)))
     ;; UW-1 §Main success scenario: Turn record changes into code
-    ;; UW-1 §Extensions: Turn record changes into code
-    ;; ADR-4 §Consequences: Machines ask the record keeper through ACP elicitation
-    (assert-match "Use the recs-brainstorming skill to settle with the record keeper how the record changes are to be implemented\\. Settle with the record keeper whatever the records do not settle; where your AI program offers no device for asking questions, settle it on your own\\.\n\n" text)
-    (assert-nil (string-match-p "Ask the record keeper whatever the records do not settle" text))))
+    (assert-match "Use the recs-brainstorming skill to settle with the record keeper how the record changes are to be implemented\\. Ask the record keeper whatever the records do not settle\\.\n\n" text)
+    (assert-nil (string-match-p "settle it on your own" text))))
 
 (provide 'trf-machines-test)
 ;;; trf-machines-test.el ends here

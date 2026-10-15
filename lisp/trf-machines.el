@@ -12,11 +12,9 @@
   :group 'trf)
 
 ;; UW-1 §Main success scenario: Turn record changes into code
-;; UW-1 §Extensions: Turn record changes into code
-;; ADR-4 §Consequences: Machines ask the record keeper through ACP elicitation
 (defconst trf-machines--work
   '((brainstorming
-     . "Use the %s skill to settle with the record keeper how the record changes are to be implemented. Settle with the record keeper whatever the records do not settle; where your AI program offers no device for asking questions, settle it on your own.")
+     . "Use the %s skill to settle with the record keeper how the record changes are to be implemented. Ask the record keeper whatever the records do not settle.")
     (planning
      . "Use the %s skill to write the implementation plan for the record changes.")
     (executing
@@ -109,8 +107,13 @@
           (plist-get change :path)))
 
 ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+;; ADR-4 §Consequences: Machines ask the record keeper through ACP elicitation
+;; ADR-3 §Decision: Machines end their work with one JSON line
 (defconst trf-machines--asking
-  "Ask the record keeper questions only through the device your AI program offers for asking questions, not in your message text."
+  (concat "Ask the record keeper questions only through the device your AI program offers for "
+          "asking questions, not in your message text. If you have a question and your AI program "
+          "offers no such device, stop, and end your last turn with one JSON line alone: "
+          "{\"finished\": false, \"reason\": \"<your question>\"}.")
   "What every machine is told about asking the record keeper questions.")
 
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
