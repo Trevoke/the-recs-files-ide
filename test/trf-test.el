@@ -2124,5 +2124,30 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
                             (quit err))))
   (assert-nil (get-buffer trf--record-changes-buffer-name)))
 
+(deftest trf-implement-gives-back-the-window-the-record-changes-took ()
+  "A window that showed another buffer before the record changes shows it again once the record keeper answers."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let ((other (get-buffer-create "*trf other buffer*"))
+        (configuration (current-window-configuration))
+        window before)
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (set-window-buffer (selected-window) other)
+          (set-window-buffer (split-window) other)
+          (cl-letf (((symbol-function 'y-or-n-p)
+                     (lambda (&rest _)
+                       (setq window (get-buffer-window trf--record-changes-buffer-name))
+                       nil)))
+            (let ((display-buffer-overriding-action
+                   '(display-buffer-use-some-window (inhibit-same-window . t))))
+              (setq before (mapcar (lambda (w) (cons w (window-buffer w))) (window-list)))
+              (trf-test-implement)))
+          (assert-true (window-live-p window))
+          (assert-equal (alist-get window before) (window-buffer window))
+          (assert-nil (get-buffer trf--record-changes-buffer-name)))
+      (set-window-configuration configuration)
+      (kill-buffer other))))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here

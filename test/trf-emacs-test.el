@@ -63,7 +63,7 @@
         (assert-true (buffer-modified-p))
         (assert-true (file-exists-p buffer-auto-save-file-name))
         (assert-true (file-symlink-p (make-lock-file-name file))))
-      ;; ADR-6 §Decision: Keep the IDE's Emacs files outside the target product
+      ;; ADR-6 §Consequences: Keep the IDE's Emacs files outside the target product
       (assert-equal "" (trf-test-git worktree "status" "--porcelain" "--untracked-files=all"))
       (trf-test-git root "worktree" "remove" worktree)
       (assert-nil (file-exists-p worktree)))))
