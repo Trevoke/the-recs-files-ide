@@ -28,6 +28,7 @@ kept.
 - On accept, the IDE closes each file of the work in progress that is open with
   no unsaved edits, and moves everything else the record keeper has open in the
   work in progress to the target product's root, as it is.
+- On reject, the IDE closes the record implementation report.
 
 ** Next
 
