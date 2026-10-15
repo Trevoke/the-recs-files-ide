@@ -24,6 +24,8 @@ implementation report.
 - Before continuing the machine, the IDE offers to save each file of the work
   in progress with unsaved edits; the machine works from what the record keeper
   saves, and unsaved edits are left as they are.
+- Restarting the machine at work asks the record keeper whether to stop it; on
+  yes, the IDE stops it and continues it; on no, the machine carries on at work.
 
 ** Next
 
