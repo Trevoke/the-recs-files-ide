@@ -64,34 +64,35 @@ gives nil."
 ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
 ;; docs/knowledge-base/agent-shell-elicitation.org §The initialize request reads the switch while agent-shell-start runs
 ;; docs/knowledge-base/agent-shell-elicitation.org §An elicitation request reads the switch in the session buffer
-(defun trf-session--start (config)
-  "Start a new session of the AI program CONFIG, advertising and answering form elicitation.
+;; docs/knowledge-base/agent-shell-session-resume.org §The elicitation switch survives a resume
+;; docs/knowledge-base/agent-shell-session-resume.org §Minimal verbosity sends session/resume
+(defun trf-session--start (config &optional session-id)
+  "Start a session of the AI program CONFIG, advertising and answering form elicitation.
+With SESSION-ID, resume that session instead of starting a new one.
 Return its buffer."
   (let ((buffer (let ((agent-shell-session-strategy 'new)
                       (agent-shell-elicitation--experimental-feature-enabled t))
-                  (agent-shell-start :config config))))
+                  (if session-id
+                      (agent-shell-start :config config :session-id session-id)
+                    (agent-shell-start :config config)))))
     (with-current-buffer buffer
       (setq-local agent-shell-elicitation--experimental-feature-enabled t))
     buffer))
 
-;; ADR-2 §Decision: Talk to machines over ACP
 ;; ADR-3 §Decision: Machines end their work with one JSON line
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
 ;; docs/knowledge-base/agent-shell-agent-messages.org §agent-shell streams each chunk of an agent message as an event
 ;; docs/knowledge-base/agent-shell-agent-messages.org §A turn's end carries no message text
-(defun trf-session-run (directory config instructions on-finished on-stopped)
-  "Run a machine in DIRECTORY with the AI program CONFIG and INSTRUCTIONS.
-Return its session buffer.
-Call ON-FINISHED with the paths the machine produced, at the end of the first
-turn ending with the JSON line saying it has finished.
-Call ON-STOPPED with the session buffer displayed, before then, in three cases.
+(defun trf-session--listen (buffer on-finished on-stopped)
+  "Listen to the machine in BUFFER until it finishes or stops.
+Call ON-FINISHED with the paths it produced at the end of the first turn
+ending with the JSON line saying it has finished.
+Call ON-STOPPED with BUFFER displayed, before then, in three cases.
 When a turn ends with the JSON line saying the machine stopped before finishing,
 pass the reason it gives.  When the session fails, pass nil.  When a turn ends
 for a reason other than \"end_turn\", pass nil.
-If the session's buffer is killed first, call neither."
-  (let* ((default-directory directory)
-         (buffer (trf-session--start config))
-         (text "")
+If BUFFER is killed first, call neither."
+  (let* ((text "")
          (over nil)
          (finish (lambda (produced)
                    (run-at-time 0 nil on-finished produced)))
@@ -104,11 +105,6 @@ If the session's buffer is killed first, call neither."
                 (pcase ending
                   (`(finished ,produced) (funcall finish produced))
                   (`(stopped ,reason) (funcall stop reason))))))
-    (agent-shell-subscribe-to
-     :shell-buffer buffer :event 'init-finished
-     :on-event (lambda (_event)
-                 (agent-shell-insert :text instructions :submit t :no-focus t
-                                     :shell-buffer buffer)))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'agent-message-chunk
      :on-event (lambda (event)
@@ -137,8 +133,81 @@ If the session's buffer is killed first, call neither."
                      (funcall stop)))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'clean-up
-     :on-event (lambda (_event) (setq over t)))
+     :on-event (lambda (_event) (setq over t)))))
+
+;; ADR-2 §Decision: Talk to machines over ACP
+(defun trf-session-run (directory config instructions on-finished on-stopped)
+  "Run a machine in DIRECTORY with the AI program CONFIG and INSTRUCTIONS.
+Return its session buffer.  Call ON-FINISHED and ON-STOPPED as
+`trf-session--listen' does."
+  (let* ((default-directory directory)
+         (buffer (trf-session--start config)))
+    (agent-shell-subscribe-to
+     :shell-buffer buffer :event 'init-finished
+     :on-event (lambda (_event)
+                 (agent-shell-insert :text instructions :submit t :no-focus t
+                                     :shell-buffer buffer)))
+    (trf-session--listen buffer on-finished on-stopped)
     buffer))
+
+;; docs/knowledge-base/agent-shell-session-resume.org §The process status tells an ended session
+(defun trf-session--going-p (buffer)
+  "Return non-nil while the AI program of the session in BUFFER is running."
+  (and (buffer-live-p buffer)
+       (process-live-p (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer) :client)
+                                :process))))
+
+(defun trf-session--give (buffer message on-finished on-stopped)
+  "Give MESSAGE to the machine in BUFFER as its next message, listening afresh."
+  (trf-session--listen buffer on-finished on-stopped)
+  (agent-shell-insert :text message :submit t :no-focus t :shell-buffer buffer))
+
+;; ADR-5 §Decision: Continue a machine in its own ACP session
+;; ADR-5 §Consequences: Continue a machine in its own ACP session
+;; docs/knowledge-base/agent-shell-session-resume.org §A live buffer takes a next message
+;; docs/knowledge-base/agent-shell-session-resume.org §A dead buffer cannot be prompted
+;; docs/knowledge-base/agent-shell-session-resume.org §A resume that fails starts a new session
+(defun trf-session-continue (buffer config message on-finished on-stopped on-cannot-continue)
+  "Continue the machine whose session is in BUFFER, giving it MESSAGE as its next message.
+CONFIG is its AI program.  Return the buffer the machine now works in.
+While the session is going, give MESSAGE there.  Once it has ended, resume it
+in a new buffer, end BUFFER, and give MESSAGE there.
+Call ON-FINISHED and ON-STOPPED as `trf-session--listen' does.
+Call ON-CANNOT-CONTINUE with the AI program's reason, or nil, when the session
+cannot be resumed."
+  (let ((cannot (lambda (reason)
+                  (run-at-time 0 nil on-cannot-continue reason))))
+    (cond
+     ((trf-session--going-p buffer)
+      (trf-session--give buffer message on-finished on-stopped)
+      buffer)
+     ((not (and (buffer-live-p buffer) (agent-shell-session-id :shell-buffer buffer)))
+      (funcall cannot nil)
+      nil)
+     (t
+      (let* ((asked (agent-shell-session-id :shell-buffer buffer))
+             (default-directory (buffer-local-value 'default-directory buffer))
+             (resumed (trf-session--start config asked))
+             (settled nil))
+        (agent-shell-subscribe-to
+         :shell-buffer resumed :event 'init-finished
+         :on-event (lambda (_event)
+                     (unless settled
+                       (setq settled t)
+                       (if (equal (agent-shell-session-id :shell-buffer resumed) asked)
+                           (progn
+                             (kill-buffer buffer)
+                             (trf-session--give resumed message on-finished on-stopped))
+                         (kill-buffer resumed)
+                         (funcall cannot nil)))))
+        (agent-shell-subscribe-to
+         :shell-buffer resumed :event 'error
+         :on-event (lambda (event)
+                     (unless settled
+                       (setq settled t)
+                       (kill-buffer resumed)
+                       (funcall cannot (map-elt (map-elt event :data) :message)))))
+        resumed)))))
 
 (provide 'trf-session)
 ;;; trf-session.el ends here

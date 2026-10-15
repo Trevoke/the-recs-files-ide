@@ -384,5 +384,164 @@
      ;; UW-1 §Extensions: Turn record changes into code
      (assert-equal '(nil) reasons))))
 
+(defconst trf-session-test-resumed-buffer-name "*trf fake resumed machine*")
+
+(defvar-local trf-session-test-session-id nil
+  "The session id the fake agent-shell gives a buffer.")
+
+(defun trf-session-test-session-buffer (process-command id)
+  "Return a fake session buffer for session ID whose agent process runs PROCESS-COMMAND."
+  (let ((buffer (get-buffer-create trf-session-test-buffer-name)))
+    (with-current-buffer buffer
+      (setq trf-session-test-session-id id)
+      (setq-local agent-shell--state
+                  (list (cons :client
+                              (list (cons :process
+                                          (make-process :name "trf-test-agent" :buffer nil
+                                                        :command process-command
+                                                        :noquery t)))))))
+    buffer))
+
+(defmacro trf-session-test-continuing (resumed-id &rest body)
+  "Run BODY with agent-shell replaced for continuing; a resume gives RESUMED-ID.
+In BODY, STARTS holds the arguments of each start and INSERTS those of each message given."
+  (declare (indent 1) (debug t))
+  `(let (starts inserts)
+     (trf-session-test-with-fake-shell
+      (cl-letf (((symbol-function 'agent-shell-start)
+                 (lambda (&rest args)
+                   (push args starts)
+                   (with-current-buffer (get-buffer-create trf-session-test-resumed-buffer-name)
+                     (setq trf-session-test-session-id ,resumed-id)
+                     (current-buffer))))
+                ((symbol-function 'agent-shell-session-id)
+                 (lambda (&rest args)
+                   (buffer-local-value 'trf-session-test-session-id (plist-get args :shell-buffer))))
+                ((symbol-function 'agent-shell-insert)
+                 (lambda (&rest args) (push args inserts))))
+        (unwind-protect
+            (progn ,@body)
+          (dolist (name (list trf-session-test-resumed-buffer-name trf-session-test-buffer-name))
+            (when-let* ((buffer (get-buffer name)))
+              (when-let* ((process (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer)
+                                                     :client)
+                                            :process)))
+                (delete-process process))
+              (kill-buffer buffer))))))))
+
+(defun trf-session-test-ended-buffer (id)
+  "Return a fake session buffer for session ID whose agent process has ended."
+  (let ((buffer (trf-session-test-session-buffer '("true") id)))
+    (while (process-live-p (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer) :client)
+                                    :process))
+      (accept-process-output nil 0.01))
+    buffer))
+
+(defun trf-session-test-continue (buffer &optional finished stopped cannot)
+  "Continue the machine in BUFFER, telling it \"Use the blue widget.\"."
+  (trf-session-continue buffer trf-session-test-config "Use the blue widget."
+                        (or finished #'ignore) (or stopped #'ignore) (or cannot #'ignore)))
+
+(deftest trf-session-continue-gives-a-going-session-the-next-message ()
+  "Continuing a machine whose session is going gives it the message there, and its next JSON line finishes it."
+  (trf-session-test-continuing "unused"
+    (let ((buffer (trf-session-test-session-buffer '("sleep" "60") "session-1"))
+          (finished (list 'finished)))
+      ;; ADR-5 §Decision: Continue a machine in its own ACP session
+      ;; docs/knowledge-base/agent-shell-session-resume.org §The process status tells an ended session
+      ;; docs/knowledge-base/agent-shell-session-resume.org §A live buffer takes a next message
+      (assert-equal buffer (trf-session-test-continue buffer (trf-session-test-finishing finished)))
+      ;; ADR-5 §Decision: Continue a machine in its own ACP session
+      (assert-nil starts)
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-equal (list "Use the blue widget." buffer)
+                    (list (plist-get (car inserts) :text) (plist-get (car inserts) :shell-buffer)))
+      (trf-session-test-say "{\"finished\": true, \"produced\": [\"docs/plans/a.md\"]}")
+      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
+      (trf-session-test-settle)
+      ;; ADR-3 §Decision: Machines end their work with one JSON line
+      ;; F-3 §Produces: Continue a stopped machine on its work in progress
+      (assert-equal '(("docs/plans/a.md")) (cdr finished)))))
+
+(deftest trf-session-continue-stops-a-going-session-again ()
+  "A machine continued in its going session that stops again is stopped with its reason."
+  (trf-session-test-continuing "unused"
+    (let ((buffer (trf-session-test-session-buffer '("sleep" "60") "session-1"))
+          reasons)
+      (trf-session-test-continue buffer nil (lambda (reason) (push reason reasons)))
+      (trf-session-test-say "{\"finished\": false, \"reason\": \"Still unsure.\"}")
+      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
+      (trf-session-test-settle)
+      ;; ADR-3 §Decision: Machines end their work with one JSON line
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal '("Still unsure.") reasons))))
+
+(deftest trf-session-continue-resumes-an-ended-session ()
+  "Continuing a machine whose session has ended resumes that session, ends the old buffer, and gives it the message."
+  (trf-session-test-continuing "session-1"
+    (let* ((buffer (trf-session-test-ended-buffer "session-1"))
+           (finished (list 'finished))
+           (resumed (trf-session-test-continue buffer (trf-session-test-finishing finished))))
+      ;; ADR-5 §Decision: Continue a machine in its own ACP session
+      ;; docs/knowledge-base/agent-shell-session-resume.org §Minimal verbosity sends session/resume
+      (assert-equal "session-1" (plist-get (car starts) :session-id))
+      (assert-nil inserts)
+      (trf-session-test-fire 'init-finished)
+      ;; ADR-5 §Decision: Continue a machine in its own ACP session
+      ;; docs/knowledge-base/agent-shell-session-resume.org §A dead buffer cannot be prompted
+      (assert-nil (buffer-live-p buffer))
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-equal (list "Use the blue widget." resumed)
+                    (list (plist-get (car inserts) :text) (plist-get (car inserts) :shell-buffer)))
+      (assert-equal (get-buffer trf-session-test-resumed-buffer-name) resumed)
+      (trf-session-test-say "{\"finished\": true}")
+      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
+      (trf-session-test-settle)
+      ;; F-3 §Produces: Continue a stopped machine on its work in progress
+      (assert-equal '(nil) (cdr finished)))))
+
+(deftest trf-session-continue-cannot-when-a-resume-starts-another-session ()
+  "A resume that gives another session, or none, means the machine cannot be continued, and that session is ended."
+  (dolist (resumed-id '("session-2" nil))
+    (setq trf-session-test-handlers nil)
+    (trf-session-test-continuing resumed-id
+      (let ((buffer (trf-session-test-ended-buffer "session-1"))
+            (cannot (list 'cannot)))
+        (trf-session-test-continue buffer nil nil (lambda (reason) (setcdr cannot (list reason))))
+        (trf-session-test-fire 'init-finished)
+        (trf-session-test-settle)
+        ;; ADR-5 §Consequences: Continue a machine in its own ACP session
+        ;; docs/knowledge-base/agent-shell-session-resume.org §A resume that fails starts a new session
+        (assert-equal '(nil) (cdr cannot) (format "a resume giving %S cannot continue" resumed-id))
+        ;; ADR-5 §Consequences: Continue a machine in its own ACP session
+        (assert-nil (get-buffer trf-session-test-resumed-buffer-name))
+        (assert-nil inserts)))))
+
+(deftest trf-session-continue-cannot-when-the-resume-fails ()
+  "An error before the resumed session is ready means the machine cannot be continued, with the AI program's reason."
+  (trf-session-test-continuing "session-1"
+    (let ((buffer (trf-session-test-ended-buffer "session-1"))
+          (cannot (list 'cannot)))
+      (trf-session-test-continue buffer nil nil (lambda (reason) (setcdr cannot (list reason))))
+      (trf-session-test-fire 'error (list (cons :code -32002)
+                                          (cons :message "Resource not found: session-1")))
+      (trf-session-test-settle)
+      ;; ADR-5 §Consequences: Continue a machine in its own ACP session
+      (assert-equal '("Resource not found: session-1") (cdr cannot))
+      (assert-nil (get-buffer trf-session-test-resumed-buffer-name))
+      (assert-nil inserts))))
+
+(deftest trf-session-continue-cannot-without-its-session-buffer ()
+  "A machine whose session buffer is gone cannot be continued."
+  (trf-session-test-continuing "session-1"
+    (let ((buffer (trf-session-test-ended-buffer "session-1"))
+          (cannot (list 'cannot)))
+      (kill-buffer buffer)
+      (trf-session-test-continue buffer nil nil (lambda (reason) (setcdr cannot (list reason))))
+      (trf-session-test-settle)
+      ;; ADR-5 §Consequences: Continue a machine in its own ACP session
+      (assert-equal '(nil) (cdr cannot))
+      (assert-nil starts))))
+
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here
