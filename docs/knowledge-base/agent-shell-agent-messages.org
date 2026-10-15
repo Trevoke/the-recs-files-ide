@@ -4,7 +4,7 @@
 Not a project document. This records how the text of an agent's messages
 reaches a subscriber of an agent-shell session, as read in the source of
 agent-shell 0.86.2 and acp 0.15.1, the versions under =ide/elpa/= and pinned
-for the tests in =Elkfile=.
+for the tests in =Elkfile=, and as a run against a stand-in ACP agent shows.
 
 *What it establishes.* agent-shell turns each ACP =agent_message_chunk=
 notification into an =agent-message-chunk= event carrying only the chunk's
@@ -77,3 +77,19 @@ turn's =session/prompt= request returns:
 
 The documentation of =agent-shell-subscribe-to= says =turn-complete='s :data
 "contains :stop-reason and :usage".
+
+* A run shows a turn's text arriving only as chunks
+
+The first run in =agent-shell-session-resume.org=, part A, subscribes to a new
+session's events and gives it one message. The stand-in agent, =fake_agent.py=
+there, answers with one =agent_message_chunk= and then ends the turn, and the
+subscriber is given:
+
+#+begin_example
+  [A] event agent-message-chunk ((:text-chunk . "reply 1 from pid 1259439"))
+  [A] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
+#+end_example
+
+The text of the message comes only in the =agent-message-chunk= event's
+=:text-chunk=, and the =turn-complete= event that follows carries the stop
+reason and usage and no text. The stand-in is not a real AI program.
