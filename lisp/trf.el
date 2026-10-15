@@ -33,9 +33,13 @@
 (defconst trf-machine-stopped-message
   "A machine stopped before finishing:")
 
-;; MSG-11: No stopped machine to start again
+;; MSG-11: No stopped machine to continue
 (defconst trf-no-stopped-machine-message
-  "There is no stopped machine here to start again.")
+  "There is no stopped machine here to continue.")
+
+;; MSG-12: Machine cannot be continued
+(defconst trf-machine-cannot-be-continued-message
+  "A machine cannot be continued:")
 
 ;; MSG-7: Git could not do what the IDE asked
 (defconst trf-git-failed-message
@@ -94,9 +98,9 @@
 (defvar trf--session-buffers (make-hash-table :test #'equal)
   "The machines' session buffers, keyed by the worktree they work in.")
 
-;; F-3 §Rules: Start a stopped machine again on its work in progress
+;; F-3 §Rules: Continue a stopped machine on its work in progress
 (defvar trf--stopped-machines (make-hash-table :test #'equal)
-  "How to start again the machine that stopped, keyed by the worktree it works in.")
+  "How to continue the machine that stopped, keyed by the worktree it works in.")
 
 (defun trf--worktree-key (directory)
   "Return the key DIRECTORY's worktree has in `trf--session-buffers' and `trf--stopped-machines'."
@@ -108,29 +112,62 @@
   "Run MACHINES in turn in DIRECTORY with the AI program CONFIG on CHANGES.
 Give the first the paths PRODUCED before it and IDE-INSTRUCTION; call ON-DONE once the last
 has finished."
-  ;; F-3 §Rules: Start a stopped machine again on its work in progress
+  ;; F-3 §Rules: Continue a stopped machine on its work in progress
   (remhash (trf--worktree-key directory) trf--stopped-machines)
   (if (null machines)
       (funcall on-done)
-    (let ((machine (car machines)))
-      (push (trf-session-run
-             directory config
-             (trf-machines-instructions machine changes produced ide-instruction)
-             (lambda (produced)
-               (trf--run-machines (cdr machines) directory config changes produced on-done))
-             (lambda (&optional reason)
-               ;; MSG-10: Machine stopped before finishing
-               ;; UW-1 §Extensions: Turn record changes into code
-               ;; ADR-3 §Consequences: Machines end their work with one JSON line
-               (message "%s\n%s\n%s" trf-machine-stopped-message (plist-get machine :name)
-                        (trf-record-changes-reason (or reason "")))
-               ;; F-3 §Rules: Start a stopped machine again on its work in progress
-               (puthash (trf--worktree-key directory)
-                        (lambda ()
-                          (trf--run-machines machines directory config changes produced on-done
-                                             ide-instruction))
-                        trf--stopped-machines)))
-            (gethash (trf--worktree-key directory) trf--session-buffers)))))
+    (let ((machine (car machines))
+          buffer)
+      (setq buffer (trf-session-run
+                    directory config
+                    (trf-machines-instructions machine changes produced ide-instruction)
+                    (trf--carrying-on machines directory config changes on-done)
+                    (trf--on-stopped machines directory config changes on-done
+                                     (lambda () buffer))))
+      (push buffer (gethash (trf--worktree-key directory) trf--session-buffers)))))
+
+(defun trf--carrying-on (machines directory config changes on-done)
+  "Return what runs the machines after the first of MACHINES once it finishes."
+  (lambda (produced)
+    (trf--run-machines (cdr machines) directory config changes produced on-done)))
+
+;; ADR-3 §Consequences: Machines end their work with one JSON line
+(defun trf--on-stopped (machines directory config changes on-done session-buffer)
+  "Return what the IDE does when the first of MACHINES stops before finishing.
+SESSION-BUFFER returns the buffer of the session it stopped in."
+  (let ((machine (car machines)))
+    (lambda (&optional reason)
+      ;; MSG-10: Machine stopped before finishing
+      ;; UW-1 §Extensions: Turn record changes into code
+      (message "%s\n%s\n%s" trf-machine-stopped-message (plist-get machine :name)
+               (trf-record-changes-reason (or reason "")))
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (puthash (trf--worktree-key directory)
+               (lambda (message)
+                 (trf--continue machines directory config changes on-done
+                                (funcall session-buffer) message))
+               trf--stopped-machines))))
+
+;; F-3 §Rules: Continue a stopped machine on its work in progress
+;; F-3 §Produces: Continue a stopped machine on its work in progress
+;; ADR-5 §Decision: Continue a machine in its own ACP session
+(defun trf--continue (machines directory config changes on-done session-buffer message)
+  "Continue the first of MACHINES in SESSION-BUFFER, telling it MESSAGE, then run the rest."
+  (let ((machine (car machines))
+        buffer)
+    (setq buffer (trf-session-continue
+                  session-buffer config message
+                  (trf--carrying-on machines directory config changes on-done)
+                  (trf--on-stopped machines directory config changes on-done
+                                   (lambda () buffer))
+                  (lambda (reason)
+                    ;; MSG-12: Machine cannot be continued
+                    ;; UW-1 §Extensions: Turn record changes into code
+                    (message "%s\n%s\n%s" trf-machine-cannot-be-continued-message
+                             (plist-get machine :name)
+                             (trf-record-changes-reason (or reason ""))))))
+    (when buffer
+      (push buffer (gethash (trf--worktree-key directory) trf--session-buffers)))))
 
 (defun trf--assess (directory config changes)
   "Run the reconciliation assessor in DIRECTORY with CONFIG on CHANGES, then open its report."
@@ -243,7 +280,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
   "Remove the work in progress DIRECTORY and kill or move the buffers in it."
   (let ((root (trf-worktree-root directory)))
     (trf-worktree-remove directory)
-    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
     (remhash (trf--worktree-key directory) trf--stopped-machines)
     (trf--kill-the-works-buffers directory root)))
 
@@ -280,19 +317,21 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
                          (trf-record-changes-reason (cadr err)))))
           (trf--remove-work-in-progress directory))))))
 
-;; F-3 §Rules: Start a stopped machine again on its work in progress
-;; F-3 §Produces: Start a stopped machine again on its work in progress
-(defun trf-start-stopped-machine-again ()
-  "Start the machine that stopped before finishing again on the work in progress here."
+;; F-3 §Rules: Continue a stopped machine on its work in progress
+;; F-3 §Produces: Continue a stopped machine on its work in progress
+(defun trf-continue-stopped-machine ()
+  "Continue the machine that stopped before finishing on the work in progress here."
   (interactive)
   (let* ((directory (trf-worktree-of (or buffer-file-name default-directory)))
-         (start (and directory
-                     (gethash (trf--worktree-key directory) trf--stopped-machines))))
-    (unless start
-      ;; MSG-11: No stopped machine to start again
+         (continue (and directory
+                        (gethash (trf--worktree-key directory) trf--stopped-machines))))
+    (unless continue
+      ;; MSG-11: No stopped machine to continue
       (user-error "%s" trf-no-stopped-machine-message))
     (trf--offer-to-save directory)
-    (funcall start)))
+    (let ((message (read-string "Tell the machine: ")))
+      (remhash (trf--worktree-key directory) trf--stopped-machines)
+      (funcall continue message))))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-reject-record-implementation-report ()

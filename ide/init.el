@@ -42,6 +42,6 @@
 (global-set-key (kbd "C-c r i") #'trf-implement-record-changes)
 (global-set-key (kbd "C-c r a") #'trf-accept-record-implementation-report)
 (global-set-key (kbd "C-c r r") #'trf-reject-record-implementation-report)
-(global-set-key (kbd "C-c r s") #'trf-start-stopped-machine-again)
+(global-set-key (kbd "C-c r c") #'trf-continue-stopped-machine)
 
 ;;; init.el ends here
