@@ -477,7 +477,7 @@ Show a refusal as a message, and keep the machine stopped if the record keeper q
 
 (advice-add 'agent-shell-restart :around #'trf--interrupting-instead)
 
-;; F-2 §Takes: Accept or reject the record implementation report
+;; UW-1 §Extensions 6a: Turn record changes into code
 (defun trf-reject-record-implementation-report ()
   "Reject the record implementation report of the work in progress here, keeping the work."
   (interactive)

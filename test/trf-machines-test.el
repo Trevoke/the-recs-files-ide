@@ -17,7 +17,7 @@
 
 (deftest trf-machines-record-implementation-report-file ()
   "The record implementation report sits at a fixed path under .trf/."
-  ;; F-2 §Takes: Accept or reject the record implementation report
+  ;; ADR-7 §Decision: Run the implementation workflow in a git worktree of the target product
   (assert-equal ".trf/record-implementation-report.org"
                 (trf-machines-record-implementation-report-file)))
 
@@ -119,7 +119,8 @@
   (let ((text (trf-machines-instructions (nth 2 (trf-machines-implementation-workflow))
                                          trf-machines-test-changes '("docs/plans/x-plan.md"))))
     ;; UW-1 §Main success scenario: Turn record changes into code
-    ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; UW-1 §Minimal guarantee: Turn record changes into code
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (assert-match "Do not use any skill that finishes a development branch, and do not merge, push, or remove the branch or the working tree: the record keeper accepts or rejects the record implementation report afterwards\\." text)
     (assert-nil (string-match-p "recs-finishing-a-development-branch" text))
     ;; ADR-3 §Decision: Machines end their work with one JSON line

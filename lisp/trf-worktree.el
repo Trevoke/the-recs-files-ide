@@ -158,6 +158,7 @@
              (format "Save the record keeper's edits to %s" (trf-worktree-branch directory)))))
 
 ;; F-2 §Produces: Accept or reject the record implementation report
+;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
 ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove removes a worktree holding only excluded or ignored files
 ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding untracked or modified files
 ;; docs/knowledge-base/git-worktree-removal.org §git branch -d refuses a branch checked out in a worktree

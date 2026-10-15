@@ -86,6 +86,7 @@
   (trf-test-write-files trf-record-changes-test-root
                         '(("docs/features/notes.org" . "#+TITLE: Notes\n\n* notes-2026 about\n")))
   ;; F-1 §Takes: Ask the IDE to implement the record changes
+  ;; F-1 §Rules: Ask the IDE to implement the record changes
   (assert-equal '((:path "docs/features/notes.org" :status added
                    :identifier nil :title "Notes"))
                 (let ((case-fold-search t))
@@ -97,6 +98,7 @@
   (trf-test-write-files trf-record-changes-test-root
                         '(("docs/vision.org" . "#+title: Vision\n\nWhat it is for.\n")))
   ;; F-1 §Takes: Ask the IDE to implement the record changes
+  ;; F-1 §Rules: Ask the IDE to implement the record changes
   (assert-equal '((:path "docs/vision.org" :status modified
                    :identifier nil :title "Vision"))
                 (let ((case-fold-search nil))

@@ -951,6 +951,7 @@ Every other call to `trf-git' runs git."
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
 (deftest trf-accept-of-work-already-brought-in-removes-the-work-in-progress ()
@@ -966,6 +967,7 @@ Every other call to `trf-git' runs git."
     (assert-equal base (string-trim (trf-test-git trf-test-root "rev-parse"
                                                   "refs/recs/implemented")))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
 (deftest trf-accept-git-fails-removing-the-work-in-progress ()
@@ -991,6 +993,7 @@ Every other call to `trf-git' runs git."
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
 (deftest trf-reject-keeps-the-worktree-and-its-branch ()
@@ -1000,8 +1003,10 @@ Every other call to `trf-git' runs git."
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-reject-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (assert-true (file-exists-p (trf-test-report-file directory)))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (assert-match (regexp-quote branch) (trf-test-git trf-test-root "branch" "--list" branch))))
 
 (deftest trf-accept-git-fails-deleting-the-branch ()
@@ -1020,6 +1025,7 @@ Every other call to `trf-git' runs git."
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
 (deftest trf-accept-git-fails-removing-work-that-holds-no-commit ()
@@ -1035,6 +1041,7 @@ Every other call to `trf-git' runs git."
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
 (deftest trf-accept-moves-the-record-keepers-buffers-to-the-root ()
@@ -1060,6 +1067,7 @@ Every other call to `trf-git' runs git."
           (assert-equal (file-name-as-directory trf-test-root)
                         (buffer-local-value 'default-directory shell))
           ;; F-2 §Produces: Accept or reject the record implementation report
+          ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
           (trf-test-assert-work-in-progress-removed directory branch))
       (when (process-live-p process)
         (delete-process process))
@@ -1276,6 +1284,7 @@ Every other call to `trf-git' runs git."
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-equal "(provide 'widget) ; saved later\n" (trf-test-widget))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
 (deftest trf-implement-saves-nothing-outside-the-target-product ()
@@ -1441,6 +1450,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
                       "reconciliation assessor")
                     (mapcar #'car runs))
       ;; F-3 §Produces: Continue a stopped machine on its work in progress
+      ;; ADR-3 §Consequences: Machines end their work with one JSON line
       (assert-match "^- docs/plans/planning\\.md$" (nth 3 (nth 2 runs)))
       ;; F-3 §Produces: Continue a stopped machine on its work in progress
       (assert-true (trf-test-report-shown-p)))))

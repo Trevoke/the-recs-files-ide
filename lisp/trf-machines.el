@@ -36,7 +36,8 @@
   "What each machine of the implementation workflow is told about finishing.")
 
 ;; UW-1 §Main success scenario: Turn record changes into code
-;; F-2 §Produces: Accept or reject the record implementation report
+;; UW-1 §Minimal guarantee: Turn record changes into code
+;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
 (defconst trf-machines--executing-stops-before-bringing-the-work-in
   (concat "Do not use any skill that finishes a development branch, and do not merge, push, "
           "or remove the branch or the working tree: the record keeper accepts or rejects the "
@@ -70,7 +71,7 @@
         (trf-machines--make 'planning "planning machine")
         (trf-machines--make 'executing "executing machine")))
 
-;; F-2 §Takes: Accept or reject the record implementation report
+;; ADR-7 §Decision: Run the implementation workflow in a git worktree of the target product
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-machines-record-implementation-report-file ()
   "Return the record implementation report's path, relative to the worktree."

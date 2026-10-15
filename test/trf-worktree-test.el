@@ -294,10 +294,13 @@
          (branch (trf-worktree-branch directory)))
     (trf-worktree-remove directory)
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (assert-nil (file-exists-p directory))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (assert-equal "" (trf-test-git root "branch" "--list" branch))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (assert-equal 1 (length (split-string (trf-test-git root "worktree" "list") "\n" t)))
     ;; UW-1 §Success guarantee: Turn record changes into code
     (assert-equal "(provide 'widget) ; built\n"
