@@ -1,0 +1,166 @@
+#+TITLE: agent-shell's Elicitation Switch — Reference
+#+STARTUP: overview
+
+Not a project document. This records how agent-shell 0.86.2 decides whether a
+session advertises and answers ACP elicitation, as read in its source and
+established by a run of it with acp 0.15.1, the versions pinned for the tests in
+=Elkfile=, on 2026-10-14.
+
+*What it establishes.* One variable, off by default, switches elicitation on.
+agent-shell reads it twice: once while =agent-shell-start= runs, to decide
+whether the initialize request advertises form elicitation, and again in the
+session buffer each time the AI program sends =elicitation/create=. So a value
+bound around =agent-shell-start= advertises elicitation but answers no request,
+and a value set in the session buffer afterwards answers requests that were
+never advertised; the switch needs both, or a global value. With it on, the
+initialize request advertises form elicitation and never url elicitation.
+
+* One variable switches elicitation on, and it is off by default
+
+=agent-shell-elicitation.el=:
+
+#+begin_example
+(defvar agent-shell-elicitation--experimental-feature-enabled nil
+  "When non-nil, render `elicitation/create' requests as in-buffer forms.
+
+Off by default while the feature soaks.  With it off the capability
+goes unadvertised, so a conforming agent never sends the request.")
+#+end_example
+
+* The initialize request reads the switch while agent-shell-start runs
+
+=agent-shell.el=, =agent-shell--initiate-handshake=, builds the initialize
+request with:
+
+#+begin_example
+             :elicitation-form-capability agent-shell-elicitation--experimental-feature-enabled)
+#+end_example
+
+=agent-shell--start= calls =agent-shell--handle= before it returns, and
+=agent-shell--handle= creates the client, subscribes to it and calls
+=agent-shell--initiate-handshake= in one chain of calls. In the run below, the
+switch let-bound around =agent-shell-start= puts =elicitation= in the
+initialize request's =clientCapabilities=; the switch set in the session buffer
+only after =agent-shell-start= has returned does not.
+
+* The switch on advertises form elicitation and never url
+
+=acp.el=, =acp-make-initialize-request=, adds =elicitation= to
+=clientCapabilities= only when a form or url capability is given:
+
+#+begin_example
+                                       ,@(when (or elicitation-form-capability
+                                                   elicitation-url-capability)
+                                           `((elicitation
+                                              . (,@(when elicitation-form-capability
+                                                     '((form . nil)))
+                                                 ,@(when elicitation-url-capability
+                                                     '((url . nil)))))))))))))
+#+end_example
+
+agent-shell passes no url capability. In the run below, encoded the way acp
+writes it to the AI program (=acp--serialize-json=), the capabilities read
+="elicitation":{"form":{}}=, with no =url=.
+
+* An elicitation request reads the switch in the session buffer
+
+=agent-shell.el=, =agent-shell--on-request=, hands the request on only while
+the switch is on:
+
+#+begin_example
+        ((and (equal (map-elt acp-request 'method) "elicitation/create")
+              agent-shell-elicitation--experimental-feature-enabled)
+         (agent-shell-elicitation--on-create-request
+#+end_example
+
+=agent-shell--subscribe-to-client-events= subscribes it through
+=acp-subscribe-to-requests= with no =:buffer=, and =acp.el=,
+=acp-subscribe-to-requests=, runs each handler with the client's
+=:context-buffer=, the session buffer, current. In the run below, an
+=elicitation/create= request is handled when the switch is set in the session
+buffer, or globally, and not when it was only let-bound around
+=agent-shell-start=.
+
+* The run
+
+Run with =emacs -Q --batch -l el-run.el <directory of the agent-shell, acp and
+shell-maker builds> <empty directory>=; it starts each session with a client
+running =true=, records the initialize request instead of sending it, and calls
+the session's request handlers with an =elicitation/create= request.
+
+#+begin_src emacs-lisp
+;;; el-run.el --- How agent-shell 0.86.2 gates elicitation -*- lexical-binding: t; -*-
+(dolist (dir (directory-files (car command-line-args-left) t "\\`[^.]"))
+  (add-to-list 'load-path dir))
+(require 'agent-shell)
+(require 'cl-lib)
+(setq default-directory (file-name-as-directory (cadr command-line-args-left)))
+
+(defun el-run-start (label setup)
+  "Start a session under SETUP, then report what initialize advertised and who handles elicitation."
+  (let (initialize handled)
+    (cl-letf (((symbol-function 'acp-send-request)
+               (lambda (&rest args)
+                 (let ((request (plist-get args :request)))
+                   (when (equal (map-elt request :method) "initialize")
+                     (setq initialize (string-trim (acp--serialize-json (map-nested-elt request '(:params clientCapabilities)))))))))
+              ((symbol-function 'agent-shell-elicitation--on-create-request)
+               (lambda (&rest _) (setq handled t))))
+      (let* ((config (cons (cons :client-maker
+                                 (lambda (buffer)
+                                   (acp-make-client :context-buffer buffer :command "true")))
+                           (agent-shell-anthropic-make-claude-code-config)))
+             (buffer (let ((agent-shell-session-strategy 'new))
+                       (funcall setup (lambda () (agent-shell-start :config config)))))
+             (client (map-elt (buffer-local-value 'agent-shell--state buffer) :client)))
+        (dolist (handler (map-elt client :request-handlers))
+          (ignore-errors
+            (funcall handler '((jsonrpc . "2.0") (id . 1) (method . "elicitation/create")
+                               (params (mode . "form") (message . "?"))))))
+        (princ (format "%s\n  initialize clientCapabilities: %s\n  elicitation/create handled: %S\n"
+                       label initialize handled))
+        (let ((kill-buffer-query-functions nil))
+          (kill-buffer buffer))))))
+
+(el-run-start "Switch left off"
+              (lambda (start) (funcall start)))
+(el-run-start "Switch let-bound around agent-shell-start"
+              (lambda (start)
+                (let ((agent-shell-elicitation--experimental-feature-enabled t))
+                  (funcall start))))
+(el-run-start "Switch set buffer-local after agent-shell-start"
+              (lambda (start)
+                (let ((buffer (funcall start)))
+                  (with-current-buffer buffer
+                    (setq-local agent-shell-elicitation--experimental-feature-enabled t))
+                  buffer)))
+(el-run-start "Switch let-bound around agent-shell-start and set buffer-local after it"
+              (lambda (start)
+                (let ((buffer (let ((agent-shell-elicitation--experimental-feature-enabled t))
+                                (funcall start))))
+                  (with-current-buffer buffer
+                    (setq-local agent-shell-elicitation--experimental-feature-enabled t))
+                  buffer)))
+(el-run-start "Switch set globally"
+              (lambda (start)
+                (setq agent-shell-elicitation--experimental-feature-enabled t)
+                (funcall start)))
+#+end_src
+
+#+begin_example
+Switch left off
+  initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true}}
+  elicitation/create handled: nil
+Switch let-bound around agent-shell-start
+  initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true},"elicitation":{"form":{}}}
+  elicitation/create handled: nil
+Switch set buffer-local after agent-shell-start
+  initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true}}
+  elicitation/create handled: t
+Switch let-bound around agent-shell-start and set buffer-local after it
+  initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true},"elicitation":{"form":{}}}
+  elicitation/create handled: t
+Switch set globally
+  initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true},"elicitation":{"form":{}}}
+  elicitation/create handled: t
+#+end_example

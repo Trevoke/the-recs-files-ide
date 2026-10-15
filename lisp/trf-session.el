@@ -52,6 +52,19 @@ Return nil when it does not."
 (defun trf-session--stopped-p (stop-reason)
   (not (member stop-reason '(nil "end_turn"))))
 
+;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+;; docs/knowledge-base/agent-shell-elicitation.org §The initialize request reads the switch while agent-shell-start runs
+;; docs/knowledge-base/agent-shell-elicitation.org §An elicitation request reads the switch in the session buffer
+(defun trf-session--start (config)
+  "Start a new session of the AI program CONFIG, advertising and answering form elicitation.
+Return its buffer."
+  (let ((buffer (let ((agent-shell-session-strategy 'new)
+                      (agent-shell-elicitation--experimental-feature-enabled t))
+                  (agent-shell-start :config config))))
+    (with-current-buffer buffer
+      (setq-local agent-shell-elicitation--experimental-feature-enabled t))
+    buffer))
+
 ;; ADR-2 §Decision: Talk to machines over ACP
 ;; ADR-3 §Decision: Machines end their work with one JSON line
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
@@ -65,8 +78,7 @@ has finished.  Call ON-STOPPED, with the session buffer displayed, if the
 session fails, or a turn ends for a reason other than \"end_turn\",
 before then.  If the session's buffer is killed first, call neither."
   (let* ((default-directory directory)
-         (buffer (let ((agent-shell-session-strategy 'new))
-                   (agent-shell-start :config config)))
+         (buffer (trf-session--start config))
          (text "")
          (over nil)
          (finish (lambda (produced)

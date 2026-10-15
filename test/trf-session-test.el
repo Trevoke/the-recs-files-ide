@@ -286,5 +286,27 @@
   ;; ADR-3 §Decision: Machines end their work with one JSON line
   (assert-equal '((nil) 0) (trf-session-test-turn-says "Done.\n{\"finished\": true}\n```\n")))
 
+(deftest trf-session-advertises-form-elicitation ()
+  "The IDE starts each session with form elicitation advertised."
+  (let (during-start)
+    (trf-session-test-with-fake-shell
+     (cl-letf (((symbol-function 'agent-shell-start)
+                (lambda (&rest _)
+                  (setq during-start agent-shell-elicitation--experimental-feature-enabled)
+                  (get-buffer-create trf-session-test-buffer-name))))
+       (trf-session-test-run #'ignore #'ignore)))
+    ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+    ;; docs/knowledge-base/agent-shell-elicitation.org §The initialize request reads the switch while agent-shell-start runs
+    (assert-true during-start)))
+
+(deftest trf-session-answers-elicitation-in-its-own-session-only ()
+  "The IDE's session answers elicitation; the switch is left off everywhere else."
+  (trf-session-test-with-fake-shell
+   (let ((buffer (trf-session-test-run #'ignore #'ignore)))
+     ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+     ;; docs/knowledge-base/agent-shell-elicitation.org §An elicitation request reads the switch in the session buffer
+     (assert-true (buffer-local-value 'agent-shell-elicitation--experimental-feature-enabled buffer))
+     (assert-nil (default-value 'agent-shell-elicitation--experimental-feature-enabled)))))
+
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here
