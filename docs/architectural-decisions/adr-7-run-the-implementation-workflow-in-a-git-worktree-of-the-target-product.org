@@ -1,0 +1,29 @@
+* ADR-7 Run the implementation workflow in a git worktree of the target product
+
+** Context
+
+The implementation workflow's machines change files and commit while the record
+keeper keeps working on the records of the target product. What they make
+reaches the codebase only when the record keeper accepts its record
+implementation report, and is kept until then. The IDE also writes files of its
+own about that work, such as the record implementation report.
+
+** Decision
+
+The IDE runs the implementation workflow and the reconciliation assessor in a
+git worktree of the target product, on a branch of its own, under .worktrees/
+at the target product's root. It keeps its own files about that work under
+.trf/ in the worktree. Git ignores both directories through the target
+product's info/exclude.
+
+** Status
+
+Accepted.
+
+** Consequences
+
+- The primary git branch and the record keeper's checkout stay untouched until
+  accepting merges the worktree's branch.
+- Rejecting keeps the worktree and its branch; accepting removes both.
+- Nothing under .worktrees/ or .trf/ is taken for record changes or committed
+  to the target product, and the target product's .gitignore is left alone.
