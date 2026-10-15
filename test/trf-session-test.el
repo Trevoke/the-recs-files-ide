@@ -767,5 +767,18 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
   ;; ADR-3 §Decision: Machines end their work with one JSON line
   (assert-equal '(nil 0) (trf-session-test-turn-says "````\n{\"finished\": true}\n```\n")))
 
+(deftest trf-session-ending-a-machine-told-nothing-stops-nothing-more ()
+  "Once a machine stopped before its instructions went out, ending its session buffer stops nothing more."
+  (trf-session-test-with-fake-shell
+   (let* (stops
+          (buffer (trf-session-test-run #'ignore (lambda (&rest args) (push args stops)))))
+     (trf-session-test-fire 'error (list (cons :message "Agent failed.")))
+     (trf-session-test-settle)
+     (kill-buffer buffer)
+     (trf-session-test-settle)
+     ;; F-3 §Rules: Continue a stopped machine on its work in progress
+     ;; UW-1 §Extensions: Turn record changes into code
+     (assert-equal 1 (length stops)))))
+
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here

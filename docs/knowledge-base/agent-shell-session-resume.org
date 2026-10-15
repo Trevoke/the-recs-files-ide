@@ -415,11 +415,10 @@ above.
     (dr-wait (lambda () (>= (length dr-log) 2)) 3)
     (dr-wait (lambda () nil) 1)
     (princ (format "  in order: %S\n" (reverse dr-log)))
-    (setq dr-log nil)
-    (princ "== C. the session buffer is killed\n")
-    (agent-shell-insert :text "ignored" :submit t :no-focus t :shell-buffer buffer)
+    (kill-buffer buffer)
     (dr-wait (lambda () nil) 1)
     (setq dr-log nil))
+  (princ "== C. the session buffer is killed\n")
   (pcase-let ((`(,buffer ,_process) (dr-session "C")))
     (setq dr-log nil)
     (kill-buffer buffer)
@@ -438,8 +437,8 @@ above.
   [B] event error ((:code . -32603) (:message . "Agent process ended before completing request: exited abnormally with code 3"))
   [B] the added sentinel function ran: "exited abnormally with code 3", status exit
   in order: ("[B] event error ((:code . -32603) (:message . \"Agent process ended before completing request: exited abnormally with code 3\"))" "[B] the added sentinel function ran: \"exited abnormally with code 3\", status exit")
+  [B] event clean-up nil
 == C. the session buffer is killed
-  [B] event error ((:code . -32002) (:message . "Session not found: sess-2"))
   [C] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
   [C] event clean-up nil
   [C] the added sentinel function ran: "killed", status signal

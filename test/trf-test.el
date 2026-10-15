@@ -2075,5 +2075,18 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
           (assert-nil (directory-files scratch nil "\\`[^.]")))
       (delete-directory scratch t))))
 
+(deftest trf-continue-ends-the-session-of-a-machine-told-nothing ()
+  "Starting afresh a machine told nothing first ends the session buffer its failed start made."
+  (let (continued old)
+    (trf-test-with-a-stopped-machine '("planning machine" "Agent failed." nil nil)
+      (setq stopping 'now
+            old (get-buffer trf-test-machine-buffer-name))
+      (trf-test-continuing continued '(finish nil)
+        (trf-test-continue-asking-nothing widget))
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-nil (buffer-live-p old))
+      ;; MSG-10: Machine stopped before finishing
+      (assert-nil messages))))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here

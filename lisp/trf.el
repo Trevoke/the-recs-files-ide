@@ -203,6 +203,12 @@ gave, the session's id, and whether it was told anything."
                            (trf--continue machines directory config changes on-done
                                           (funcall session-buffer) session-id message))
                        (lambda ()
+                         (let ((buffer (funcall session-buffer)))
+                           (when (buffer-live-p buffer)
+                             ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
+                             (with-current-buffer buffer
+                               (let ((kill-buffer-query-functions nil))
+                                 (kill-buffer buffer)))))
                          (trf--run-machines machines directory config changes produced
                                             on-done ide-instruction)))
                      (funcall session-buffer))
