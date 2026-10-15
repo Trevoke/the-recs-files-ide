@@ -187,6 +187,10 @@ by number and title. The other points at a heading of `docs/knowledge-base/`,
 where the code performs a technical operation whose reason the code does not
 show.
 
+An Elisp file's first line, `;;; <file> --- <summary> -*- lexical-binding: t; -*-`,
+and its last line, `;;; <file> ends here`, are Emacs's library header and footer,
+and fall outside this rule.
+
 A comment is the pointer and nothing else. It carries no prose of its own — no
 sentence explaining the mechanism, naming a constraint, giving an order
 dependency, naming an idiom, warning a reader, or rejecting an alternative.
