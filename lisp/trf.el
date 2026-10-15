@@ -197,13 +197,15 @@ gave, the session's id, and whether it was told anything."
                (trf-record-changes-reason (or reason "")))
       ;; F-3 §Rules: Continue a stopped machine on its work in progress
       (puthash (trf--worktree-key directory)
-               (if told
-                   (cons t (lambda (message)
-                             (trf--continue machines directory config changes on-done
-                                            (funcall session-buffer) session-id message)))
-                 (cons nil (lambda ()
-                             (trf--run-machines machines directory config changes produced
-                                                on-done ide-instruction))))
+               (list told
+                     (if told
+                         (lambda (message)
+                           (trf--continue machines directory config changes on-done
+                                          (funcall session-buffer) session-id message))
+                       (lambda ()
+                         (trf--run-machines machines directory config changes produced
+                                            on-done ide-instruction)))
+                     (funcall session-buffer))
                trf--stopped-machines))))
 
 ;; F-3 §Rules: Continue a stopped machine on its work in progress
@@ -408,20 +410,22 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
     (if (not (car continue))
         (progn
           (remhash (trf--worktree-key directory) trf--stopped-machines)
-          (funcall (cdr continue)))
+          (funcall (cadr continue)))
       (let ((message ""))
         (while (string-blank-p message)
           (setq message (read-string "Tell the machine: ")))
         (remhash (trf--worktree-key directory) trf--stopped-machines)
-        (funcall (cdr continue) message)))))
+        (funcall (cadr continue) message)))))
 
 (defun trf--machines-work-in-progress (buffer)
-  "Return the work in progress whose machine works or stopped in session BUFFER, or nil."
+  "Return the work in progress whose current machine works in, or stopped in, session BUFFER.
+Return nil when there is none."
   (catch 'found
     (maphash (lambda (directory buffers)
-               (when (and (memq buffer buffers)
-                          (or (gethash directory trf--machines-at-work)
-                              (gethash directory trf--stopped-machines)))
+               (when (or (and (gethash directory trf--machines-at-work)
+                              (eq buffer (car buffers)))
+                         (when-let* ((stop (gethash directory trf--stopped-machines)))
+                           (eq buffer (nth 2 stop))))
                  (throw 'found directory)))
              trf--session-buffers)
     nil))
@@ -443,10 +447,18 @@ Anywhere else, run RESTART."
         (let ((kill-buffer-query-functions nil))
           (kill-buffer buffer)))
       ;; F-3 §Rules: Continue a stopped machine on its work in progress
-      (run-at-time 0 nil (lambda ()
-                           (with-temp-buffer
-                             (setq default-directory directory)
-                             (call-interactively #'trf-continue-stopped-machine)))))))
+      (run-at-time 0 nil #'trf--continue-from-a-restart directory))))
+
+;; F-3 §Rules: Continue a stopped machine on its work in progress
+(defun trf--continue-from-a-restart (directory)
+  "Continue the machine that stopped on the work in progress DIRECTORY.
+Show a refusal as a message, and keep the machine stopped if the record keeper quits."
+  (condition-case err
+      (with-temp-buffer
+        (setq default-directory directory)
+        (call-interactively #'trf-continue-stopped-machine))
+    (quit nil)
+    (error (message "%s" (error-message-string err)) nil)))
 
 (advice-add 'agent-shell-restart :around #'trf--interrupting-instead)
 

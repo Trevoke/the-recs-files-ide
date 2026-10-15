@@ -650,15 +650,30 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
       (assert-nil (buffer-live-p buffer)))))
 
 (deftest trf-session-continue-keeps-elicitation-in-a-going-session ()
-  "A machine continued in its going session still answers elicitation there."
-  (trf-session-test-continuing "unused"
-    (let ((buffer (trf-session-test-session-buffer '("sleep" "60") "session-1")))
-      (with-current-buffer buffer
-        (setq-local agent-shell-elicitation--experimental-feature-enabled t))
-      (trf-session-test-continue buffer)
-      ;; F-3 §Produces: Continue a stopped machine on its work in progress
-      ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
-      (assert-true (buffer-local-value 'agent-shell-elicitation--experimental-feature-enabled buffer)))))
+  "A machine started by the IDE, stopped, and continued in its going session still answers elicitation there."
+  (let (inserts)
+    (trf-session-test-with-fake-shell
+     (cl-letf (((symbol-function 'agent-shell-insert) (lambda (&rest args) (push args inserts))))
+       (let* ((buffer (trf-session-test-run #'ignore #'ignore))
+              (process (trf-session-test-agent '("sleep" "60"))))
+         (unwind-protect
+             (progn
+               (trf-session-test-set-agent buffer process)
+               (trf-session-test-say "{\"finished\": false, \"reason\": \"Stuck.\"}")
+               (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
+               (trf-session-continue buffer "session-1" trf-session-test-config "Go on."
+                                     #'ignore #'ignore #'ignore)
+               ;; F-3 §Rules: Continue a stopped machine on its work in progress
+               (assert-equal (list "Go on." buffer)
+                             (list (plist-get (car inserts) :text)
+                                   (plist-get (car inserts) :shell-buffer)))
+               ;; F-3 §Produces: Continue a stopped machine on its work in progress
+               ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+               (assert-true (local-variable-p 'agent-shell-elicitation--experimental-feature-enabled
+                                              buffer))
+               (assert-true (buffer-local-value 'agent-shell-elicitation--experimental-feature-enabled
+                                                buffer)))
+           (delete-process process)))))))
 
 (deftest trf-session-continue-gives-a-resumed-session-elicitation ()
   "A machine resumed in a new buffer answers elicitation there."
