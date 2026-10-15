@@ -4,7 +4,8 @@
 
 ADR-2 Talk to machines over ACP has the IDE learn of the end of a machine's
 work from ACP messages. ACP reports the end of each turn, and a turn also ends
-when a machine asks the record keeper a question. ACP carries a machine's
+when a machine asks the record keeper a question in its message text (ADR-4
+Machines ask the record keeper through ACP elicitation). ACP carries a machine's
 messages as text, with no structured output. The brainstorming machine and the
 planning machine write files whose names their skills choose, and the next
 machine of the implementation workflow works from those files.
