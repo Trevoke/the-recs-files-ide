@@ -612,8 +612,8 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
       (trf-session-test-continue buffer nil (lambda (&rest args) (push args stops)))
       (trf-session-test-fire 'init-finished)
       (trf-session-test-settle)
-      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       (assert-nil (buffer-live-p buffer))
+      ;; UW-1 §Extensions 3-5a: Turn record changes into code
       (assert-nil stops))))
 
 (deftest trf-session-continue-resumes-when-a-new-process-replaced-the-stopped-one ()

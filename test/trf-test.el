@@ -168,11 +168,11 @@ IMPLEMENT defaults to `trf-test-implement'."
               ((symbol-function 'trf-session-config) (lambda () (error "Asked for a config")))
               ((symbol-function 'trf-session-run) (lambda (&rest _) (error "Ran a machine"))))
       (assert-nil (trf-test-implement)))
-    ;; UW-1 §Extensions *a: Turn record changes into code
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
     (assert-equal head (trf-test-head trf-test-root))
-    ;; UW-1 §Extensions *a: Turn record changes into code
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
     (assert-equal status (trf-test-git trf-test-root "status" "--porcelain"))
-    ;; UW-1 §Extensions *a: Turn record changes into code
+    ;; F-1 §Rules: Ask the IDE to implement the record changes
     (assert-nil (file-exists-p (expand-file-name ".worktrees" trf-test-root)))))
 
 (deftest trf-implement-commits-the-record-changes ()
