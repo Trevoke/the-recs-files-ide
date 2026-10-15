@@ -1,0 +1,25 @@
+* F-3 Continue a stopped machine on its work in progress
+
+Takes: a work in progress whose machine stopped before finishing, and what the
+record keeper tells that machine.
+
+Produces: that machine at work again on the work in progress as it stands,
+with everything it was told and said before it stopped, and the rest of the
+implementation workflow and the reconciliation assessor after it, as far as a
+record implementation report.
+
+** Rules
+
+- The IDE asks the record keeper what to tell the machine, and gives it to the
+  machine as its next message.
+- Outside a work in progress whose machine stopped since the IDE last started,
+  the IDE gives MSG-11: No stopped machine to continue.
+- When the machine cannot be continued, the IDE gives MSG-12: Machine cannot be
+  continued, and keeps the work in progress.
+- Before continuing the machine, the IDE offers to save each file of the work
+  in progress with unsaved edits; the machine works from what the record keeper
+  saves, and unsaved edits are left as they are.
+
+** Next
+
+The record keeper accepts or rejects the record implementation report.

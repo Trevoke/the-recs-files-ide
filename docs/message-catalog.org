@@ -13,4 +13,5 @@ changes in code.
 - MSG-8 :: [[./message-catalog/msg-8-target-product-is-not-on-the-primary-git-branch.org][Target product is not on the primary git branch]]
 - MSG-9 :: [[./message-catalog/msg-9-no-primary-git-branch-is-named.org][No primary git branch is named]]
 - MSG-10 :: [[./message-catalog/msg-10-machine-stopped-before-finishing.org][Machine stopped before finishing]]
-- MSG-11 :: [[./message-catalog/msg-11-no-stopped-machine-to-start-again.org][No stopped machine to start again]]
+- MSG-11 :: [[./message-catalog/msg-11-no-stopped-machine-to-continue.org][No stopped machine to continue]]
+- MSG-12 :: [[./message-catalog/msg-12-machine-cannot-be-continued.org][Machine cannot be continued]]

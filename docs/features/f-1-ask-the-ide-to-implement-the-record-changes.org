@@ -28,5 +28,5 @@ from the codebase.
 ** Next
 
 The record keeper accepts or rejects the record implementation report, or,
-when a machine stopped before finishing, has it start again (F-3: Start a
-stopped machine again on its work in progress).
+when a machine stopped before finishing, has it continue (F-3: Continue a
+stopped machine on its work in progress).

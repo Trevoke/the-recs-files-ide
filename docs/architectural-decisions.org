@@ -8,3 +8,4 @@ context, decision, status, consequences.
 - ADR-2 :: [[./architectural-decisions/adr-2-talk-to-machines-over-acp.org][Talk to machines over ACP]]
 - ADR-3 :: [[./architectural-decisions/adr-3-machines-end-their-work-with-one-json-line.org][Machines end their work with one JSON line]]
 - ADR-4 :: [[./architectural-decisions/adr-4-machines-ask-the-record-keeper-through-acp-elicitation.org][Machines ask the record keeper through ACP elicitation]]
+- ADR-5 :: [[./architectural-decisions/adr-5-continue-a-machine-in-its-own-acp-session.org][Continue a machine in its own ACP session]]

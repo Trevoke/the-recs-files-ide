@@ -1,3 +1,0 @@
-* MSG-11 No stopped machine to start again
-
-Text: There is no stopped machine here to start again.
