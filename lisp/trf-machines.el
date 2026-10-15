@@ -11,9 +11,12 @@
   :type '(alist :key-type symbol :value-type string)
   :group 'trf)
 
+;; UW-1 §Main success scenario: Turn record changes into code
+;; UW-1 §Extensions: Turn record changes into code
+;; ADR-4 §Consequences: Machines ask the record keeper through ACP elicitation
 (defconst trf-machines--work
   '((brainstorming
-     . "Use the %s skill to settle with the record keeper how the record changes are to be implemented. Ask the record keeper whatever the records do not settle.")
+     . "Use the %s skill to settle with the record keeper how the record changes are to be implemented. Settle with the record keeper whatever the records do not settle; where your AI program offers no device for asking questions, settle it on your own.")
     (planning
      . "Use the %s skill to write the implementation plan for the record changes.")
     (executing

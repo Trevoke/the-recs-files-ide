@@ -139,5 +139,15 @@
       (assert-match "\n\nAsk the record keeper questions only through the device your AI program offers for asking questions, not in your message text\\.\n\n" text
                     (plist-get machine :name)))))
 
+(deftest trf-machines-brainstorming-machine-settles-what-the-records-do-not ()
+  "The brainstorming machine settles with the record keeper what the records do not settle, or on its own without a device for questions."
+  (let ((text (trf-machines-instructions (car (trf-machines-implementation-workflow))
+                                         trf-machines-test-changes)))
+    ;; UW-1 §Main success scenario: Turn record changes into code
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; ADR-4 §Consequences: Machines ask the record keeper through ACP elicitation
+    (assert-match "Use the recs-brainstorming skill to settle with the record keeper how the record changes are to be implemented\\. Settle with the record keeper whatever the records do not settle; where your AI program offers no device for asking questions, settle it on your own\\.\n\n" text)
+    (assert-nil (string-match-p "Ask the record keeper whatever the records do not settle" text))))
+
 (provide 'trf-machines-test)
 ;;; trf-machines-test.el ends here

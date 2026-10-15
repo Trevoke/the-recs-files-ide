@@ -306,6 +306,7 @@
      ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
      ;; docs/knowledge-base/agent-shell-elicitation.org §An elicitation request reads the switch in the session buffer
      (assert-true (buffer-local-value 'agent-shell-elicitation--experimental-feature-enabled buffer))
+
      (assert-nil (default-value 'agent-shell-elicitation--experimental-feature-enabled)))))
 
 (provide 'trf-session-test)
