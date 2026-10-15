@@ -66,12 +66,15 @@ or its standard output when that is empty."
   (let ((branch (string-trim (trf-git directory "branch" "--show-current"))))
     (unless (string-empty-p branch) branch)))
 
+;; docs/knowledge-base/git-operations-in-progress.org §Each operation in progress leaves its own marker in the git dir
 (defconst trf-git--operation-files
   '("MERGE_HEAD" "rebase-merge" "rebase-apply" "CHERRY_PICK_HEAD" "REVERT_HEAD"
     "sequencer" "BISECT_LOG" "BISECT_START")
   "The files a merge, rebase, cherry-pick, revert or bisect in progress leaves.")
 
 ;; UW-1 §Extensions: Turn record changes into code
+;; docs/knowledge-base/git-operations-in-progress.org §Each operation in progress leaves its own marker in the git dir
+;; docs/knowledge-base/git-operations-in-progress.org §A linked worktree's markers are in its own git dir, found with --git-path
 (defun trf-git-operation-in-progress-p (root)
   "Return non-nil when ROOT is mid merge, rebase, cherry-pick, revert or bisect."
   (seq-some #'file-exists-p
