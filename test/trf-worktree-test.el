@@ -319,27 +319,18 @@
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-true (file-exists-p (expand-file-name ".trf/root" directory)))))
 
-(deftest trf-worktree-remove-once-its-branch-is-gone ()
-  "Removing a worktree whose branch is already deleted removes the worktree."
-  (let* ((root trf-worktree-test-root)
-         (directory (trf-worktree-test-accepted)))
-    (trf-test-git directory "checkout" "--quiet" "--detach")
-    (trf-test-git root "branch" "--quiet" "-d" (trf-worktree-branch directory))
-    (trf-worktree-remove directory)
-    ;; F-2 §Produces: Accept or reject the record implementation report
-    (assert-nil (file-exists-p directory))))
-
-(deftest trf-worktree-brought-in-once-its-branch-is-gone ()
-  "The work stays brought in, and moved or not, once its branch is deleted and its worktree is detached."
+(deftest trf-worktree-brought-in-gives-gits-error-once-its-branch-is-gone ()
+  "Once the work's branch is deleted, whether the work is brought in is a question git cannot answer."
   (let* ((root trf-worktree-test-root)
          (directory (trf-worktree-test-accepted))
-         (moved (trf-worktree-codebase-moved-p directory)))
+         (branch (trf-worktree-branch directory)))
     (trf-test-git directory "checkout" "--quiet" "--detach")
-    (trf-test-git root "branch" "--quiet" "-d" (trf-worktree-branch directory))
-    ;; UW-1 §Main success scenario: Turn record changes into code
-    (assert-true (trf-worktree-brought-in-p directory))
-    ;; UW-1 §Extensions 7a: Turn record changes into code
-    (assert-equal moved (trf-worktree-codebase-moved-p directory))))
+    (trf-test-git root "branch" "--quiet" "-d" branch)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    ;; MSG-7: Git could not do what the IDE asked
+    (assert-equal (list 'trf-git-error (format "fatal: Not a valid object name %s" branch))
+                  (condition-case err (progn (trf-worktree-brought-in-p directory) nil)
+                    (trf-git-error err)))))
 
 (deftest trf-worktree-commit-saved-edits-commits-edits-and-new-files ()
   "Saved edits and new files are committed to the work; the worktree's state files are not."

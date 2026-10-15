@@ -973,7 +973,7 @@ Every other call to `trf-git' runs git."
     (trf-test-assert-work-in-progress-removed directory branch)))
 
 (deftest trf-accept-git-fails-removing-the-work-in-progress ()
-  "When git refuses to remove the worktree, accepting gives MSG-7: Git could not do what the IDE asked; accepting again removes it."
+  "When git refuses to remove the worktree after its branch is deleted, accepting gives MSG-7: Git could not do what the IDE asked, and so does accepting again, keeping the work in progress."
   (let* ((directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory))
          (base (trf-worktree-base directory)))
@@ -983,8 +983,7 @@ Every other call to `trf-git' runs git."
                                          #'trf-accept-record-implementation-report))))
       ;; F-2 §Rules: Accept or reject the record implementation report
       ;; MSG-7: Git could not do what the IDE asked
-      (assert-equal 'user-error (car refusal))
-      (assert-true (string-prefix-p "Git could not do what the IDE asked:\n" (cadr refusal))))
+      (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: cannot remove") refusal))
     ;; UW-1 §Success guarantee: Turn record changes into code
     (assert-equal base (string-trim (trf-test-git trf-test-root "rev-parse"
                                                   "refs/recs/implemented")))
@@ -992,12 +991,12 @@ Every other call to `trf-git' runs git."
     (assert-true (file-exists-p (trf-test-report-file directory)))
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-true (find-buffer-visiting (trf-test-report-file directory)))
-    (assert-nil (trf-test-from-file (trf-test-report-file directory)
-                                    #'trf-accept-record-implementation-report))
-    ;; F-2 §Produces: Accept or reject the record implementation report
     ;; F-2 §Rules: Accept or reject the record implementation report
-    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
-    (trf-test-assert-work-in-progress-removed directory branch)))
+    ;; MSG-7: Git could not do what the IDE asked
+    (trf-test-assert-accept-refuses
+     directory
+     (list 'user-error (format "Git could not do what the IDE asked:\nfatal: Not a valid object name %s"
+                               branch)))))
 
 (deftest trf-reject-keeps-the-worktree-and-its-branch ()
   "Rejecting keeps the worktree and its branch."
@@ -1033,7 +1032,7 @@ Every other call to `trf-git' runs git."
     (trf-test-assert-work-in-progress-removed directory branch)))
 
 (deftest trf-accept-git-fails-removing-work-that-holds-no-commit ()
-  "When git refuses to remove a worktree holding no commit, accepting again removes it."
+  "When git refuses to remove a worktree holding no commit after its branch is deleted, accepting again gives MSG-7: Git could not do what the IDE asked, keeping the work in progress."
   (let* ((directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory)))
     (let ((refusal (trf-test-failing-git-subcommand '("worktree" "remove") "fatal: cannot remove"
@@ -1041,13 +1040,13 @@ Every other call to `trf-git' runs git."
                                          #'trf-accept-record-implementation-report))))
       ;; F-2 §Rules: Accept or reject the record implementation report
       ;; MSG-7: Git could not do what the IDE asked
-      (assert-true (string-prefix-p "Git could not do what the IDE asked:\n" (cadr refusal))))
-    (assert-nil (trf-test-from-file (trf-test-report-file directory)
-                                    #'trf-accept-record-implementation-report))
-    ;; F-2 §Produces: Accept or reject the record implementation report
+      (assert-equal '(user-error "Git could not do what the IDE asked:\nfatal: cannot remove") refusal))
     ;; F-2 §Rules: Accept or reject the record implementation report
-    ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
-    (trf-test-assert-work-in-progress-removed directory branch)))
+    ;; MSG-7: Git could not do what the IDE asked
+    (trf-test-assert-accept-refuses
+     directory
+     (list 'user-error (format "Git could not do what the IDE asked:\nfatal: Not a valid object name %s"
+                               branch)))))
 
 (deftest trf-accept-moves-the-record-keepers-buffers-to-the-root ()
   "Accepting moves a buffer of the record keeper's in the worktree to the root, keeping its process."
@@ -1277,17 +1276,18 @@ Every other call to `trf-git' runs git."
       (kill-buffer buffer))))
 
 (deftest trf-accept-brings-in-an-edit-saved-after-the-work-was-brought-in ()
-  "Once the work is brought in and its removal failed, an edit saved before accepting again is brought in too, with no rerun."
+  "Once the work is brought in and deleting its branch failed, an edit saved before accepting again is brought in too, with no rerun."
   (let* ((directory (trf-test-implemented-worktree))
          (branch (trf-worktree-branch directory)))
     (trf-test-build directory)
-    (trf-test-failing-git-subcommand '("worktree" "remove") "fatal: cannot remove"
+    (trf-test-failing-git-subcommand '("branch" "--quiet" "-d") "fatal: cannot lock ref"
       (trf-test-from-file (trf-test-report-file directory)
                           #'trf-accept-record-implementation-report))
     (trf-test-write-files directory '(("src/widget.el" . "(provide 'widget) ; saved later\n")))
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Rules: Accept or reject the record implementation report
+    ;; UW-1 §Extensions 7a: Turn record changes into code
     (assert-equal "(provide 'widget) ; saved later\n" (trf-test-widget))
     ;; F-2 §Produces: Accept or reject the record implementation report
     ;; F-2 §Rules: Accept or reject the record implementation report

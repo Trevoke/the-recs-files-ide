@@ -390,7 +390,8 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       (trf--refuse-unless-on-the-primary-git-branch root)
       ;; F-2 §Rules: Accept or reject the record implementation report
       (trf--offer-to-save directory (expand-file-name trf-worktree-state-directory directory))
-      ;; UW-1 §Success guarantee: Turn record changes into code
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      ;; UW-1 §Extensions 7a: Turn record changes into code
       (let ((brought-in (trf-worktree-brought-in-p directory)))
         ;; F-2 §Rules: Accept or reject the record implementation report
         (trf-worktree-commit-saved-edits directory)

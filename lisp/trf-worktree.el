@@ -102,25 +102,18 @@
   (trf-git-ref-commit (trf-worktree-root directory)
                       (concat "refs/heads/" (trf-worktree-branch directory))))
 
-;; F-2 §Produces: Accept or reject the record implementation report
-(defun trf-worktree--work (directory)
-  "Return DIRECTORY's branch, or DIRECTORY's HEAD commit once the branch is gone."
-  (if (trf-worktree--branch-exists-p directory)
-      (trf-worktree-branch directory)
-    (trf-git-ref-commit directory "HEAD")))
-
 ;; UW-1 §Extensions 7a: Turn record changes into code
 (defun trf-worktree-codebase-moved-p (directory)
   "Return non-nil when the codebase has moved since DIRECTORY's base."
   (not (trf-git-check directory "merge-base" "--is-ancestor"
                       (trf-git-ref-commit (trf-worktree-root directory) "HEAD")
-                      (trf-worktree--work directory))))
+                      (trf-worktree-branch directory))))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-worktree-brought-in-p (directory)
   "Return non-nil when DIRECTORY's work holds commits and the codebase holds that work."
   (let ((root (trf-worktree-root directory))
-        (work (trf-worktree--work directory)))
+        (work (trf-worktree-branch directory)))
     (and (not (equal (trf-git-ref-commit root work) (trf-worktree-base directory)))
          (trf-git-check root "merge-base" "--is-ancestor" work "HEAD"))))
 
@@ -141,7 +134,7 @@
          (merging (trf-git-ref-commit root "MERGE_HEAD")))
     (condition-case err
         (trf-git root "merge" "--quiet" "--no-ff" "--no-edit"
-                 (trf-worktree--work directory))
+                 (trf-worktree-branch directory))
       (error
        (when (and (not merging) (trf-git-ref-commit root "MERGE_HEAD"))
          (ignore-errors (trf-git root "merge" "--abort")))
@@ -152,6 +145,10 @@
 ;; F-2 §Rules: Accept or reject the record implementation report
 (defun trf-worktree-commit-saved-edits (directory)
   "Commit to DIRECTORY's work whatever is saved in DIRECTORY and not yet committed."
+  ;; F-2 §Rules: Accept or reject the record implementation report
+  (when (and (trf-worktree--branch-exists-p directory)
+             (not (trf-git-current-branch directory)))
+    (trf-git directory "checkout" "--quiet" (trf-worktree-branch directory)))
   (trf-git directory "add" "--all")
   (unless (trf-git-check directory "diff" "--cached" "--quiet")
     (trf-git directory "commit" "--quiet" "--message"
