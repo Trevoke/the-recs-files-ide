@@ -126,8 +126,8 @@
        (list finished stopped (mapcar #'car calls))))))
 
 (deftest trf-session-stopped-when-turn-ends-short ()
-  "A turn refused or cut off by a limit, without the JSON line, stops the machine once."
-  (dolist (reason '("refusal" "max_tokens" "max_turn_requests"))
+  "A turn refused, cut off by a limit, or cancelled by the record keeper, without the JSON line, stops the machine once."
+  (dolist (reason '("refusal" "max_tokens" "max_turn_requests" "cancelled"))
     (pcase-let ((`(,finished ,stopped ,displayed) (trf-session-test-turn-ends reason)))
       ;; UW-1 §Extensions: Turn record changes into code
       (assert-equal 1 stopped (format "a %s turn stops the machine once" reason))
@@ -648,6 +648,27 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
       ;; ADR-5 §Decision: Continue a machine in its own ACP session
       ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
       (assert-nil (buffer-live-p buffer)))))
+
+(deftest trf-session-continue-keeps-elicitation-in-a-going-session ()
+  "A machine continued in its going session still answers elicitation there."
+  (trf-session-test-continuing "unused"
+    (let ((buffer (trf-session-test-session-buffer '("sleep" "60") "session-1")))
+      (with-current-buffer buffer
+        (setq-local agent-shell-elicitation--experimental-feature-enabled t))
+      (trf-session-test-continue buffer)
+      ;; F-3 §Produces: Continue a stopped machine on its work in progress
+      ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+      (assert-true (buffer-local-value 'agent-shell-elicitation--experimental-feature-enabled buffer)))))
+
+(deftest trf-session-continue-gives-a-resumed-session-elicitation ()
+  "A machine resumed in a new buffer answers elicitation there."
+  (trf-session-test-continuing "session-1"
+    (let* ((buffer (trf-session-test-ended-buffer "session-1"))
+           (resumed (trf-session-test-continue buffer)))
+      ;; F-3 §Produces: Continue a stopped machine on its work in progress
+      ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+      ;; docs/knowledge-base/agent-shell-session-resume.org §The elicitation switch survives a resume
+      (assert-true (buffer-local-value 'agent-shell-elicitation--experimental-feature-enabled resumed)))))
 
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here
