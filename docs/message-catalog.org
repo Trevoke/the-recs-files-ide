@@ -15,3 +15,4 @@ changes in code.
 - MSG-10 :: [[./message-catalog/msg-10-machine-stopped-before-finishing.org][Machine stopped before finishing]]
 - MSG-11 :: [[./message-catalog/msg-11-no-stopped-machine-to-continue.org][No stopped machine to continue]]
 - MSG-12 :: [[./message-catalog/msg-12-machine-cannot-be-continued.org][Machine cannot be continued]]
+- MSG-13 :: [[./message-catalog/msg-13-no-record-implementation-report-to-accept.org][No record implementation report to accept]]

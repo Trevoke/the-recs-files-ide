@@ -89,3 +89,6 @@ The record keeper asks to implement the record changes.
   keeps the work in progress.
 - 7e. No primary git branch is named :: IDE gives MSG-9: No primary git branch
   is named; IDE keeps the work in progress.
+- 7f. The work in progress has no record implementation report on it as it
+  stands :: IDE gives MSG-13: No record implementation report to accept; IDE
+  keeps the work in progress.
