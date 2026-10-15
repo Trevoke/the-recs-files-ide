@@ -1,0 +1,28 @@
+* ADR-5 Continue a machine in its own ACP session
+
+** Context
+
+ADR-2 Talk to machines over ACP has each machine work in an ACP session, which
+holds what the machine was told and said. A session that is going takes a next
+message. A session that has ended can be resumed by its identifier, without
+replaying it, when the AI program offers resuming; Claude Code and Codex keep
+each session on disk and offer it. A machine that stops before finishing (ADR-3
+Machines end their work with one JSON line) leaves a session that is going, or
+one that has ended when the AI program's process has.
+
+** Decision
+
+The IDE continues a stopped machine in its own session: it gives the next
+message in that session while the session is going, and resumes the session
+first when it has ended.
+
+** Status
+
+Accepted.
+
+** Consequences
+
+- A continued machine keeps everything it was told and said before it stopped.
+- A machine whose session its AI program cannot resume cannot be continued.
+- The IDE checks that a resumed session is the one it asked for, since a resume
+  that fails can start a new session in its place.

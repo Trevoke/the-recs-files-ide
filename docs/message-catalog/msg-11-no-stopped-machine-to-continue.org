@@ -1,0 +1,3 @@
+* MSG-11 No stopped machine to continue
+
+Text: There is no stopped machine here to continue.

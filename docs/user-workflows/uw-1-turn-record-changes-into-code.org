@@ -60,8 +60,11 @@ The record keeper asks to implement the record changes.
   is named; the use case ends.
 - 3a. A machine of the implementation workflow stops before finishing :: IDE
   gives MSG-10: Machine stopped before finishing, with the reason it gave; IDE
-  keeps the work in progress; record keeper has that machine start again on it
-  (F-3: Start a stopped machine again on its work in progress), at step 3.
+  keeps the work in progress; record keeper has that machine continue (F-3:
+  Continue a stopped machine on its work in progress), at step 3.
+- 3a1. The machine cannot be continued :: IDE gives MSG-12: Machine cannot be
+  continued, with the reason the AI program gave; IDE keeps the work in
+  progress; the use case ends in failure.
 - 4a. A machine has a question and its AI program offers no device for
   questions :: the machine stops before finishing, with the question as its
   reason; continues at 3a.

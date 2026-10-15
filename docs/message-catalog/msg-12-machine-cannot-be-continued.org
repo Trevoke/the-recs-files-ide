@@ -1,0 +1,6 @@
+* MSG-12 Machine cannot be continued
+
+Text: A machine cannot be continued:
+
+Followed by: which machine it is, and the reason the AI program gave, or "No
+reason given." when it gave none.

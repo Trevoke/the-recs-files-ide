@@ -5,4 +5,4 @@ keeper may do next.
 
 - F-1 :: [[./features/f-1-ask-the-ide-to-implement-the-record-changes.org][Ask the IDE to implement the record changes]]
 - F-2 :: [[./features/f-2-accept-or-reject-the-record-implementation-report.org][Accept or reject the record implementation report]]
-- F-3 :: [[./features/f-3-start-a-stopped-machine-again-on-its-work-in-progress.org][Start a stopped machine again on its work in progress]]
+- F-3 :: [[./features/f-3-continue-a-stopped-machine-on-its-work-in-progress.org][Continue a stopped machine on its work in progress]]
