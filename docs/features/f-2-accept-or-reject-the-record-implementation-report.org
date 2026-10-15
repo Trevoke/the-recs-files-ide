@@ -19,7 +19,7 @@ kept.
   report.
 - When git fails and no other message covers it, the IDE gives MSG-7: Git could
   not do what the IDE asked, with git's own output, and keeps the work in
-  progress.
+  progress; accepting again tries again.
 - On accept, the IDE ends each machine that worked on the work in progress
   since the IDE last started.
 - Before accepting, the IDE offers to save each file of the work in progress
