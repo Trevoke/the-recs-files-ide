@@ -31,7 +31,8 @@ The record keeper picks it through agent-shell."
   "Return how the last line of TEXT says the machine ended.
 A machine that finished gives (finished PRODUCED), with the paths it produced.
 A machine that stopped before finishing gives (stopped REASON), with the reason
-it gives.  A last line that says neither gives nil."
+it gives, or nil when it gives none as text.  A last line that says neither
+gives nil."
   (when-let* ((line (car (last (trf-session--without-closing-fences
                                 (split-string (or text "") "[\r\n]+" t "[ \t]+"))))))
     (let ((start 0) found)
@@ -52,8 +53,8 @@ it gives.  A last line that says neither gives nil."
                      (setq found (list 'finished (when (listp produced)
                                                    (seq-filter #'stringp produced)))))
                     ;; UW-1 §Extensions: Turn record changes into code
-                    ((and (eq finished :false) (stringp reason))
-                     (setq found (list 'stopped reason))))))))
+                    ((eq finished :false)
+                     (setq found (list 'stopped (when (stringp reason) reason)))))))))
       found)))
 
 (defun trf-session--stopped-p (stop-reason)

@@ -178,8 +178,8 @@
   (assert-equal '(nil 0) (trf-session-test-turn-says "Which of these should the widget do?\n")))
 
 (deftest trf-session-at-work-after-malformed-json ()
-  "A last line that is not valid JSON, or does not say finished, does not finish the machine."
-  (dolist (line '("{\"finished\": true," "{\"finished\": false}" "{\"produced\": [\"a.md\"]}"
+  "A last line that is not valid JSON, or does not say whether the machine finished, leaves it at work."
+  (dolist (line '("{\"finished\": true," "{\"produced\": [\"a.md\"]}"
                   "[\"finished\", true]" "finished: true"))
     ;; ADR-3 §Consequences: Machines end their work with one JSON line
     (assert-equal '(nil 0) (trf-session-test-turn-says "Done.\n" line)
@@ -342,13 +342,15 @@
     (assert-equal (list nil '("No device for questions.") (list (get-buffer trf-session-test-buffer-name)))
                   result)))
 
-(deftest trf-session-at-work-when-not-finished-without-a-reason ()
-  "The JSON line saying the machine did not finish, without a reason given as text, leaves the machine at work."
+(deftest trf-session-stopped-without-a-reason-when-none-is-given-as-text ()
+  "The JSON line saying the machine did not finish, without a reason given as text, stops it with no reason."
   (dolist (line '("{\"finished\": false}" "{\"finished\": false, \"reason\": 3}"
                   "{\"finished\": false, \"reason\": null}"))
-    ;; ADR-3 §Consequences: Machines end their work with one JSON line
-    (assert-equal '(nil nil nil) (trf-session-test-stopping "Hmm.\n" line)
-                  (format "%S leaves the machine at work" line))))
+    (let ((result (trf-session-test-stopping "Hmm.\n" line)))
+      ;; ADR-3 §Decision: Machines end their work with one JSON line
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-equal (list nil '(nil) (list (get-buffer trf-session-test-buffer-name))) result
+                    (format "%S stops the machine with no reason" line)))))
 
 (deftest trf-session-at-work-when-the-stopping-line-is-not-last ()
   "The JSON line saying the machine did not finish, followed by more text, leaves the machine at work."
