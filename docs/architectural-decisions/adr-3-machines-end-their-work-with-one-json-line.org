@@ -32,4 +32,5 @@ Accepted.
   workflow.
 - A machine that never writes the line is never taken to have finished.
 - The IDE shows the reason a machine gives for stopping.
+- A last line holding "finished": false is a stop, with or without a reason.
 - When ACP carries structured output, this decision is revisited.
