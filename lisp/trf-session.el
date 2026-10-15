@@ -21,7 +21,9 @@ The record keeper picks it through agent-shell."
 ;; ADR-3 §Decision: Machines end their work with one JSON line
 (defun trf-session--fence (line)
   "Return (MARK COUNT INFO) when LINE is a code fence, or nil."
-  (when (string-match "\\`\\(`\\{3,\\}\\|~\\{3,\\}\\)\\(.*\\)\\'" line)
+  (when (and (string-match "\\`\\(`\\{3,\\}\\|~\\{3,\\}\\)\\(.*\\)\\'" line)
+             (not (and (eq (aref line 0) ?`)
+                       (string-search "`" (match-string 2 line)))))
     (list (aref line 0) (length (match-string 1 line)) (string-trim (match-string 2 line)))))
 
 (defun trf-session--closes-p (fence line)
@@ -32,7 +34,7 @@ The record keeper picks it through agent-shell."
          (string-empty-p (nth 2 closing)))))
 
 (defun trf-session--without-closing-fences (lines)
-  "Return LINES without the closing fences that end them, when the line before them is in a fence they close.
+  "Return LINES without the closing fence that ends them, when the line before it is in a fence it closes.
 Otherwise return LINES as they are."
   (let ((trailing 0))
     (while (and (< trailing (length lines))
@@ -48,7 +50,7 @@ Otherwise return LINES as they are."
                 (when (trf-session--closes-p open line)
                   (setq open nil))
               (setq open (trf-session--fence line))))))
-      (if (and open (> trailing 0) (trf-session--closes-p open (nth (1+ last) lines)))
+      (if (and open (= trailing 1) (trf-session--closes-p open (nth (1+ last) lines)))
           (seq-take lines (1+ last))
         lines))))
 

@@ -2072,6 +2072,13 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
           (assert-equal 'error (car (condition-case err
                                         (trf-test-write-files (expand-file-name "~/") '(("x" . "x")))
                                       (error err))))
+          (assert-equal 'error (car (condition-case err
+                                        (trf-test-write-files temporary-file-directory '(("x" . "x")))
+                                      (error err))))
+          (assert-equal 'error (car (condition-case err
+                                        (trf-test-write-files (file-name-as-directory scratch)
+                                                              '(("../trf-escaped" . "x")))
+                                      (error err))))
           (assert-nil (directory-files scratch nil "\\`[^.]")))
       (delete-directory scratch t))))
 

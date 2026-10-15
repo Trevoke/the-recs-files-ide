@@ -80,11 +80,13 @@ Signal unless git then says it is in progress."
 
 (defun trf-test-under-the-temporary-directory (root)
   "Signal unless ROOT is an absolute directory under `temporary-file-directory'."
-  (unless (and (stringp root)
-               (file-name-absolute-p root)
-               (string-prefix-p (file-name-as-directory (file-truename temporary-file-directory))
-                                (file-name-as-directory (file-truename root))))
-    (error "Not a directory under %s: %S" temporary-file-directory root)))
+  (let ((temporary (file-name-as-directory (file-truename temporary-file-directory))))
+    (unless (and (stringp root)
+                 (file-name-absolute-p root)
+                 (let ((directory (file-name-as-directory (file-truename root))))
+                   (and (string-prefix-p temporary directory)
+                        (not (equal temporary directory)))))
+      (error "Not a directory under %s: %S" temporary-file-directory root))))
 
 (defvar trf-test-saved-directory nil
   "The `default-directory' a test found, to restore once it is over.")
@@ -105,6 +107,8 @@ Signal unless git then says it is in progress."
   (trf-test-under-the-temporary-directory root)
   (dolist (file files)
     (let ((path (expand-file-name (car file) root)))
+      (unless (string-prefix-p (file-name-as-directory (expand-file-name root)) path)
+        (error "Not under %s: %S" root (car file)))
       (make-directory (file-name-directory path) t)
       (with-temp-file path (insert (cdr file))))))
 

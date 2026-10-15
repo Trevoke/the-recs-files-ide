@@ -780,5 +780,18 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
      ;; UW-1 §Extensions: Turn record changes into code
      (assert-equal 1 (length stops)))))
 
+(deftest trf-session-at-work-when-a-stray-fence-follows-the-closing-one ()
+  "A stray fence after the fence that closes the JSON line's fence leaves the machine at work."
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
+  (assert-equal '(nil 0) (trf-session-test-turn-says "```\n{\"finished\": true}\n```\n```\n")))
+
+(deftest trf-session-at-work-when-inline-code-looks-like-a-fence ()
+  "A line of backticks holding a backtick in its info string is inline code, not a fence the JSON line is in."
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
+  (assert-equal '(nil 0)
+                (trf-session-test-turn-says "```foo```\nSome text.\n{\"finished\": true}\n```\n")))
+
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here
