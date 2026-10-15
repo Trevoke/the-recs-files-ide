@@ -209,7 +209,9 @@ A pointer is laid out one record to a line —
 `ADR-13 §Consequences: One retry queue per provider` — and
 where a comment points at several, the pointers lead it. A pointer names the
 section carrying the claim the comment makes, not the record's most familiar
-section. And citing what refuses a rule does not discharge the rule: where the
+section. Where the claim rests on one extension of a user workflow, the pointer
+names it after the section — `UW-3 §Extensions 2a: Import contacts from a
+spreadsheet`. And citing what refuses a rule does not discharge the rule: where the
 claim rests on a feature's rule, the feature is cited, whatever message catalog
 entry stands beside it.
 
