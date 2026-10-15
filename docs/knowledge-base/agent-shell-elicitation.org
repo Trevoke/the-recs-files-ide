@@ -3,7 +3,7 @@
 
 Not a project document. This records how agent-shell 0.86.2 decides whether a
 session advertises and answers ACP elicitation, as read in its source and
-established by a run of it with acp 0.15.1, the versions pinned for the tests in
+established by runs of it with acp 0.15.1, the versions pinned for the tests in
 =Elkfile=, on 2026-10-14.
 
 *What it establishes.* One variable, off by default, switches elicitation on.
@@ -14,6 +14,7 @@ bound around =agent-shell-start= advertises elicitation but answers no request,
 and a value set in the session buffer afterwards answers requests that were
 never advertised; the switch needs both, or a global value. With it on, the
 initialize request advertises form elicitation and never url elicitation.
+Restarting, reloading or forking a session starts one without the switch.
 
 * One variable switches elicitation on, and it is off by default
 
@@ -81,12 +82,52 @@ the switch is on:
 buffer, or globally, and not when it was only let-bound around
 =agent-shell-start=.
 
+* agent-shell-restart, agent-shell-reload and agent-shell-fork start a session without the switch
+
+=agent-shell.el=, =agent-shell-restart= kills the session buffer, and with it
+the switch set there, then starts a new one:
+
+#+begin_example
+    (unless (kill-buffer shell-buffer)
+      ...
+      (user-error "Cancelled"))
+    (let* ((default-directory shell-dir)
+           (new-shell-buffer (agent-shell--start
+                              :config config
+                              :session-strategy strategy
+                              :session-id session-id
+                              :new-session t
+                              :no-focus t)))
+#+end_example
+
+=agent-shell-reload= calls =(agent-shell-restart :session-id session-id)=.
+=agent-shell-fork= starts the new session from the session buffer it was
+called in:
+
+#+begin_example
+    (let ((new-shell-buffer (agent-shell--start
+                             :config config
+                             :session-strategy 'new
+                             :fork-session-id session-id
+                             :new-session t
+                             :no-focus t)))
+#+end_example
+
+None of the three binds the switch, or sets it in the buffer it starts. In the
+run below, a session started with the switch bound around =agent-shell-start=
+and set in its buffer, then restarted, reloaded or forked, gives a session whose
+initialize request advertises no elicitation and which handles no
+=elicitation/create= request. A fork does so although the buffer it is called
+in has the switch set.
+
 * The run
 
 Run with =emacs -Q --batch -l el-run.el <directory of the agent-shell, acp and
-shell-maker builds> <empty directory>=; it starts each session with a client
-running =true=, records the initialize request instead of sending it, and calls
-the session's request handlers with an =elicitation/create= request.
+shell-maker builds> <empty directory>=. It starts each session with a client
+running =true=, records the initialize request instead of sending it, answers
+yes to the question =agent-shell-restart= asks while the initialize request is
+outstanding, and calls the session's request handlers with an
+=elicitation/create= request, printing any error a handler signals.
 
 #+begin_src emacs-lisp
 ;;; el-run.el --- How agent-shell 0.86.2 gates elicitation -*- lexical-binding: t; -*-
@@ -96,55 +137,115 @@ the session's request handlers with an =elicitation/create= request.
 (require 'cl-lib)
 (setq default-directory (file-name-as-directory (cadr command-line-args-left)))
 
-(defun el-run-start (label setup)
-  "Start a session under SETUP, then report what initialize advertised and who handles elicitation."
-  (let (initialize handled)
-    (cl-letf (((symbol-function 'acp-send-request)
-               (lambda (&rest args)
-                 (let ((request (plist-get args :request)))
-                   (when (equal (map-elt request :method) "initialize")
-                     (setq initialize (string-trim (acp--serialize-json (map-nested-elt request '(:params clientCapabilities)))))))))
-              ((symbol-function 'agent-shell-elicitation--on-create-request)
-               (lambda (&rest _) (setq handled t))))
-      (let* ((config (cons (cons :client-maker
-                                 (lambda (buffer)
-                                   (acp-make-client :context-buffer buffer :command "true")))
-                           (agent-shell-anthropic-make-claude-code-config)))
-             (buffer (let ((agent-shell-session-strategy 'new))
-                       (funcall setup (lambda () (agent-shell-start :config config)))))
-             (client (map-elt (buffer-local-value 'agent-shell--state buffer) :client)))
-        (dolist (handler (map-elt client :request-handlers))
-          (ignore-errors
-            (funcall handler '((jsonrpc . "2.0") (id . 1) (method . "elicitation/create")
-                               (params (mode . "form") (message . "?"))))))
-        (princ (format "%s\n  initialize clientCapabilities: %s\n  elicitation/create handled: %S\n"
-                       label initialize handled))
-        (let ((kill-buffer-query-functions nil))
-          (kill-buffer buffer))))))
+(defvar el-run-initialize nil
+  "The clientCapabilities of the last initialize request, as acp would send them.")
+(defvar el-run-handled nil
+  "Non-nil once an elicitation/create request has reached its handler.")
 
-(el-run-start "Switch left off"
-              (lambda (start) (funcall start)))
-(el-run-start "Switch let-bound around agent-shell-start"
-              (lambda (start)
-                (let ((agent-shell-elicitation--experimental-feature-enabled t))
-                  (funcall start))))
-(el-run-start "Switch set buffer-local after agent-shell-start"
-              (lambda (start)
-                (let ((buffer (funcall start)))
-                  (with-current-buffer buffer
-                    (setq-local agent-shell-elicitation--experimental-feature-enabled t))
-                  buffer)))
-(el-run-start "Switch let-bound around agent-shell-start and set buffer-local after it"
-              (lambda (start)
-                (let ((buffer (let ((agent-shell-elicitation--experimental-feature-enabled t))
-                                (funcall start))))
-                  (with-current-buffer buffer
-                    (setq-local agent-shell-elicitation--experimental-feature-enabled t))
-                  buffer)))
-(el-run-start "Switch set globally"
-              (lambda (start)
-                (setq agent-shell-elicitation--experimental-feature-enabled t)
-                (funcall start)))
+(defun el-run-config ()
+  (cons (cons :client-maker
+              (lambda (buffer) (acp-make-client :context-buffer buffer :command "true")))
+        (agent-shell-anthropic-make-claude-code-config)))
+
+(defun el-run-elicit (buffer)
+  "Send BUFFER's session an elicitation/create request; return whether it was handled."
+  (setq el-run-handled nil)
+  (dolist (handler (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer) :client)
+                            :request-handlers))
+    (condition-case err
+        (funcall handler '((jsonrpc . "2.0") (id . 1) (method . "elicitation/create")
+                           (params (mode . "form") (message . "?"))))
+      (error (princ (format "  handler error: %S\n" err)))))
+  el-run-handled)
+
+(defun el-run-report (label buffer)
+  (princ (format "%s\n  initialize clientCapabilities: %s\n" label el-run-initialize))
+  (princ (format "  elicitation/create handled: %S\n" (el-run-elicit buffer))))
+
+(defmacro el-run-recording (&rest body)
+  `(cl-letf (((symbol-function 'acp-send-request)
+              (lambda (&rest args)
+                (let ((request (plist-get args :request)))
+                  (when (equal (map-elt request :method) "initialize")
+                    (setq el-run-initialize
+                          (string-trim (acp--serialize-json
+                                        (map-nested-elt request '(:params clientCapabilities)))))))))
+             ((symbol-function 'agent-shell-elicitation--on-create-request)
+              (lambda (&rest _) (setq el-run-handled t)))
+             ((symbol-function 'y-or-n-p)
+              (lambda (prompt)
+                (princ (format "  asked %S; answered yes\n" prompt))
+                t)))
+     ,@body))
+
+(defun el-run-start-the-ides-way ()
+  "Start a session with the switch bound around it and set in its buffer."
+  (let ((buffer (let ((agent-shell-session-strategy 'new)
+                      (agent-shell-elicitation--experimental-feature-enabled t))
+                  (agent-shell-start :config (el-run-config)))))
+    (with-current-buffer buffer
+      (setq-local agent-shell-elicitation--experimental-feature-enabled t))
+    buffer))
+
+(defun el-run-kill (buffer)
+  (when (buffer-live-p buffer)
+    (let ((kill-buffer-query-functions nil))
+      (kill-buffer buffer))))
+
+(el-run-recording
+ (let ((buffer (let ((agent-shell-session-strategy 'new))
+                 (agent-shell-start :config (el-run-config)))))
+   (el-run-report "Switch left off" buffer)
+   (el-run-kill buffer))
+ (let ((buffer (let ((agent-shell-session-strategy 'new)
+                     (agent-shell-elicitation--experimental-feature-enabled t))
+                 (agent-shell-start :config (el-run-config)))))
+   (el-run-report "Switch let-bound around agent-shell-start" buffer)
+   (el-run-kill buffer))
+ (let ((buffer (let ((agent-shell-session-strategy 'new))
+                 (agent-shell-start :config (el-run-config)))))
+   (with-current-buffer buffer
+     (setq-local agent-shell-elicitation--experimental-feature-enabled t))
+   (el-run-report "Switch set buffer-local after agent-shell-start" buffer)
+   (el-run-kill buffer))
+ (let ((buffer (el-run-start-the-ides-way)))
+   (el-run-report "Switch let-bound around agent-shell-start and set buffer-local after it" buffer)
+   (with-current-buffer buffer
+     (map-put! agent-shell--state :session '((:id . "session-1")))
+     (setq el-run-initialize nil)
+     (agent-shell-restart))
+   (let ((restarted (seq-find (lambda (b) (and (not (eq b buffer))
+                                               (eq (buffer-local-value 'major-mode b) 'agent-shell-mode)))
+                              (buffer-list))))
+     (el-run-report "The same session after agent-shell-restart" restarted)
+     (el-run-kill restarted)))
+ (let ((buffer (el-run-start-the-ides-way)))
+   (with-current-buffer buffer
+     (map-put! agent-shell--state :session '((:id . "session-1")))
+     (setq el-run-initialize nil)
+     (agent-shell-reload))
+   (let ((reloaded (seq-find (lambda (b) (and (not (eq b buffer))
+                                              (eq (buffer-local-value 'major-mode b) 'agent-shell-mode)))
+                             (buffer-list))))
+     (el-run-report "The same session after agent-shell-reload" reloaded)
+     (el-run-kill reloaded)))
+ (let ((buffer (el-run-start-the-ides-way)))
+   (with-current-buffer buffer
+     (map-put! agent-shell--state :session '((:id . "session-1")))
+     (map-put! agent-shell--state :supports-session-fork t)
+     (setq el-run-initialize nil)
+     (agent-shell-fork))
+   (let ((forked (seq-find (lambda (b) (and (not (eq b buffer))
+                                            (eq (buffer-local-value 'major-mode b) 'agent-shell-mode)))
+                           (buffer-list))))
+     (el-run-report "A session forked with agent-shell-fork" forked)
+     (el-run-kill forked)
+     (el-run-kill buffer)))
+ (setq agent-shell-elicitation--experimental-feature-enabled t)
+ (let ((buffer (let ((agent-shell-session-strategy 'new))
+                 (agent-shell-start :config (el-run-config)))))
+   (el-run-report "Switch set globally" buffer)
+   (el-run-kill buffer)))
 #+end_src
 
 #+begin_example
@@ -160,6 +261,17 @@ Switch set buffer-local after agent-shell-start
 Switch let-bound around agent-shell-start and set buffer-local after it
   initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true},"elicitation":{"form":{}}}
   elicitation/create handled: t
+  asked "Agent is busy.  Restart anyway?"; answered yes
+The same session after agent-shell-restart
+  initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true}}
+  elicitation/create handled: nil
+  asked "Agent is busy.  Restart anyway?"; answered yes
+The same session after agent-shell-reload
+  initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true}}
+  elicitation/create handled: nil
+A session forked with agent-shell-fork
+  initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true}}
+  elicitation/create handled: nil
 Switch set globally
   initialize clientCapabilities: {"fs":{"readTextFile":true,"writeTextFile":true},"elicitation":{"form":{}}}
   elicitation/create handled: t
