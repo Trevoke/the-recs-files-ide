@@ -1,0 +1,6 @@
+* MSG-10 Machine stopped before finishing
+
+Text: A machine stopped before finishing:
+
+Followed by: which machine it is, and the reason it gave, or "No reason
+given." when it gave none.
