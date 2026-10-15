@@ -295,10 +295,21 @@
   ;; ADR-3 §Consequences: Machines end their work with one JSON line
   (assert-equal '(nil 0) (trf-session-test-turn-says "{\"finished\": true}\n```json\n")))
 
-(deftest trf-session-finished-with-the-json-line-followed-by-a-stray-closing-fence ()
-  "The JSON line followed by a closing fence that no fence opened still finishes the machine."
+(deftest trf-session-at-work-when-a-stray-closing-fence-follows-the-json-line ()
+  "The JSON line followed by a closing fence that no fence opened leaves the machine at work."
   ;; ADR-3 §Decision: Machines end their work with one JSON line
-  (assert-equal '((nil) 0) (trf-session-test-turn-says "Done.\n{\"finished\": true}\n```\n")))
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
+  (assert-equal '(nil 0) (trf-session-test-turn-says "Done.\n{\"finished\": true}\n```\n")))
+
+(deftest trf-session-finished-with-the-json-line-in-a-fence-without-an-info-string ()
+  "The JSON line alone in a code fence of backticks with no info string finishes the machine."
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  (assert-equal '((nil) 0) (trf-session-test-turn-says "Done.\n```\n{\"finished\": true}\n```\n")))
+
+(deftest trf-session-finished-with-the-json-line-in-tildes-with-an-info-string ()
+  "The JSON line alone in a code fence of tildes with an info string finishes the machine."
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  (assert-equal '((nil) 0) (trf-session-test-turn-says "~~~json\n{\"finished\": true}\n~~~\n")))
 
 (deftest trf-session-advertises-form-elicitation ()
   "The IDE starts each session with form elicitation advertised."

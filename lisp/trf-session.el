@@ -20,11 +20,15 @@ The record keeper picks it through agent-shell."
 
 ;; ADR-3 §Decision: Machines end their work with one JSON line
 (defun trf-session--without-closing-fences (lines)
-  "Return LINES without the code fence closings that end them."
-  (let ((lines (reverse lines)))
-    (while (and lines (string-match-p "\\`\\(?:`\\{3,\\}\\|~\\{3,\\}\\)\\'" (car lines)))
-      (setq lines (cdr lines)))
-    (nreverse lines)))
+  "Return LINES without the code fence closings that end them, when a fence opened before.
+Closing fences that no fence opened are kept."
+  (let ((kept (reverse lines)))
+    (while (and kept (string-match-p "\\`\\(?:`\\{3,\\}\\|~\\{3,\\}\\)\\'" (car kept)))
+      (setq kept (cdr kept)))
+    (if (seq-some (lambda (line) (string-match-p "\\`\\(?:`\\{3,\\}\\|~\\{3,\\}\\)" line))
+                  (cdr kept))
+        (nreverse kept)
+      lines)))
 
 ;; ADR-3 §Decision: Machines end their work with one JSON line
 (defun trf-session--ending (text)

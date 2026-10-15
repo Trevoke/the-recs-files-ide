@@ -32,6 +32,9 @@
         (let ((kill-buffer-query-functions nil))
           (kill-buffer buffer)))))
   (setq trf-test-listening-buffers nil)
+  (let ((end (+ (float-time) 0.05)))
+    (while (< (float-time) end)
+      (accept-process-output nil 0.01)))
   (delete-directory trf-test-root t))
 
 (deftest trf-test-version-is-set ()
@@ -1613,16 +1616,23 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
 (deftest trf-accept-while-machines-are-at-work ()
   "While the machines are at work on the work in progress, accepting gives MSG-13 and brings nothing in."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
-  (let (runs)
-    (trf-test-with-machines runs 'later
+  (let ((trf-test-listening-at-work "planning machine"))
+    (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
+              ((symbol-function 'trf-session-run) #'trf-test-listening-run)
+              ((symbol-function 'agent-shell-session-id) (lambda (&rest _) "session-1"))
+              ((symbol-function 'y-or-n-p) (lambda (&rest _) t)))
       (trf-test-implement)
-      (let ((directory (nth 1 (car runs))))
+      (trf-test-settle (lambda () (trf-test-listening-buffer "planning machine")))
+      (let ((directory (file-name-as-directory
+                        (car (directory-files (expand-file-name ".worktrees/" trf-test-root) t
+                                              "\\`trf-")))))
         (trf-test-build directory)
+        (trf-test-write-files directory '((".trf/record-implementation-report.org" . "Old report.")))
         ;; F-2 §Rules: Accept or reject the record implementation report
         ;; MSG-13: No record implementation report to accept
         ;; UW-1 §Extensions: Turn record changes into code
-        (trf-test-assert-accept-refuses directory '(user-error "There is no record implementation report here to accept yet."))
-        (trf-test-settle #'trf-test-report-shown-p)))))
+        (trf-test-assert-accept-refuses
+         directory '(user-error "There is no record implementation report here to accept yet."))))))
 
 (deftest trf-accept-after-a-machine-stopped-without-a-report ()
   "After a machine stopped, with no record implementation report, accepting gives MSG-13 and brings nothing in."
