@@ -18,6 +18,7 @@
 ;; MSG-4: Record changes could not be committed
 ;; MSG-5: Work cannot be brought into the codebase
 ;; MSG-7: Git could not do what the IDE asked
+;; MSG-10: Machine stopped before finishing
 (defconst trf-record-changes-no-reason-message
   "No reason given.")
 

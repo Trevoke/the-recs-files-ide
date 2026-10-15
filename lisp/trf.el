@@ -29,6 +29,10 @@
 (defconst trf-no-primary-git-branch-message
   "Please set a primary git branch first.")
 
+;; MSG-10: Machine stopped before finishing
+(defconst trf-machine-stopped-message
+  "A machine stopped before finishing:")
+
 ;; MSG-7: Git could not do what the IDE asked
 (defconst trf-git-failed-message
   "Git could not do what the IDE asked:")
@@ -100,7 +104,12 @@ has finished."
              (trf-machines-instructions machine changes produced ide-instruction)
              (lambda (produced)
                (trf--run-machines (cdr machines) directory config changes produced on-done))
-             #'ignore)
+             (lambda (&optional reason)
+               ;; MSG-10: Machine stopped before finishing
+               ;; UW-1 §Extensions: Turn record changes into code
+               ;; ADR-3 §Consequences: Machines end their work with one JSON line
+               (message "%s\n%s\n%s" trf-machine-stopped-message (plist-get machine :name)
+                        (trf-record-changes-reason (or reason "")))))
             (gethash (file-name-as-directory (expand-file-name directory))
                      trf--session-buffers)))))
 

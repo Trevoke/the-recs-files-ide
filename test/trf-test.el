@@ -37,7 +37,8 @@
 The brainstorming and planning machines produce docs/plans/<slug>.md; the reconciliation
 assessor writes the record implementation report.
 FINISHING is `now' to finish each machine at once, `later' to finish it from a timer,
-or the name of the machine that stops instead of finishing."
+the name of the machine that stops instead of finishing, or a list of that name and the
+reason it gives for stopping."
   (let ((timers (make-symbol "timers")))
     `(let ((,timers nil))
        (unwind-protect
@@ -48,8 +49,9 @@ or the name of the machine that stops instead of finishing."
                                       (match-string 1 instructions))))
                           (setq ,runs (append ,runs (list (list name directory config
                                                                 instructions))))
-                          (if (equal ,finishing name)
-                              (funcall on-stopped)
+                          (if (or (equal ,finishing name)
+                                  (and (consp ,finishing) (equal (car ,finishing) name)))
+                              (funcall on-stopped (when (consp ,finishing) (cadr ,finishing)))
                             (let ((produced
                                    (when (member name '("brainstorming machine" "planning machine"))
                                      (list (format "docs/plans/%s.md" (car (split-string name)))))))
@@ -1292,6 +1294,43 @@ Every other call to `trf-git' runs git."
         (with-current-buffer (get-buffer trf-test-machine-buffer-name)
           (remove-hook 'kill-buffer-query-functions #'ignore t)))
       (clrhash trf--session-buffers))))
+
+(defun trf-test-stopping (finishing)
+  "Implement the record changes with the machine FINISHING names stopping; return (MESSAGES RUNS)."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let (runs messages)
+    (trf-test-with-machines runs finishing
+      (cl-letf (((symbol-function 'message)
+                 (lambda (format-string &rest args)
+                   (push (apply #'format format-string args) messages))))
+        (trf-test-implement)))
+    (list messages runs)))
+
+(deftest trf-implement-gives-msg-10-with-the-reason-a-machine-gives ()
+  "When a machine stops with a reason, the IDE gives MSG-10 naming the machine and its reason."
+  (pcase-let ((`(,messages ,_runs) (trf-test-stopping '("planning machine" "Which widget first?"))))
+    ;; MSG-10: Machine stopped before finishing
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; ADR-3 §Consequences: Machines end their work with one JSON line
+    (assert-equal '("A machine stopped before finishing:\nplanning machine\nWhich widget first?")
+                  messages)))
+
+(deftest trf-implement-gives-msg-10-without-a-reason ()
+  "When a machine stops without a reason, as when its turn is cut short, the IDE gives MSG-10 with no reason given."
+  (pcase-let ((`(,messages ,_runs) (trf-test-stopping "executing machine")))
+    ;; MSG-10: Machine stopped before finishing
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal '("A machine stopped before finishing:\nexecuting machine\nNo reason given.")
+                  messages)))
+
+(deftest trf-implement-keeps-the-work-in-progress-when-a-machine-stops ()
+  "When a machine stops, the work in progress is kept."
+  (pcase-let ((`(,_messages ,runs) (trf-test-stopping '("brainstorming machine" "Stuck."))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-true (file-exists-p (expand-file-name ".trf/root" (nth 1 (car runs)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-match (regexp-quote "trf/")
+                  (trf-test-git trf-test-root "branch" "--list" "trf/*"))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here
