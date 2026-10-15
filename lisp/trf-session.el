@@ -79,6 +79,10 @@ Return its buffer."
       (setq-local agent-shell-elicitation--experimental-feature-enabled t))
     buffer))
 
+(defun trf-session--process (buffer)
+  "Return the agent process of the session in BUFFER."
+  (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer) :client) :process))
+
 (defvar-local trf-session--stopped-process nil
   "The agent process the machine in this buffer stopped in.")
 
@@ -86,15 +90,17 @@ Return its buffer."
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
 ;; docs/knowledge-base/agent-shell-agent-messages.org §agent-shell streams each chunk of an agent message as an event
 ;; docs/knowledge-base/agent-shell-agent-messages.org §A turn's end carries no message text
-(defun trf-session--listen (buffer on-finished on-stopped)
+(defun trf-session--listen (buffer on-finished on-stopped &optional told)
   "Listen to the machine in BUFFER until it finishes or stops.
+TOLD returns non-nil once the machine has been told something; without it, it has.
 Call ON-FINISHED with the paths it produced at the end of the first turn
 ending with the JSON line saying it has finished.
-Call ON-STOPPED, before then, with the reason the machine gives and the session
-it stopped in, with BUFFER displayed, in three cases.
+Call ON-STOPPED, before then, with the reason the machine gives, the session it
+stopped in, and whether it was told anything, with BUFFER displayed, in four cases.
 When a turn ends with the JSON line saying the machine stopped before finishing,
 pass the reason it gives.  When the session fails, pass nil.  When a turn ends
 for a reason other than \"end_turn\", pass nil.
+When its agent process ends, pass nil.
 When BUFFER is killed first, call ON-STOPPED with nil and that session."
   (let* ((text "")
          (over nil)
@@ -110,7 +116,8 @@ When BUFFER is killed first, call ON-STOPPED with nil and that session."
                        (setq trf-session--stopped-process (trf-session--process buffer)))
                      (unless killed
                        (display-buffer buffer)))
-                   (run-at-time 0 nil on-stopped reason session-id))))
+                   (run-at-time 0 nil on-stopped reason session-id
+                                (if told (funcall told) t)))))
          (end (lambda (ending)
                 (pcase ending
                   (`(finished ,produced) (funcall finish produced))
@@ -141,6 +148,15 @@ When BUFFER is killed first, call ON-STOPPED with nil and that session."
                    (if-let* ((ending (trf-session--ending text)))
                        (funcall end ending)
                      (funcall stop)))))
+    (when-let* ((process (and (buffer-live-p buffer) (trf-session--process buffer))))
+      (when (process-live-p process)
+        ;; UW-1 §Extensions: Turn record changes into code
+        ;; docs/knowledge-base/agent-shell-session-resume.org §An agent process that dies between turns gives no event, and a function added to its sentinel hears it
+        (add-function :after (process-sentinel process)
+                      (lambda (process _event)
+                        (unless (or over (process-live-p process))
+                          (setq over t)
+                          (funcall stop))))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'clean-up
      :on-event (lambda (_event)
@@ -156,18 +172,17 @@ When BUFFER is killed first, call ON-STOPPED with nil and that session."
 Return its session buffer.  Call ON-FINISHED and ON-STOPPED as
 `trf-session--listen' does."
   (let* ((default-directory directory)
-         (buffer (trf-session--start config)))
+         (buffer (trf-session--start config))
+         (told nil))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'init-finished
      :on-event (lambda (_event)
                  (agent-shell-insert :text instructions :submit t :no-focus t
-                                     :shell-buffer buffer)))
-    (trf-session--listen buffer on-finished on-stopped)
+                                     :shell-buffer buffer)
+                 ;; F-3 §Rules: Continue a stopped machine on its work in progress
+                 (setq told t)))
+    (trf-session--listen buffer on-finished on-stopped (lambda () told))
     buffer))
-
-(defun trf-session--process (buffer)
-  "Return the agent process of the session in BUFFER."
-  (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer) :client) :process))
 
 ;; docs/knowledge-base/agent-shell-session-resume.org §The process status tells an ended session until its buffer is given a message
 ;; docs/knowledge-base/agent-shell-session-resume.org §A message in a dead buffer reaches a new process without its session

@@ -249,7 +249,7 @@
     (let* (stops called
            (buffer (trf-session-test-run
                     (lambda (_) (setq called t))
-                    (lambda (reason &optional session-id) (push (list reason session-id) stops)))))
+                    (lambda (reason &optional session-id _told) (push (list reason session-id) stops)))))
       (with-current-buffer buffer
         (setq trf-session-test-session-id "session-1"))
       (kill-buffer buffer)
@@ -330,7 +330,7 @@
    (with-spy display-buffer calls
      (let ((finished (list 'finished)) reasons)
        (trf-session-test-run (trf-session-test-finishing finished)
-                             (lambda (reason &optional _session-id) (push reason reasons)))
+                             (lambda (reason &rest _) (push reason reasons)))
        (apply #'trf-session-test-say chunks)
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
        (trf-session-test-settle)
@@ -378,7 +378,7 @@
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)) reasons)
      (trf-session-test-run (trf-session-test-finishing finished)
-                           (lambda (reason &optional _session-id) (push reason reasons)))
+                           (lambda (reason &rest _) (push reason reasons)))
      (trf-session-test-say "{\"finished\": false, \"reason\": \"Out of ideas.\"}")
      (trf-session-test-fire 'error)
      (trf-session-test-settle)
@@ -392,7 +392,7 @@
   (setq trf-session-test-handlers nil)
   (trf-session-test-with-fake-shell
    (let (reasons)
-     (trf-session-test-run #'ignore (lambda (reason &optional _session-id) (push reason reasons)))
+     (trf-session-test-run #'ignore (lambda (reason &rest _) (push reason reasons)))
      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "refusal")))
      (trf-session-test-settle)
      ;; UW-1 §Extensions: Turn record changes into code
@@ -497,7 +497,7 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
   (trf-session-test-continuing "unused"
     (let ((buffer (trf-session-test-session-buffer '("sleep" "60") "session-1"))
           reasons)
-      (trf-session-test-continue buffer nil (lambda (reason &optional _session-id) (push reason reasons)))
+      (trf-session-test-continue buffer nil (lambda (reason &rest _) (push reason reasons)))
       (trf-session-test-say "{\"finished\": false, \"reason\": \"Still unsure.\"}")
       (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
       (trf-session-test-settle)
@@ -669,6 +669,52 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
       ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
       ;; docs/knowledge-base/agent-shell-session-resume.org §The elicitation switch survives a resume
       (assert-true (buffer-local-value 'agent-shell-elicitation--experimental-feature-enabled resumed)))))
+
+(deftest trf-session-told-nothing-before-the-instructions-go-out ()
+  "A machine that stops before its instructions go out is stopped as told nothing; after, as told something."
+  (dolist (case '((nil nil) (t t)))
+    (setq trf-session-test-handlers nil)
+    (trf-session-test-with-fake-shell
+     (let (stops)
+       (trf-session-test-run #'ignore (lambda (&rest args) (push args stops)))
+       (when (car case)
+         (trf-session-test-fire 'init-finished))
+       (trf-session-test-fire 'error (list (cons :message "Agent failed.")))
+       (trf-session-test-settle)
+       ;; F-3 §Rules: Continue a stopped machine on its work in progress
+       (assert-equal (list (list nil nil (cadr case))) stops
+                     (format "%s the instructions went out" (if (car case) "after" "before")))))))
+
+(deftest trf-session-stopped-when-its-agent-process-dies-between-turns ()
+  "A machine whose agent process dies while the IDE waits on it is stopped, with no reason and its session."
+  (trf-session-test-continuing "unused"
+    (let ((buffer (get-buffer-create trf-session-test-buffer-name))
+          (process (trf-session-test-agent '("sleep" "60")))
+          stops)
+      (with-current-buffer buffer
+        (setq trf-session-test-session-id "session-1"))
+      (trf-session-test-set-agent buffer process)
+      (trf-session--listen buffer #'ignore (lambda (&rest args) (push args stops)))
+      (delete-process process)
+      (trf-session-test-settle)
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; docs/knowledge-base/agent-shell-session-resume.org §An agent process that dies between turns gives no event, and a function added to its sentinel hears it
+      (assert-equal '((nil "session-1" t)) stops))))
+
+(deftest trf-session-killing-its-buffer-stops-a-machine-once ()
+  "A machine whose buffer is killed, and whose agent process then ends, is stopped once."
+  (trf-session-test-continuing "unused"
+    (let ((buffer (get-buffer-create trf-session-test-buffer-name))
+          (process (trf-session-test-agent '("sleep" "60")))
+          (stops 0))
+      (trf-session-test-set-agent buffer process)
+      (trf-session--listen buffer #'ignore (lambda (&rest _) (cl-incf stops)))
+      (kill-buffer buffer)
+      (delete-process process)
+      (trf-session-test-settle)
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; docs/knowledge-base/agent-shell-session-resume.org §An agent process that dies between turns gives no event, and a function added to its sentinel hears it
+      (assert-equal 1 stops))))
 
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here

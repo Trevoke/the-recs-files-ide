@@ -38,7 +38,8 @@ The brainstorming and planning machines produce docs/plans/<slug>.md; the reconc
 assessor writes the record implementation report.
 FINISHING is `now' to finish each machine at once, `later' to finish it from a timer,
 the name of the machine that stops instead of finishing, or a list of that name, the
-reason it gives for stopping, and the session it stopped in."
+reason it gives for stopping, the session it stopped in, and whether it was told anything,
+which it was unless the list says nil."
   (let ((timers (make-symbol "timers")))
     `(let ((,timers nil))
        (unwind-protect
@@ -52,7 +53,9 @@ reason it gives for stopping, and the session it stopped in."
                           (if (or (equal ,finishing name)
                                   (and (consp ,finishing) (equal (car ,finishing) name)))
                               (funcall on-stopped (when (consp ,finishing) (cadr ,finishing))
-                                       (when (consp ,finishing) (nth 2 ,finishing)))
+                                       (when (consp ,finishing) (nth 2 ,finishing))
+                                       (or (not (consp ,finishing)) (< (length ,finishing) 4)
+                                           (nth 3 ,finishing)))
                             (let ((produced
                                    (when (member name '("brainstorming machine" "planning machine"))
                                      (list (format "docs/plans/%s.md" (car (split-string name)))))))
@@ -1352,7 +1355,7 @@ ENDING is (finish PRODUCED), (stop REASON) or (cannot REASON): how the continued
                 (setq ,continued (append ,continued (list (list buffer message session-id))))
                 (pcase ,ending
                   (`(finish ,produced) (funcall on-finished produced))
-                  (`(stop ,reason) (funcall on-stopped reason))
+                  (`(stop ,reason) (funcall on-stopped reason nil t))
                   (`(cannot ,reason) (funcall on-cannot-continue reason)))
                 (get-buffer-create trf-test-continued-buffer-name))))
      (unwind-protect
@@ -1730,16 +1733,27 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     ;; ADR-5 §Decision: Continue a machine in its own ACP session
     (assert-equal "session-1" (nth 2 (car continued)))))
 
-(deftest trf-implement-clears-the-at-work-mark-when-a-start-fails ()
-  "When starting a machine fails, its work in progress is no longer marked at work."
+(deftest trf-implement-stops-a-machine-whose-start-fails ()
+  "When starting a machine fails, the machine stops with the failure as its reason, and its work in progress is kept."
   (trf-test-write-files trf-test-root (list trf-test-record-change))
-  (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
-            ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
-            ((symbol-function 'trf-session-run) (lambda (&rest _) (error "Cannot start"))))
-    (assert-equal '(error "Cannot start") (trf-test-implement)))
-  (let ((directory (car (directory-files (expand-file-name ".worktrees/" trf-test-root) t "\\`trf-"))))
-    ;; F-2 §Rules: Accept or reject the record implementation report
-    (assert-nil (gethash (file-name-as-directory directory) trf--machines-at-work))))
+  (let (messages)
+    (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
+              ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
+              ((symbol-function 'trf-session-run) (lambda (&rest _) (error "Cannot start")))
+              ((symbol-function 'message)
+               (lambda (format-string &rest args)
+                 (push (apply #'format format-string args) messages))))
+      (assert-nil (trf-test-implement)))
+    (let ((directory (file-name-as-directory
+                      (car (directory-files (expand-file-name ".worktrees/" trf-test-root) t "\\`trf-")))))
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; MSG-10: Machine stopped before finishing
+      (assert-equal '("A machine stopped before finishing:\nbrainstorming machine\nCannot start")
+                    messages)
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-nil (gethash directory trf--machines-at-work))
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-true (gethash directory trf--stopped-machines)))))
 
 (deftest trf-continue-clears-the-at-work-mark-when-resuming-fails ()
   "When resuming a stopped machine fails, its work in progress is no longer marked at work."
@@ -1903,6 +1917,62 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
                   messages)
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
     (assert-equal '(("session-1" "Go on.")) continued)))
+
+(defun trf-test-continue-asking-nothing (file)
+  "Continue the stopped machine from FILE's buffer; signal if the record keeper is asked anything."
+  (cl-letf (((symbol-function 'read-string) (lambda (&rest _) (error "Asked what to tell the machine"))))
+    (with-current-buffer (find-file-noselect file)
+      (trf-continue-stopped-machine))))
+
+(deftest trf-continue-starts-afresh-a-machine-whose-start-failed ()
+  "A machine whose start failed is started again with its first instructions, and the record keeper is asked nothing."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let ((failing t) runs first directory)
+    (trf-test-with-machines runs 'now
+      (let ((stand-in (symbol-function 'trf-session-run)))
+        (cl-letf (((symbol-function 'trf-session-run)
+                   (lambda (directory config instructions &rest rest)
+                     (if (and failing (string-prefix-p "You are the planning machine." instructions))
+                         (progn (setq failing nil first instructions)
+                                (error "Cannot start"))
+                       (apply stand-in directory config instructions rest))))
+                  ((symbol-function 'message) #'ignore))
+          (trf-test-implement)
+          (setq directory (nth 1 (car runs)))
+          (trf-test-continue-asking-nothing (expand-file-name "src/widget.el" directory)))))
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal '("brainstorming machine" "planning machine" "executing machine"
+                    "reconciliation assessor")
+                  (mapcar #'car runs))
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal first (nth 3 (nth 1 runs)))
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-match "^- docs/plans/brainstorming\\.md$" (nth 3 (nth 1 runs)))))
+
+(deftest trf-continue-starts-afresh-a-machine-told-nothing ()
+  "A machine that stopped before its instructions went out, as on an error before its session was ready, starts again with them, asking nothing."
+  (let (continued)
+    (trf-test-with-a-stopped-machine '("planning machine" "Agent failed." nil nil)
+      (setq stopping 'now)
+      (trf-test-continuing continued '(finish nil)
+        (trf-test-continue-asking-nothing widget))
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-nil continued)
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-equal '("brainstorming machine" "planning machine" "planning machine"
+                      "executing machine" "reconciliation assessor")
+                    (mapcar #'car runs))
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-equal (nth 3 (nth 1 runs)) (nth 3 (nth 2 runs))))))
+
+(deftest trf-continue-asks-what-to-tell-a-machine-told-something ()
+  "A machine that stopped after its instructions went out is asked about."
+  (let (continued)
+    (trf-test-with-a-stopped-machine '("planning machine" "Stuck." "session-1" t)
+      (trf-test-continuing continued '(stop "Again.")
+        (assert-nil (trf-test-continue widget "Go on.")))
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-equal "Go on." (nth 1 (car continued))))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

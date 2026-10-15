@@ -13,7 +13,8 @@ a real one does on resume is not established here.
 message as a new turn. agent-shell keeps the session's state after its process
 ends, and the process status tells the session has ended, but only until the
 buffer is given a message: that message starts a new agent process, which
-knows nothing of the session and runs on under the same name.
+knows nothing of the session and runs on under the same name. A process that
+dies between turns gives no event, but a function added to its sentinel hears it.
 =agent-shell-start= given =:session-id= resumes the session in a new buffer with
 =session/resume=, which replays nothing, under the default verbosity, and the
 elicitation switch holds there. A resume that fails starts a new session in its
@@ -96,6 +97,28 @@ twice, first with that id and then with none, then =init-finished=, and the
 buffer's session id is then =sess-2=, a new session. No =error= event is
 emitted. So a resume is checked by comparing the buffer's session id after
 =init-finished= with the id asked for.
+
+* An agent process that dies between turns gives no event, and a function added to its sentinel hears it
+
+=acp.el=, =acp--start-client=, gives the agent process a sentinel that fails the
+requests still waiting on it:
+
+#+begin_example
+                    :sentinel (lambda (process event)
+                                (when (buffer-live-p stderr-buffer)
+                                  (kill-buffer stderr-buffer))
+                                (when (memq (process-status process) '(exit signal))
+                                  (acp--fail-pending-requests :client client :event event))))))
+#+end_example
+
+So a death during a turn reaches agent-shell as an =error= event, and a death
+between turns, with no request waiting, reaches it as nothing. In the second run
+below, a function added =:after= that sentinel with =add-function= runs in every
+case: in part A, the agent process is ended between turns, no event follows,
+and the function runs ("terminated"); in part B, the process dies during a turn,
+the =error= event comes first and the function after it; in part C, the session
+buffer is killed, its =clean-up= event comes first and the function after it
+("killed").
 
 * The run
 
@@ -319,4 +342,106 @@ Couldn't resume session sess-unknown. Starting a new one.
 [1259511] recv session/list id=3 null
 [1259511] recv session/new id=4 null
 [1259511] recv session/list id=5 null
+#+end_example
+
+* The second run
+
+Run with =emacs -Q --batch -l death-run.el <directory of the agent-shell, acp and
+shell-maker builds> fake_agent.py <empty directory>=, with the =fake_agent.py=
+above.
+
+#+begin_src emacs-lisp
+;;; death-run.el --- Learning of an agent process's death in agent-shell 0.86.2 -*- lexical-binding: t; -*-
+(dolist (dir (directory-files (nth 0 command-line-args-left) t "\\`[^.]"))
+  (add-to-list 'load-path dir))
+(require 'agent-shell)
+(require 'cl-lib)
+(defvar dr-script (nth 1 command-line-args-left))
+(setq default-directory (file-name-as-directory (nth 2 command-line-args-left)))
+(setenv "FAKE_STORE" (expand-file-name "store" default-directory))
+(setenv "FAKE_LOG" (expand-file-name "agent.log" default-directory))
+(make-directory (getenv "FAKE_STORE") t)
+(setq agent-shell-show-welcome-message nil)
+
+(defun dr-config ()
+  (agent-shell-make-agent-config
+   :identifier 'fake :mode-line-name "Fake" :buffer-name "Fake"
+   :shell-prompt "Fake> " :shell-prompt-regexp "Fake> "
+   :client-maker (lambda (buffer)
+                   (acp-make-client :context-buffer buffer :command "python3"
+                                    :command-params (list "-I" dr-script)))))
+
+(defvar dr-log nil)
+(defun dr-note (text) (push text dr-log) (princ (format "  %s\n" text)))
+(defun dr-wait (pred &optional secs)
+  (let ((end (+ (float-time) (or secs 5))))
+    (while (and (not (funcall pred)) (< (float-time) end))
+      (accept-process-output nil 0.05))
+    (funcall pred)))
+
+(defun dr-session (label)
+  "Start a session, end one turn, and watch its events and its agent process."
+  (let ((buffer (let ((agent-shell-session-strategy 'new))
+                  (agent-shell-start :config (dr-config)))))
+    (dolist (event '(turn-complete error clean-up))
+      (let ((event event))
+        (agent-shell-subscribe-to
+         :shell-buffer buffer :event event
+         :on-event (lambda (e) (dr-note (format "[%s] event %s %S" label event (map-elt e :data)))))))
+    (dr-wait (lambda () (map-elt (buffer-local-value 'agent-shell--state buffer) :init-finished)))
+    (let ((process (map-elt (map-elt (buffer-local-value 'agent-shell--state buffer) :client) :process)))
+      (add-function :after (process-sentinel process)
+                    (lambda (proc event)
+                      (dr-note (format "[%s] the added sentinel function ran: %S, status %s"
+                                       label (string-trim event) (process-status proc)))))
+      (agent-shell-insert :text "hello" :submit t :no-focus t :shell-buffer buffer)
+      (dr-wait (lambda () (cl-find-if (lambda (s) (string-match-p "turn-complete" s)) dr-log)))
+      (list buffer process))))
+
+(let ((kill-buffer-query-functions nil))
+  (princ "== A. the agent process dies between turns\n")
+  (pcase-let ((`(,buffer ,process) (dr-session "A")))
+    (setq dr-log nil)
+    (signal-process process 'TERM)
+    (dr-wait (lambda () dr-log) 3)
+    (dr-wait (lambda () nil) 1)
+    (princ (format "  events after the death: %S\n"
+                   (cl-remove-if-not (lambda (s) (string-match-p "event" s)) dr-log)))
+    (kill-buffer buffer))
+  (princ "== B. the agent process dies mid-turn\n")
+  (pcase-let ((`(,buffer ,_process) (dr-session "B")))
+    (setq dr-log nil)
+    (agent-shell-insert :text "DIE" :submit t :no-focus t :shell-buffer buffer)
+    (dr-wait (lambda () (>= (length dr-log) 2)) 3)
+    (dr-wait (lambda () nil) 1)
+    (princ (format "  in order: %S\n" (reverse dr-log)))
+    (setq dr-log nil)
+    (princ "== C. the session buffer is killed\n")
+    (agent-shell-insert :text "ignored" :submit t :no-focus t :shell-buffer buffer)
+    (dr-wait (lambda () nil) 1)
+    (setq dr-log nil))
+  (pcase-let ((`(,buffer ,_process) (dr-session "C")))
+    (setq dr-log nil)
+    (kill-buffer buffer)
+    (dr-wait (lambda () nil) 1)
+    (princ (format "  in order: %S\n" (reverse dr-log)))))
+#+end_src
+
+#+begin_example
+== A. the agent process dies between turns
+  [A] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
+  [A] the added sentinel function ran: "terminated", status signal
+  events after the death: nil
+  [A] event clean-up nil
+== B. the agent process dies mid-turn
+  [B] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
+  [B] event error ((:code . -32603) (:message . "Agent process ended before completing request: exited abnormally with code 3"))
+  [B] the added sentinel function ran: "exited abnormally with code 3", status exit
+  in order: ("[B] event error ((:code . -32603) (:message . \"Agent process ended before completing request: exited abnormally with code 3\"))" "[B] the added sentinel function ran: \"exited abnormally with code 3\", status exit")
+== C. the session buffer is killed
+  [B] event error ((:code . -32002) (:message . "Session not found: sess-2"))
+  [C] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
+  [C] event clean-up nil
+  [C] the added sentinel function ran: "killed", status signal
+  in order: ("[C] event clean-up nil" "[C] the added sentinel function ran: \"killed\", status signal")
 #+end_example
