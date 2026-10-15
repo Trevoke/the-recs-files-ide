@@ -1332,5 +1332,13 @@ Every other call to `trf-git' runs git."
     (assert-match (regexp-quote "trf/")
                   (trf-test-git trf-test-root "branch" "--list" "trf/*"))))
 
+(deftest trf-implement-gives-msg-10-without-a-reason-when-the-reason-is-blank ()
+  "When a machine stops with a reason of only whitespace, the IDE gives MSG-10 with no reason given."
+  (pcase-let ((`(,messages ,_runs) (trf-test-stopping '("planning machine" "  \t "))))
+    ;; MSG-10: Machine stopped before finishing
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
+                  messages)))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here

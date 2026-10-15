@@ -32,8 +32,8 @@
       (trf-record-changes--empty-tree root)))
 
 (defun trf-record-changes-reason (output)
-  "Return git's OUTPUT, or the text saying it gave no reason when OUTPUT is empty."
-  (if (string-empty-p output)
+  "Return OUTPUT, or the text saying no reason was given when it is blank."
+  (if (string-blank-p output)
       trf-record-changes-no-reason-message
     output))
 
