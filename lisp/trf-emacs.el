@@ -2,6 +2,7 @@
 
 (require 'subr-x)
 
+;; ADR-6 §Decision: Keep the IDE's Emacs files outside the target product
 (defun trf-emacs-state-directory ()
   "Return the directory the IDE keeps its own files in."
   (let ((state (getenv "XDG_STATE_HOME")))
@@ -17,6 +18,7 @@
     (make-directory directory t)
     directory))
 
+;; ADR-6 §Decision: Keep the IDE's Emacs files outside the target product
 ;; docs/knowledge-base/emacs-auto-save-lock-and-backup-files.org §The transforms put auto-save, lock and backup files under the directories named
 (defun trf-emacs-keep-files-outside-the-target-product ()
   "Keep auto-save, lock and backup files under the IDE's state directory."

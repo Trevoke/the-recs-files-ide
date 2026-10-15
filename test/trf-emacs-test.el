@@ -39,10 +39,13 @@
   (trf-emacs-test-with-the-ides-files-kept
     (let ((file (expand-file-name "src/widget.el" trf-emacs-test-root))
           (state (expand-file-name "recs-files-ide/" trf-emacs-test-state)))
+      ;; ADR-6 §Decision: Keep the IDE's Emacs files outside the target product
       (assert-true (string-prefix-p state (with-temp-buffer
                                              (setq buffer-file-name file)
                                              (make-auto-save-file-name))))
+      ;; ADR-6 §Decision: Keep the IDE's Emacs files outside the target product
       (assert-true (string-prefix-p state (make-lock-file-name file)))
+      ;; ADR-6 §Decision: Keep the IDE's Emacs files outside the target product
       (assert-true (string-prefix-p state (make-backup-file-name file))))))
 
 (deftest trf-emacs-leaves-a-worktree-removable-with-a-modified-buffer-open ()
@@ -60,6 +63,7 @@
         (assert-true (buffer-modified-p))
         (assert-true (file-exists-p buffer-auto-save-file-name))
         (assert-true (file-symlink-p (make-lock-file-name file))))
+      ;; ADR-6 §Decision: Keep the IDE's Emacs files outside the target product
       (assert-equal "" (trf-test-git worktree "status" "--porcelain" "--untracked-files=all"))
       (trf-test-git root "worktree" "remove" worktree)
       (assert-nil (file-exists-p worktree)))))
@@ -68,6 +72,7 @@
   "An empty or relative XDG_STATE_HOME counts as unset."
   (dolist (value '("" "relative/state"))
     (let ((process-environment (cons (concat "XDG_STATE_HOME=" value) process-environment)))
+      ;; ADR-6 §Decision: Keep the IDE's Emacs files outside the target product
       (assert-equal (expand-file-name "recs-files-ide/" "~/.local/state/")
                     (trf-emacs-state-directory)
                     (format "XDG_STATE_HOME=%S counts as unset" value)))))
