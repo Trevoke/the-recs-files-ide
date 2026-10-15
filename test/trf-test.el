@@ -1236,30 +1236,31 @@ Every other call to `trf-git' runs git."
       (kill-buffer buffer))))
 
 (deftest trf-accept-leaves-emacs-lock-and-auto-save-files-out-of-the-codebase ()
-  "An edit not saved when offered leaves its lock and auto-save files out of the codebase."
-  (let* ((directory (trf-test-implemented-worktree))
-         (file (expand-file-name "src/widget.el" directory))
-         (buffer (find-file-noselect file))
-         offered)
-    (trf-test-build directory)
-    (with-current-buffer buffer
-      (revert-buffer t t t)
-      (auto-save-mode 1)
-      (goto-char (point-max))
-      (insert ";; unsaved\n")
-      (do-auto-save t))
-    (assert-true (file-symlink-p (expand-file-name "src/.#widget.el" directory)))
-    (assert-true (file-exists-p (expand-file-name "src/#widget.el#" directory)))
-    (trf-test-offering-saves nil offered
-      (assert-nil (trf-test-from-file (trf-test-report-file directory)
-                                      #'trf-accept-record-implementation-report)))
-    ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding a modified buffer's lock file
-    ;; docs/knowledge-base/git-worktree-removal.org §An exclude pattern starting with # is written with a backslash
-    (assert-equal "" (trf-test-git trf-test-root "ls-files" "src/.#widget.el" "src/#widget.el#"))
-    (assert-nil (file-exists-p directory))
-    (with-current-buffer buffer
-      (set-buffer-modified-p nil))
-    (kill-buffer buffer)))
+  "An edit not saved when offered leaves no lock or auto-save file in the work in progress or the codebase."
+  (trf-test-with-the-ides-files-kept
+    (let* ((directory (trf-test-implemented-worktree))
+           (file (expand-file-name "src/widget.el" directory))
+           (buffer (find-file-noselect file))
+           offered)
+      (trf-test-build directory)
+      (with-current-buffer buffer
+        (revert-buffer t t t)
+        ;; docs/knowledge-base/emacs-auto-save-lock-and-backup-files.org §Batch find-file leaves auto-save-mode off
+        (auto-save-mode 1)
+        (goto-char (point-max))
+        (insert ";; unsaved\n")
+        (do-auto-save t))
+      ;; ADR-6 §Consequences: Keep the IDE's Emacs files outside the target product
+      (assert-equal "" (trf-test-git directory "status" "--porcelain" "--untracked-files=all"))
+      (trf-test-offering-saves nil offered
+        (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                        #'trf-accept-record-implementation-report)))
+      ;; ADR-6 §Consequences: Keep the IDE's Emacs files outside the target product
+      (assert-equal "" (trf-test-git trf-test-root "ls-files" "src/.#widget.el" "src/#widget.el#"))
+      (assert-nil (file-exists-p directory))
+      (with-current-buffer buffer
+        (set-buffer-modified-p nil))
+      (kill-buffer buffer))))
 
 (deftest trf-accept-brings-in-an-edit-saved-after-the-work-was-brought-in ()
   "Once the work is brought in and its removal failed, an edit saved before accepting again is brought in too, with no rerun."
