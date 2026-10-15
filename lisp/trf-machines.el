@@ -93,7 +93,8 @@
                  "each test that cites it and whether it passed; a record change that no "
                  "test cites is shown as untested. If you cannot assess at all, say so "
                  "and why under every record change.")
-          :closing (concat "When you have assessed every record change, "
+          :closing (concat "When you have written the record implementation report, "
+                           "including when you could not assess, "
                            "end your last turn with one JSON line alone:\n"
                            trf-machines--json-line))))
 

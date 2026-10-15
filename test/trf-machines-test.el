@@ -76,8 +76,12 @@
   (let ((text (trf-machines-instructions (trf-machines-reconciliation-assessor)
                                          trf-machines-test-changes)))
     (assert-match "The record implementation report is \\.trf/record-implementation-report\\.org; change no other file\\." text)
+    ;; UW-1 §Extensions: Turn record changes into code
     ;; ADR-3 §Decision: Machines end their work with one JSON line
-    (assert-match "\n{\"finished\": true}$" text)
+    (assert-match (concat (regexp-quote "\n\nWhen you have written the record implementation report, including when you could not assess, end your last turn with one JSON line alone:\n{\"finished\": true}")
+                          "\\'")
+                  text)
+    (assert-nil (string-match-p "When you have assessed every record change" text))
     (assert-nil (string-match-p "produced" text))))
 
 (deftest trf-machines-skills-are-customizable ()
