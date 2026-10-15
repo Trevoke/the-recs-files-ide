@@ -26,8 +26,9 @@ Accepted.
 
 - A machine's questions are answered within its turn.
 - The record keeper answers in a form: a choice among options, or text.
-- A machine on an AI program without a device for questions does not ask the
-  record keeper.
+- A machine on an AI program without a device for questions stops when it has
+  a question, and gives the question as its reason (ADR-3 Machines end their
+  work with one JSON line).
 - The IDE depends on agent-shell's experimental elicitation, and follows its
   changes.
 - Elicitation in url mode goes unanswered until agent-shell shows it.

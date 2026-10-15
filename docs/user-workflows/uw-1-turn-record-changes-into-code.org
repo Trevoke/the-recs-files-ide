@@ -61,9 +61,9 @@ The record keeper asks to implement the record changes.
 - 3a. A machine of the implementation workflow stops before finishing :: IDE
   keeps the work in progress and shows the record keeper why; record keeper has
   that machine start again on it, at step 3.
-- 4a. The machine's AI program offers no device for questions :: the machine
-  settles on its own what the records do not settle; the use case continues
-  at step 5.
+- 4a. A machine has a question and its AI program offers no device for
+  questions :: the machine stops before finishing, with the question as its
+  reason; continues at 3a.
 - 5a. A record change has no test citing it :: the record implementation report
   shows it untested.
 - 5b. Reconciliation assessor cannot assess :: the record implementation report

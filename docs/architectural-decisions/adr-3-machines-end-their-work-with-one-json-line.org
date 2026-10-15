@@ -15,8 +15,10 @@ machine of the implementation workflow works from those files.
 The IDE instructs each machine to end its work with one line of JSON in its
 last message: {"finished": true, "produced": [the paths it wrote]} from the
 brainstorming machine and the planning machine, and {"finished": true} from
-the executing machine and the reconciliation assessor. The line may sit inside
-a code fence.
+the executing machine and the reconciliation assessor. A machine that stops
+before finishing ends its last message with
+{"finished": false, "reason": "why it stopped"}. The line may sit inside a
+code fence.
 
 ** Status
 
@@ -29,4 +31,5 @@ Accepted.
 - The IDE gives the produced paths to the next machine of the implementation
   workflow.
 - A machine that never writes the line is never taken to have finished.
+- The IDE shows the reason a machine gives for stopping.
 - When ACP carries structured output, this decision is revisited.
