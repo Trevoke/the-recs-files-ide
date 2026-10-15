@@ -448,8 +448,8 @@ Return nil when there is none."
              trf--session-buffers)
     nil))
 
-;; UW-1 §Extensions 3-5a: Turn record changes into code
 ;; F-3 §Rules: Continue a stopped machine on its work in progress
+;; UW-1 §Extensions 3-5a: Turn record changes into code
 ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
 ;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it
 (defun trf--interrupting-instead (restart &rest args)

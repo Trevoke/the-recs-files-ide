@@ -1844,6 +1844,9 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
               (string-prefix-p (format "*trf listening %s*" name) (buffer-name buffer)))
             trf-test-listening-buffers))
 
+(defvar trf-test-listening-cancelled nil
+  "The name of the machine whose turn `trf-test-listening-run' ends as cancelled.")
+
 (defvar trf-test-listening-at-work nil
   "The name of the machine `trf-test-listening-run' leaves at work instead of finishing.")
 
@@ -1868,13 +1871,17 @@ The reconciliation assessor writes the record implementation report in DIRECTORY
     (when (equal name "reconciliation assessor")
       (with-temp-file (expand-file-name (trf-machines-record-implementation-report-file) directory)
         (insert "Assessed by the reconciliation assessor.")))
-    (dolist (event (unless (equal name trf-test-listening-at-work)  (list (list 'agent-message-chunk
+    (dolist (event (cond
+                    ((equal name trf-test-listening-at-work) nil)
+                    ((equal name trf-test-listening-cancelled)
+                     (list (list 'turn-complete (list (cons :stop-reason "cancelled")))))
+                    (t (list (list 'agent-message-chunk
                                (list (cons :text-chunk
                                            (if (member name '("brainstorming machine" "planning machine"))
                                                (format "{\"finished\": true, \"produced\": [\"docs/plans/%s.md\"]}"
                                                        (car (split-string name)))
                                              "{\"finished\": true}"))))
-                         (list 'turn-complete (list (cons :stop-reason "end_turn"))))))
+                         (list 'turn-complete (list (cons :stop-reason "end_turn")))))))
       (dolist (handler (reverse handlers))
         (when (eq (car handler) (car event))
           (funcall (cdr handler) (list (cons :event (car event)) (cons :data (cadr event)))))))
@@ -2252,6 +2259,42 @@ what the record keeper was asked to answer yes or no to, answered yes."
           (assert-true (gethash directory trf--machines-at-work))
           (assert-nil continued))
       (advice-remove 'agent-shell-restart 'trf-test-restart))))
+
+(deftest trf-restart-in-a-stopped-machines-buffer-continues-it ()
+  "agent-shell's restart in the session buffer of a machine that stopped continues it in its session, asking no stop question."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let ((trf-test-listening-cancelled "planning machine")
+        questions prompts continued buffer directory)
+    (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
+              ((symbol-function 'trf-session-run) #'trf-test-listening-run)
+              ((symbol-function 'agent-shell-session-id) (lambda (&rest _) "session-1"))
+              ((symbol-function 'y-or-n-p) (lambda (prompt &rest _) (push prompt questions) t))
+              ((symbol-function 'read-string)
+               (lambda (prompt &rest _) (push prompt prompts) "Go on."))
+              ((symbol-function 'trf-session-continue)
+               (lambda (_buffer session-id _config message &rest _)
+                 (push (list session-id message) continued)
+                 nil))
+              ((symbol-function 'message) #'ignore))
+      (trf-test-implement)
+      (setq directory (file-name-as-directory
+                       (car (directory-files (expand-file-name ".worktrees/" trf-test-root) t
+                                             "\\`trf-"))))
+      (trf-test-settle (lambda () (gethash directory trf--stopped-machines)))
+      (setq buffer (trf-test-listening-buffer "planning machine"))
+      (with-current-buffer buffer
+        (setq major-mode 'agent-shell-mode)
+        (agent-shell-restart))
+      (trf-test-settle (lambda () continued)))
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal '("Implement these record changes? ") questions)
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal '("Tell the machine: ") prompts)
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    ;; ADR-5 §Decision: Continue a machine in its own ACP session
+    (assert-equal '(("session-1" "Go on.")) continued)
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-true (gethash directory trf--machines-at-work))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here
