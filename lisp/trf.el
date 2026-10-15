@@ -327,13 +327,13 @@ From inside a worktree, return the target product's root it was created from."
   "Return non-nil when FILE is in DIRECTORY."
   (and file (string-prefix-p directory (expand-file-name file))))
 
-;; F-2 §Produces: Accept or reject the record implementation report
+;; F-2 §Rules: Accept or reject the record implementation report
 (defun trf--buffers-visiting (directory)
   "Return the buffers visiting files in DIRECTORY."
   (seq-filter (lambda (buffer) (trf--in-directory-p directory (buffer-file-name buffer)))
               (buffer-list)))
 
-;; F-2 §Produces: Accept or reject the record implementation report
+;; F-2 §Rules: Accept or reject the record implementation report
 ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer shuts down its ACP client
 ;; docs/knowledge-base/agent-shell-session-buffers.org §The ACP process is not the session buffer's process
 ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
@@ -485,7 +485,7 @@ Show a refusal as a message, and keep the machine stopped if the record keeper q
          (report (find-buffer-visiting
                   (expand-file-name (trf-machines-record-implementation-report-file)
                                     directory))))
-    ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     (when report
       (kill-buffer report))))
 

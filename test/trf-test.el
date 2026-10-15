@@ -644,7 +644,7 @@ Every other call to `trf-git' runs git."
          (state (trf-test-state directory))
          (file (expand-file-name "src/widget.el" directory)))
     (assert-nil (trf-test-from-file file #'trf-reject-record-implementation-report))
-    ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-nil (find-buffer-visiting (trf-test-report-file directory)))
     (assert-true (find-buffer-visiting file))
     ;; F-2 §Produces: Accept or reject the record implementation report
@@ -951,6 +951,7 @@ Every other call to `trf-git' runs git."
     ;; UW-1 §Main success scenario: Turn record changes into code
     (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
@@ -967,6 +968,7 @@ Every other call to `trf-git' runs git."
     (assert-equal base (string-trim (trf-test-git trf-test-root "rev-parse"
                                                   "refs/recs/implemented")))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
@@ -993,6 +995,7 @@ Every other call to `trf-git' runs git."
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
@@ -1025,6 +1028,7 @@ Every other call to `trf-git' runs git."
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
@@ -1041,6 +1045,7 @@ Every other call to `trf-git' runs git."
     (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
@@ -1059,14 +1064,15 @@ Every other call to `trf-git' runs git."
                                         :command '("sleep" "60"))))
           (assert-nil (trf-test-from-file (trf-test-report-file directory)
                                           #'trf-accept-record-implementation-report))
-          ;; F-2 §Produces: Accept or reject the record implementation report
+          ;; F-2 §Rules: Accept or reject the record implementation report
           (assert-true (buffer-live-p shell))
-          ;; F-2 §Produces: Accept or reject the record implementation report
+          ;; F-2 §Rules: Accept or reject the record implementation report
           (assert-true (process-live-p process))
-          ;; F-2 §Produces: Accept or reject the record implementation report
+          ;; F-2 §Rules: Accept or reject the record implementation report
           (assert-equal (file-name-as-directory trf-test-root)
                         (buffer-local-value 'default-directory shell))
           ;; F-2 §Produces: Accept or reject the record implementation report
+          ;; F-2 §Rules: Accept or reject the record implementation report
           ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
           (trf-test-assert-work-in-progress-removed directory branch))
       (when (process-live-p process)
@@ -1095,7 +1101,7 @@ Every other call to `trf-git' runs git."
                                     #'trf-accept-record-implementation-report))
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-true (get-buffer trf-test-machine-buffer-name))
-    ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-equal (file-name-as-directory trf-test-root)
                   (buffer-local-value 'default-directory
                                       (get-buffer trf-test-machine-buffer-name)))))
@@ -1284,6 +1290,7 @@ Every other call to `trf-git' runs git."
     ;; F-2 §Rules: Accept or reject the record implementation report
     (assert-equal "(provide 'widget) ; saved later\n" (trf-test-widget))
     ;; F-2 §Produces: Accept or reject the record implementation report
+    ;; F-2 §Rules: Accept or reject the record implementation report
     ;; ADR-7 §Consequences: Run the implementation workflow in a git worktree of the target product
     (trf-test-assert-work-in-progress-removed directory branch)))
 
@@ -2187,7 +2194,7 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
           (assert-nil (buffer-live-p ended))
           ;; F-2 §Rules: Accept or reject the record implementation report
           (assert-equal (list kept) (gethash key trf--session-buffers))
-          ;; F-2 §Produces: Accept or reject the record implementation report
+          ;; F-2 §Rules: Accept or reject the record implementation report
           (assert-equal (file-name-as-directory trf-test-root)
                         (buffer-local-value 'default-directory kept)))
       (remhash key trf--session-buffers)
