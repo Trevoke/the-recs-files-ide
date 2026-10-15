@@ -94,7 +94,6 @@
 (defvar trf--session-buffers (make-hash-table :test #'equal)
   "The machines' session buffers, keyed by the worktree they work in.")
 
-;; ADR-3 §Consequences: Machines end their work with one JSON line
 ;; F-3 §Rules: Start a stopped machine again on its work in progress
 (defvar trf--stopped-machines (make-hash-table :test #'equal)
   "How to start again the machine that stopped, keyed by the worktree it works in.")
@@ -103,11 +102,14 @@
   "Return the key DIRECTORY's worktree has in `trf--session-buffers' and `trf--stopped-machines'."
   (file-name-as-directory (expand-file-name directory)))
 
+;; ADR-3 §Consequences: Machines end their work with one JSON line
 (defun trf--run-machines (machines directory config changes produced on-done
                                     &optional ide-instruction)
   "Run MACHINES in turn in DIRECTORY with the AI program CONFIG on CHANGES.
 Give the first the paths PRODUCED before it and IDE-INSTRUCTION; call ON-DONE once the last
 has finished."
+  ;; F-3 §Rules: Start a stopped machine again on its work in progress
+  (remhash (trf--worktree-key directory) trf--stopped-machines)
   (if (null machines)
       (funcall on-done)
     (let ((machine (car machines)))
@@ -290,7 +292,6 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       ;; MSG-11: No stopped machine to start again
       (user-error "%s" trf-no-stopped-machine-message))
     (trf--offer-to-save directory)
-    (remhash (trf--worktree-key directory) trf--stopped-machines)
     (funcall start)))
 
 ;; F-2 §Takes: Accept or reject the record implementation report

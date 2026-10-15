@@ -1437,7 +1437,7 @@ Return (DIRECTORY RUNS) with RUNS holding the machines run so far."
                        (mapc actor list)
                        (length list))))
             (assert-nil (trf-test-start-again (expand-file-name "src/widget.el" directory))))
-            ;; F-3 §Rules: Start a stopped machine again on its work in progress
+          ;; F-3 §Rules: Start a stopped machine again on its work in progress
           (assert-equal (list buffer) offered))))
     ;; F-3 §Rules: Start a stopped machine again on its work in progress
     (assert-equal 2 runs-when-offered)
@@ -1457,7 +1457,7 @@ Return (DIRECTORY RUNS) with RUNS holding the machines run so far."
         (setq directory (nth 1 (car runs)))
         (setq stopping 'now)
         (trf-test-start-again (expand-file-name "src/widget.el" directory))
-            ;; F-3 §Rules: Start a stopped machine again on its work in progress
+        ;; F-3 §Rules: Start a stopped machine again on its work in progress
         ;; MSG-11: No stopped machine to start again
         (assert-equal '(user-error "There is no stopped machine here to start again.")
                       (trf-test-start-again (expand-file-name "src/widget.el" directory)))))))
@@ -1471,6 +1471,62 @@ Return (DIRECTORY RUNS) with RUNS holding the machines run so far."
                                     #'trf-accept-record-implementation-report))
     ;; F-3 §Rules: Start a stopped machine again on its work in progress
     (assert-nil (gethash directory trf--stopped-machines))))
+
+(deftest trf-start-again-after-an-accept-reruns-gives-msg-11 ()
+  "Once accepting reruns the implementation workflow on a moved codebase, the machine that stopped before is forgotten."
+  (let* ((stopping "planning machine")
+         runs directory count)
+    (trf-test-write-files trf-test-root (list trf-test-record-change))
+    (trf-test-with-machines runs stopping
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (trf-test-implement)
+        (setq directory (nth 1 (car runs)))
+        (setq stopping 'now)
+        (trf-test-write-files trf-test-root '(("src/other.el" . "(provide 'other)\n")))
+        (trf-test-git trf-test-root "add" "--all")
+        (trf-test-git trf-test-root "commit" "--quiet" "--message" "Other work")
+        (with-current-buffer (find-file-noselect (expand-file-name "src/widget.el" directory))
+          (trf-accept-record-implementation-report))
+        (setq count (length runs))
+        ;; F-3 §Rules: Start a stopped machine again on its work in progress
+        ;; MSG-11: No stopped machine to start again
+        (assert-equal '(user-error "There is no stopped machine here to start again.")
+                      (trf-test-start-again (expand-file-name "src/widget.el" directory)))
+        ;; F-3 §Rules: Start a stopped machine again on its work in progress
+        (assert-equal count (length runs))))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal 6 count)))
+
+(deftest trf-start-again-leaves-unsaved-edits-as-they-are ()
+  "Declining to save when starting a stopped machine again leaves the edit unsaved, and the machine still starts."
+  (let* ((stopping "planning machine")
+         runs directory buffer offered count)
+    (trf-test-write-files trf-test-root (list trf-test-record-change))
+    (trf-test-with-machines runs stopping
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (trf-test-implement)
+        (setq directory (nth 1 (car runs)))
+        (setq stopping 'now)
+        (setq count (length runs))
+        (setq buffer (find-file-noselect (expand-file-name "src/widget.el" directory)))
+        (with-current-buffer buffer
+          (goto-char (point-max))
+          (insert ";; unsaved\n"))
+        (trf-test-offering-saves nil offered
+          (assert-nil (trf-test-start-again (expand-file-name "src/widget.el" directory))))))
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-equal (list buffer) offered)
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-true (buffer-modified-p buffer))
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-nil (string-match-p ";; unsaved"
+                                (with-temp-buffer
+                                  (insert-file-contents (expand-file-name "src/widget.el" directory))
+                                  (buffer-string))))
+    ;; F-3 §Produces: Start a stopped machine again on its work in progress
+    (assert-equal "planning machine" (car (nth count runs)))
+    (with-current-buffer buffer
+      (set-buffer-modified-p nil))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here
