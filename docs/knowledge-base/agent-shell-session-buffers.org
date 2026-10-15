@@ -1,17 +1,20 @@
 #+TITLE: Killing an agent-shell Session Buffer — Reference
 #+STARTUP: overview
 
-Not a project document. This records what killing an agent-shell session
-buffer does, as read in the source of agent-shell 0.86.2, acp 0.15.1 and
-shell-maker 0.97.5, the versions under =ide/elpa/= and pinned for the tests in
-=Elkfile= (=agent-shell= at tag =v0.86.2=).
+Not a project document. This records what killing, restarting and forking an
+agent-shell session buffer do, as read in the source of agent-shell 0.86.2, acp
+0.15.1 and shell-maker 0.97.5, the versions under =ide/elpa/= and pinned for the
+tests in =Elkfile= (=agent-shell= at tag =v0.86.2=), and how =M-x= reaches
+=agent-shell-restart=, as a run of GNU Emacs 30.2 on 2026-10-15 shows.
 
 *What it establishes.* =kill-buffer= is the clean way to end a session: the
 buffer's kill hook shuts down its ACP client, which deletes the AI program's
 process. That process is not the buffer's process, and neither it nor the
 buffer's own process asks anything on exit; killing the buffer can ask only
 about queued prompts, and about saving the transcript when agent-shell keeps no
-transcript file.
+transcript file. =M-x agent-shell-restart= runs the command past any remap, and
+an advice on it catches it and =agent-shell-reload= alike. A fork's buffer hears
+nothing of the session buffer it was made from.
 
 * Killing a session buffer shuts down its ACP client
 
@@ -92,3 +95,93 @@ for a shell with a transcript file:
           ;; transcript capability, so don't prompt to save on kill.
           (setq-local shell-maker-prompt-before-killing-buffer nil)
 #+end_example
+
+* M-x runs agent-shell-restart past a remap, and an advice catches it
+
+agent-shell binds =agent-shell-restart=, =agent-shell-reload= and
+=agent-shell-fork= to no key: no keymap or menu in =agent-shell= 0.86.2 names
+them, and they are reached by =M-x=. =agent-shell.el=, =agent-shell-reload=,
+calls the other as a function:
+
+#+begin_example
+    (agent-shell-restart :session-id session-id)))
+#+end_example
+
+Emacs 30.2's =simple.el=, =execute-extended-command=, sets =this-command= to the
+command named and calls =(command-execute function 'record)=; the one test of
+=command-remapping= there only drops the key it would suggest. In the run
+below, a buffer-local =[remap agent-shell-restart]= makes =command-remapping=
+and a key bound to =agent-shell-restart= give the remapped command, but =M-x
+agent-shell-restart= runs =agent-shell-restart= itself. An =:around= advice on
+=agent-shell-restart= runs both for =M-x agent-shell-restart= and for the call
+=agent-shell-reload= makes.
+
+Run with =emacs -Q --batch -l remap-run.el <directory of the agent-shell, acp
+and shell-maker builds>=.
+
+#+begin_src emacs-lisp
+;;; remap-run.el --- Whether M-x honours a buffer-local remap of agent-shell-restart -*- lexical-binding: t; -*-
+(dolist (dir (directory-files (car command-line-args-left) t "\\`[^.]"))
+  (add-to-list 'load-path dir))
+(require 'agent-shell)
+
+(defun remap-run-instead ()
+  (interactive)
+  (princ "  the remapped command ran\n"))
+
+(defun remap-run-advice (_restart &rest args)
+  (princ (format "  the advice on agent-shell-restart ran, with %S\n" args)))
+
+(with-temp-buffer
+  (use-local-map (let ((map (make-sparse-keymap)))
+                   (define-key map [remap agent-shell-restart] #'remap-run-instead)
+                   (define-key map (kbd "C-c r") #'agent-shell-restart)
+                   map))
+  (princ (format "command-remapping of agent-shell-restart here: %S\n"
+                 (command-remapping 'agent-shell-restart)))
+  (princ (format "key-binding of C-c r here: %S\n" (key-binding (kbd "C-c r"))))
+  (princ "M-x agent-shell-restart, no advice:\n")
+  (condition-case err
+      (execute-extended-command nil "agent-shell-restart")
+    (error (princ (format "  agent-shell-restart itself ran and signalled %S\n" err))))
+  (advice-add 'agent-shell-restart :around #'remap-run-advice)
+  (princ "M-x agent-shell-restart, advised:\n")
+  (execute-extended-command nil "agent-shell-restart")
+  (princ "agent-shell-restart called as a function, as agent-shell-reload calls it, advised:\n")
+  (agent-shell-restart :session-id "session-1")
+  (advice-remove 'agent-shell-restart #'remap-run-advice))
+#+end_src
+
+#+begin_example
+command-remapping of agent-shell-restart here: remap-run-instead
+key-binding of C-c r here: remap-run-instead
+M-x agent-shell-restart, no advice:
+  agent-shell-restart itself ran and signalled (user-error "Not in a shell or viewport buffer")
+M-x agent-shell-restart, advised:
+  the advice on agent-shell-restart ran, with nil
+agent-shell-restart called as a function, as agent-shell-reload calls it, advised:
+  the advice on agent-shell-restart ran, with (:session-id "session-1")
+#+end_example
+
+* A fork's buffer gets none of the forked session's events
+
+=agent-shell.el=, =agent-shell-subscribe-to=, keeps each subscription in the
+state of the shell buffer it names:
+
+#+begin_example
+  (let ((token (cl-incf agent-shell--subscription-counter)))
+    (with-current-buffer shell-buffer
+      (let ((subscriptions (map-elt (agent-shell--state) :event-subscriptions)))
+#+end_example
+
+and =agent-shell--emit-event= gives an event only to the subscriptions in the
+state of the buffer emitting it:
+
+#+begin_example
+    (dolist (sub (map-elt state :event-subscriptions))
+#+end_example
+
+=agent-shell-fork= starts the fork in a new buffer through =agent-shell--start=,
+which makes that buffer a state of its own, and leaves the buffer it was called
+in alive. So what is subscribed to a session buffer hears nothing of a fork
+made from it, and the session buffer goes on as before.

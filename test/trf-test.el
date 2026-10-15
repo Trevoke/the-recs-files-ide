@@ -1780,6 +1780,9 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
                   messages)))
 
+(defvar trf-test-listening-at-work nil
+  "The name of the machine `trf-test-listening-run' leaves at work instead of finishing.")
+
 (defun trf-test-listening-run (directory _config instructions on-finished on-stopped)
   "Run the machine INSTRUCTIONS name in a buffer of its own that the IDE listens to, and finish it.
 The reconciliation assessor writes the record implementation report in DIRECTORY first."
@@ -1800,13 +1803,13 @@ The reconciliation assessor writes the record implementation report in DIRECTORY
     (when (equal name "reconciliation assessor")
       (with-temp-file (expand-file-name (trf-machines-record-implementation-report-file) directory)
         (insert "Assessed by the reconciliation assessor.")))
-    (dolist (event (list (list 'agent-message-chunk
+    (dolist (event (unless (equal name trf-test-listening-at-work)  (list (list 'agent-message-chunk
                                (list (cons :text-chunk
                                            (if (member name '("brainstorming machine" "planning machine"))
                                                (format "{\"finished\": true, \"produced\": [\"docs/plans/%s.md\"]}"
                                                        (car (split-string name)))
                                              "{\"finished\": true}"))))
-                         (list 'turn-complete (list (cons :stop-reason "end_turn")))))
+                         (list 'turn-complete (list (cons :stop-reason "end_turn"))))))
       (dolist (handler (reverse handlers))
         (when (eq (car handler) (car event))
           (funcall (cdr handler) (list (cons :event (car event)) (cons :data (cadr event)))))))
@@ -1841,6 +1844,65 @@ The reconciliation assessor writes the record implementation report in DIRECTORY
                           messages))
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
     (assert-nil (gethash directory trf--stopped-machines))))
+
+(defun trf-test-interrupting (command)
+  "Leave the planning machine at work, run COMMAND in its session buffer, and continue it.
+Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let ((trf-test-listening-at-work "planning machine")
+        messages prompts continued buffer)
+    (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
+              ((symbol-function 'trf-session-run) #'trf-test-listening-run)
+              ((symbol-function 'agent-shell-session-id) (lambda (&rest _) "session-1"))
+              ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
+              ((symbol-function 'read-string)
+               (lambda (prompt &rest _) (push prompt prompts) "Go on."))
+              ((symbol-function 'trf-session-continue)
+               (lambda (_buffer session-id _config message &rest _)
+                 (push (list session-id message) continued)
+                 nil))
+              ((symbol-function 'message)
+               (lambda (format-string &rest args)
+                 (push (apply #'format format-string args) messages))))
+      (trf-test-implement)
+      (trf-test-settle (lambda () (get-buffer "*trf listening planning machine*")))
+      (setq buffer (get-buffer "*trf listening planning machine*"))
+      (with-current-buffer buffer
+        (setq major-mode 'agent-shell-mode)
+        (setq-local agent-shell--state (list (cons :session (list (cons :id "session-1")))))
+        (funcall command))
+      (trf-test-settle (lambda () continued)))
+    (list (not (buffer-live-p buffer)) messages prompts continued)))
+
+(deftest trf-restart-in-a-machines-buffer-interrupts-and-continues-it ()
+  "agent-shell's restart in a machine's session buffer stops the machine and continues it in its session."
+  (pcase-let ((`(,killed ,messages ,prompts ,continued)
+               (trf-test-interrupting (lambda () (agent-shell-restart)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it
+    (assert-true killed)
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-10: Machine stopped before finishing
+    (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
+                  messages)
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal '("Tell the machine: ") prompts)
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    ;; ADR-5 §Decision: Continue a machine in its own ACP session
+    (assert-equal '(("session-1" "Go on.")) continued)))
+
+(deftest trf-reload-in-a-machines-buffer-interrupts-and-continues-it ()
+  "agent-shell's reload in a machine's session buffer stops the machine and continues it in its session."
+  (pcase-let ((`(,killed ,messages ,_prompts ,continued)
+               (trf-test-interrupting (lambda () (agent-shell-reload)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it
+    (assert-true killed)
+    ;; MSG-10: Machine stopped before finishing
+    (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
+                  messages)
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (assert-equal '(("session-1" "Go on.")) continued)))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here

@@ -399,6 +399,41 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       (remhash (trf--worktree-key directory) trf--stopped-machines)
       (funcall continue message))))
 
+(defun trf--machines-work-in-progress (buffer)
+  "Return the work in progress whose machine works or stopped in session BUFFER, or nil."
+  (catch 'found
+    (maphash (lambda (directory buffers)
+               (when (and (memq buffer buffers)
+                          (or (gethash directory trf--machines-at-work)
+                              (gethash directory trf--stopped-machines)))
+                 (throw 'found directory)))
+             trf--session-buffers)
+    nil))
+
+;; UW-1 §Extensions: Turn record changes into code
+;; F-3 §Produces: Continue a stopped machine on its work in progress
+;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
+;; docs/knowledge-base/agent-shell-session-buffers.org §M-x runs agent-shell-restart past a remap, and an advice catches it
+(defun trf--interrupting-instead (restart &rest args)
+  "Around RESTART with ARGS: in a machine's session buffer, interrupt the machine and continue it.
+Anywhere else, run RESTART."
+  (let* ((buffer (or (and (fboundp 'agent-shell--current-shell)
+                          (ignore-errors (agent-shell--current-shell)))
+                     (current-buffer)))
+         (directory (trf--machines-work-in-progress buffer)))
+    (if (not directory)
+        (apply restart args)
+      (with-current-buffer buffer
+        (let ((kill-buffer-query-functions nil))
+          (kill-buffer buffer)))
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (run-at-time 0 nil (lambda ()
+                           (with-temp-buffer
+                             (setq default-directory directory)
+                             (call-interactively #'trf-continue-stopped-machine)))))))
+
+(advice-add 'agent-shell-restart :around #'trf--interrupting-instead)
+
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-reject-record-implementation-report ()
   "Reject the record implementation report of the work in progress here, keeping the work."
