@@ -41,3 +41,6 @@ Each term is defined within its bounded context, as named in the vision.
 - reconciliation assessor :: the machine that assesses whether the codebase is
   reconciled with each of the record changes, and writes the record
   implementation report.
+- work in progress :: what the implementation workflow and the reconciliation
+  assessor have made from one commit of record changes, kept apart from the
+  codebase until the record keeper accepts its record implementation report.
