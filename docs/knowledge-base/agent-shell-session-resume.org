@@ -1,0 +1,308 @@
+#+TITLE: Continuing an agent-shell Session — Reference
+#+STARTUP: overview
+
+Not a project document. This records how agent-shell 0.86.2, with acp 0.15.1,
+continues a session: in the buffer it runs in, or resumed in a new buffer by
+its identifier. It was established by a run on 2026-10-15 against a stand-in
+ACP agent, =fake_agent.py=, which keeps each session on disk and advertises
+=loadSession=, =sessionCapabilities.resume= and =sessionCapabilities.list=, as
+claude-agent-acp and codex-acp do. The stand-in is not a real AI program; what
+a real one does on resume is not established here.
+
+*What it establishes.* A buffer whose agent process is running takes a next
+message as a new turn. The process status tells an ended session; agent-shell
+keeps the session's state after its process ends, and a dead buffer cannot be
+prompted back to life. =agent-shell-start= given =:session-id= resumes the
+session in a new buffer with =session/resume=, which replays nothing, under the
+default verbosity, and the elicitation switch holds there. A resume that fails
+starts a new session in its place.
+
+* A live buffer takes a next message
+
+In part B of the run, =agent-shell-insert= with =:submit t= in the buffer of a
+session whose first turn has ended starts a second turn in the same process:
+the agent answers "reply 2 from pid ..." from the same pid, and the
+subscriptions made for the first turn fire again for the second.
+
+* The process status tells an ended session
+
+In part C, the agent process exits during a turn. agent-shell emits an =error=
+event with code -32603, "Agent process ended before completing request: exited
+abnormally with code 3", and keeps the buffer's state: the session id, the
+client and the process remain, and the process status is =exit=. So
+=(process-live-p (map-elt (map-elt agent-shell--state :client) :process))=,
+read in the session buffer, tells an ended session from one that is going.
+
+* A dead buffer cannot be prompted
+
+In part D, a message given in the buffer whose process has ended starts the
+agent again without =initialize= or =session/resume= (the agent log shows a new
+pid receiving only =session/prompt=), and the agent refuses the prompt:
+"Session not found: sess-1". An ended session is continued in a new buffer.
+
+* Minimal verbosity sends session/resume
+
+=agent-shell.el=, =agent-shell--use-session-load-p=:
+
+#+begin_example
+  `minimal' uses `session/resume' when available, falling back
+  to `session/load' only if the agent doesn't support resume."
+  (cond
+   ((and (memq agent-shell-session-restore-verbosity '(last first-last full))
+         (map-elt state :supports-session-load))
+    t)
+   ((map-elt state :supports-session-resume)
+    nil)
+#+end_example
+
+=agent-shell-session-restore-verbosity= is =minimal= by default; its
+documentation says =minimal= "Uses `session/resume' when supported (no message
+replay)", and the other values use =session/load= and render past turns. In
+part E, =agent-shell-start= given =:session-id "sess-1"= sends
+=session/resume= for =sess-1= to a new agent process, emits =session-selected=
+with that id and then =init-finished=, and the next prompt is answered in the
+same session ("reply 3"). The old buffer stays alive; =agent-shell-start= does
+not kill it.
+
+* The elicitation switch survives a resume
+
+In part E, the resumed buffer, started the way =trf-session--start= starts a
+session, still has the switch set (=switch=t=), and its =initialize= request
+advertises ="elicitation": {"form": {}}=.
+
+* A resume that fails starts a new session
+
+=agent-shell.el=, the start of a session with a =:resume-session-id=: when the
+agent advertises neither load nor resume,
+
+#+begin_example
+          ;; Resuming not supported. Start a new session.
+          (message "Resuming unsupported by agent. Starting new session.")
+          (agent-shell--emit-event :event 'session-selected)
+          (agent-shell--initiate-new-session
+#+end_example
+
+and =agent-shell--initiate-session-resume-by-id=, when the agent refuses the
+resume, says "Couldn't resume session <id>. Starting a new one." and goes on
+to =agent-shell--initiate-session-list-and-load=, which starts a new session.
+In part F, resuming the unknown id =sess-unknown= emits =session-selected=
+twice, first with that id and then with none, then =init-finished=, and the
+buffer's session id is then =sess-2=, a new session. No =error= event is
+emitted. So a resume is checked by comparing the buffer's session id after
+=init-finished= with the id asked for.
+
+* The run
+
+Run with =emacs -Q --batch -l resume-run.el <directory of the agent-shell, acp
+and shell-maker builds> fake_agent.py <empty directory>=.
+
+=fake_agent.py=:
+
+#+begin_src python
+#!/usr/bin/env python3
+"""Fake ACP agent: stores sessions on disk, supports new/resume/list/prompt; 'DIE' in a prompt exits."""
+import sys, json, os
+STORE = os.environ["FAKE_STORE"]; LOG = os.environ["FAKE_LOG"]
+pid = os.getpid(); live = set()
+def log(s):
+    with open(LOG, "a") as f: f.write(f"[{pid}] {s}\n")
+def send(o):
+    sys.stdout.write(json.dumps(o) + "\n"); sys.stdout.flush()
+def known(): return set(os.listdir(STORE))
+log("started")
+for line in sys.stdin:
+    m = json.loads(line); meth = m.get("method"); mid = m.get("id"); p = m.get("params") or {}
+    log(f"recv {meth} id={mid} " + (json.dumps(p.get('clientCapabilities')) if meth == 'initialize' else json.dumps(p.get('sessionId'))))
+    if meth == "initialize":
+        send({"jsonrpc":"2.0","id":mid,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":True,"sessionCapabilities":{"resume":{},"list":{}}},"authMethods":[]}})
+    elif meth == "session/new":
+        sid = f"sess-{len(known())+1}"; open(os.path.join(STORE, sid), "w").close(); live.add(sid)
+        send({"jsonrpc":"2.0","id":mid,"result":{"sessionId":sid}})
+    elif meth == "session/resume":
+        sid = p["sessionId"]
+        if sid in known(): live.add(sid); send({"jsonrpc":"2.0","id":mid,"result":{}})
+        else: send({"jsonrpc":"2.0","id":mid,"error":{"code":-32002,"message":f"Resource not found: {sid}"}})
+    elif meth == "session/list":
+        send({"jsonrpc":"2.0","id":mid,"result":{"sessions":[]}})
+    elif meth == "session/prompt":
+        sid = p["sessionId"]; text = " ".join(b.get("text","") for b in p.get("prompt",[]))
+        if sid not in live:
+            send({"jsonrpc":"2.0","id":mid,"error":{"code":-32002,"message":f"Session not found: {sid}"}}); continue
+        if "DIE" in text: log("dying"); os._exit(3)
+        with open(os.path.join(STORE, sid), "a") as f: f.write(text + "\n")
+        n = sum(1 for _ in open(os.path.join(STORE, sid)))
+        send({"jsonrpc":"2.0","method":"session/update","params":{"sessionId":sid,"update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":f"reply {n} from pid {pid}"}}}})
+        send({"jsonrpc":"2.0","id":mid,"result":{"stopReason":"end_turn"}})
+    elif mid is not None:
+        send({"jsonrpc":"2.0","id":mid,"error":{"code":-32601,"message":"no"}})
+#+end_src
+
+=resume-run.el=:
+
+#+begin_src emacs-lisp
+;;; resume-run.el --- reuse vs resume in agent-shell 0.86.2 -*- lexical-binding: t; -*-
+(dolist (dir (directory-files (nth 0 command-line-args-left) t "\\`[^.]"))
+  (add-to-list 'load-path dir))
+(require 'agent-shell)
+(require 'cl-lib)
+(defvar rr-script (nth 1 command-line-args-left))
+(setq default-directory (file-name-as-directory (nth 2 command-line-args-left)))
+(setenv "FAKE_STORE" (expand-file-name "store" default-directory))
+(setenv "FAKE_LOG" (expand-file-name "agent.log" default-directory))
+(make-directory (getenv "FAKE_STORE") t)
+(setq agent-shell-show-welcome-message nil)
+
+(defun rr-config ()
+  (agent-shell-make-agent-config
+   :identifier 'fake :mode-line-name "Fake" :buffer-name "Fake"
+   :shell-prompt "Fake> " :shell-prompt-regexp "Fake> "
+   :client-maker (lambda (buffer)
+                   (acp-make-client :context-buffer buffer :command "python3"
+                                    :command-params (list "-I" rr-script)))))
+
+(defvar rr-events nil)
+(defun rr-wait (pred &optional secs)
+  (let ((end (+ (float-time) (or secs 5))))
+    (while (and (not (funcall pred)) (< (float-time) end))
+      (accept-process-output nil 0.05))
+    (funcall pred)))
+
+(defun rr-watch (buffer label)
+  (dolist (ev '(init-finished session-selected turn-complete agent-message-chunk error clean-up))
+    (let ((ev ev))
+      (agent-shell-subscribe-to
+       :shell-buffer buffer :event ev
+       :on-event (lambda (e)
+                   (push (list label ev (map-elt e :data)) rr-events)
+                   (princ (format "  [%s] event %s %S\n" label ev (map-elt e :data))))))))
+
+(defun rr-start (session-id)
+  "Start the way trf-session--start does, adding SESSION-ID."
+  (let ((buffer (let ((agent-shell-session-strategy 'new)
+                      (agent-shell-elicitation--experimental-feature-enabled t))
+                  (agent-shell-start :config (rr-config) :session-id session-id))))
+    (with-current-buffer buffer
+      (setq-local agent-shell-elicitation--experimental-feature-enabled t))
+    buffer))
+
+(defun rr-state (buffer label)
+  (let* ((state (buffer-local-value 'agent-shell--state buffer))
+         (client (map-elt state :client))
+         (proc (map-elt client :process)))
+    (princ (format "  [%s] session-id=%S client=%s process=%s status=%s initialized=%S init-finished=%S active-requests=%S switch=%S\n"
+                   label (agent-shell-session-id :shell-buffer buffer)
+                   (if client "yes" "nil") (and proc (process-name proc))
+                   (and proc (process-status proc))
+                   (map-elt state :initialized) (map-elt state :init-finished)
+                   (mapcar (lambda (r) (map-elt r :method)) (map-elt state :active-requests))
+                   (buffer-local-value 'agent-shell-elicitation--experimental-feature-enabled buffer)))))
+
+(defun rr-count (ev) (cl-count-if (lambda (e) (eq (nth 1 e) ev)) rr-events))
+
+(defun rr-prompt (buffer text)
+  (let ((n (+ (rr-count 'turn-complete) (rr-count 'error))))
+    (condition-case err
+        (agent-shell-insert :text text :submit t :no-focus t :shell-buffer buffer)
+      (error (princ (format "  insert signalled: %S\n" err))))
+    (rr-wait (lambda () (> (+ (rr-count 'turn-complete) (rr-count 'error)) n)) 5)))
+
+(let ((kill-buffer-query-functions nil))
+  (princ "== A. new session, first turn\n")
+  (let ((a (rr-start nil)))
+    (rr-watch a "A")
+    (rr-wait (lambda () (agent-shell-session-id :shell-buffer a)))
+    (rr-wait (lambda () (map-elt (buffer-local-value 'agent-shell--state a) :init-finished)))
+    (rr-prompt a "hello")
+    (rr-state a "A")
+    (princ "== B. same live buffer, second turn after the first ended\n")
+    (rr-prompt a "again")
+    (princ (format "  turn-complete count=%d chunk count=%d\n" (rr-count 'turn-complete) (rr-count 'agent-message-chunk)))
+    (princ "== C. agent process dies mid-turn\n")
+    (rr-prompt a "DIE")
+    (rr-wait (lambda () nil) 1)
+    (rr-state a "A after death")
+    (princ "== D. prompt again in the dead buffer\n")
+    (rr-prompt a "after death")
+    (rr-wait (lambda () nil) 1)
+    (rr-state a "A after re-prompt")
+    (let ((old-id (agent-shell-session-id :shell-buffer a)))
+      (princ "== E. new buffer resuming the session id\n")
+      (let ((b (rr-start old-id)))
+        (rr-watch b "B")
+        (rr-wait (lambda () (map-elt (buffer-local-value 'agent-shell--state b) :init-finished)))
+        (rr-state b "B")
+        (rr-prompt b "resumed hello")
+        (princ (format "  old buffer A live? %S\n" (buffer-live-p a)))
+        (kill-buffer b))
+      (princ "== F. resume an unknown id\n")
+      (let ((c (rr-start "sess-unknown")))
+        (rr-watch c "C")
+        (rr-wait (lambda () (map-elt (buffer-local-value 'agent-shell--state c) :init-finished)))
+        (rr-state c "C")
+        (kill-buffer c)))
+    (kill-buffer a)))
+(princ "== agent log\n")
+(princ (with-temp-buffer (insert-file-contents (getenv "FAKE_LOG")) (buffer-string)))
+#+end_src
+
+#+begin_example
+Created <tmp>/.agent-shell/transcripts/2026-10-15-08-23-03.md
+Created <tmp>/.agent-shell/transcripts/2026-10-15-08-23-05.md
+Couldn't resume session sess-unknown. Starting a new one.
+== A. new session, first turn
+  [A] event session-selected nil
+  [A] event init-finished nil
+  [A] event agent-message-chunk ((:text-chunk . "reply 1 from pid 1219488"))
+  [A] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
+  [A] session-id="sess-1" client=yes process=acp-client(python3)-3 status=run initialized=t init-finished=t active-requests=nil switch=t
+== B. same live buffer, second turn after the first ended
+  [A] event agent-message-chunk ((:text-chunk . "reply 2 from pid 1219488"))
+  [A] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
+  turn-complete count=2 chunk count=2
+== C. agent process dies mid-turn
+  [A] event error ((:code . -32603) (:message . "Agent process ended before completing request: exited abnormally with code 3"))
+  [A after death] session-id="sess-1" client=yes process=acp-client(python3)-3 status=exit initialized=t init-finished=t active-requests=nil switch=t
+== D. prompt again in the dead buffer
+  [A] event error ((:code . -32002) (:message . "Session not found: sess-1"))
+  [A after re-prompt] session-id="sess-1" client=yes process=acp-client(python3)-3 status=run initialized=t init-finished=t active-requests=nil switch=t
+== E. new buffer resuming the session id
+  [B] event session-selected ((:session-id . "sess-1"))
+  [B] event init-finished nil
+  [B] session-id="sess-1" client=yes process=acp-client(python3)-6 status=run initialized=t init-finished=t active-requests=nil switch=t
+  [B] event agent-message-chunk ((:text-chunk . "reply 3 from pid 1219514"))
+  [B] event turn-complete ((:stop-reason . "end_turn") (:usage (:total-tokens . 0) (:input-tokens . 0) (:output-tokens . 0) (:thought-tokens . 0) (:cached-read-tokens . 0) (:cached-write-tokens . 0) (:context-used . 0) (:context-size . 0) (:cost-amount . 0.0) (:cost-currency)))
+  old buffer A live? t
+  [B] event clean-up nil
+== F. resume an unknown id
+  [C] event session-selected ((:session-id . "sess-unknown"))
+  [C] event session-selected ((:session-id))
+  [C] event init-finished nil
+  [C] session-id="sess-2" client=yes process=acp-client(python3)-9 status=run initialized=t init-finished=t active-requests=nil switch=t
+  [C] event clean-up nil
+  [A] event clean-up nil
+== agent log
+[1219488] started
+[1219488] recv initialize id=1 {"fs": {"readTextFile": true, "writeTextFile": true}, "elicitation": {"form": {}}}
+[1219488] recv session/new id=2 null
+[1219488] recv session/list id=3 null
+[1219488] recv session/prompt id=4 "sess-1"
+[1219488] recv session/list id=5 null
+[1219488] recv session/prompt id=6 "sess-1"
+[1219488] recv session/list id=7 null
+[1219488] recv session/prompt id=8 "sess-1"
+[1219488] dying
+[1219506] started
+[1219506] recv session/prompt id=9 "sess-1"
+[1219514] started
+[1219514] recv initialize id=1 {"fs": {"readTextFile": true, "writeTextFile": true}, "elicitation": {"form": {}}}
+[1219514] recv session/resume id=2 "sess-1"
+[1219514] recv session/list id=3 null
+[1219514] recv session/prompt id=4 "sess-1"
+[1219514] recv session/list id=5 null
+[1219522] started
+[1219522] recv initialize id=1 {"fs": {"readTextFile": true, "writeTextFile": true}, "elicitation": {"form": {}}}
+[1219522] recv session/resume id=2 "sess-unknown"
+[1219522] recv session/list id=3 null
+[1219522] recv session/new id=4 null
+[1219522] recv session/list id=5 null
+#+end_example
