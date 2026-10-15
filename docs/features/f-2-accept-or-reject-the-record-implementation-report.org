@@ -10,6 +10,10 @@ kept.
 
 - Outside any work in progress, the IDE gives MSG-2: No work in progress to
   accept or reject.
+- While a machine is at work on the work in progress, or until the
+  reconciliation assessor has written the record implementation report on the
+  work in progress as it stands, accepting gives MSG-13: No record
+  implementation report to accept, and brings nothing in.
 - When the codebase has moved since the work started, accepting runs the
   implementation workflow again and produces a new record implementation
   report.
