@@ -793,5 +793,23 @@ SESSION-ID is the session it stopped in, by default the one BUFFER holds."
   (assert-equal '(nil 0)
                 (trf-session-test-turn-says "```foo```\nSome text.\n{\"finished\": true}\n```\n")))
 
+(deftest trf-session-continue-cannot-though-the-resumed-buffer-asks ()
+  "A resume that gives another session cannot continue, even when ending its buffer would ask a question."
+  (trf-session-test-continuing "session-2"
+    (let* ((buffer (trf-session-test-ended-buffer "session-1"))
+           (cannot (list 'cannot))
+           (resumed (trf-session-test-continue buffer nil nil
+                                               (lambda (reason) (setcdr cannot (list reason))))))
+      (with-current-buffer resumed
+        (add-hook 'kill-buffer-query-functions (lambda () (signal 'quit nil)) nil t))
+      (condition-case nil
+          (trf-session-test-fire 'init-finished)
+        (quit nil))
+      (trf-session-test-settle)
+      ;; ADR-5 §Consequences: Continue a machine in its own ACP session
+      ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
+      (assert-equal '(nil) (cdr cannot))
+      (assert-nil (buffer-live-p resumed)))))
+
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here

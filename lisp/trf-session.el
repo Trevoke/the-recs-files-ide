@@ -89,6 +89,14 @@ gives nil."
 (defun trf-session--stopped-p (stop-reason)
   (not (member stop-reason '(nil "end_turn"))))
 
+;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
+(defun trf-session-end-buffer (buffer)
+  "End the session in BUFFER without its kill questions, if BUFFER is live."
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer buffer)))))
+
 ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
 ;; docs/knowledge-base/agent-shell-elicitation.org §The initialize request reads the switch while agent-shell-start runs
 ;; docs/knowledge-base/agent-shell-elicitation.org §An elicitation request reads the switch in the session buffer
@@ -264,20 +272,16 @@ cannot be resumed."
                        (setq settled t)
                        (if (equal (agent-shell-session-id :shell-buffer resumed) session-id)
                            (progn
-                             (when (buffer-live-p buffer)
-                               ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
-                               (with-current-buffer buffer
-                                 (let ((kill-buffer-query-functions nil))
-                                   (kill-buffer buffer))))
+                             (trf-session-end-buffer buffer)
                              (trf-session--give resumed message on-finished on-stopped))
-                         (kill-buffer resumed)
+                         (trf-session-end-buffer resumed)
                          (funcall cannot nil)))))
         (agent-shell-subscribe-to
          :shell-buffer resumed :event 'error
          :on-event (lambda (event)
                      (unless settled
                        (setq settled t)
-                       (kill-buffer resumed)
+                       (trf-session-end-buffer resumed)
                        (funcall cannot (map-elt (map-elt event :data) :message)))))
         resumed)))))
 

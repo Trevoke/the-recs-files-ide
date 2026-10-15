@@ -211,11 +211,7 @@ gave, the session's id, and whether it was told anything."
                                           (funcall session-buffer) session-id message))
                        (lambda ()
                          (let ((buffer (funcall session-buffer)))
-                           (when (buffer-live-p buffer)
-                             ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
-                             (with-current-buffer buffer
-                               (let ((kill-buffer-query-functions nil))
-                                 (kill-buffer buffer)))))
+                           (trf-session-end-buffer buffer))
                          (trf--run-machines machines directory config changes produced
                                             on-done ide-instruction)))
                      (funcall session-buffer))
@@ -458,9 +454,7 @@ Anywhere else, run RESTART."
          (directory (trf--machines-work-in-progress buffer)))
     (if (not directory)
         (apply restart args)
-      (with-current-buffer buffer
-        (let ((kill-buffer-query-functions nil))
-          (kill-buffer buffer)))
+      (trf-session-end-buffer buffer)
       ;; F-3 §Rules: Continue a stopped machine on its work in progress
       (run-at-time 0 nil #'trf--continue-from-a-restart directory))))
 
