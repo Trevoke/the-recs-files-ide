@@ -1,0 +1,23 @@
+* ADR-6 Keep the IDE's Emacs files outside the target product
+
+** Context
+
+ADR-1 Ship the IDE as a bare Emacs with its own pinned binary makes the IDE an
+Emacs. Emacs writes auto-save, lock and backup files beside each file it edits.
+Beside the target product's files, they would be taken for record changes, or
+brought into the codebase with the work.
+
+** Decision
+
+The IDE has Emacs write its auto-save, lock and backup files under the IDE's
+state directory: recs-files-ide in $XDG_STATE_HOME, or in ~/.local/state when
+it is not set.
+
+** Status
+
+Accepted.
+
+** Consequences
+
+- Nothing Emacs writes for its own use reaches the record changes or the
+  codebase.
