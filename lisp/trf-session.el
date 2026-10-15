@@ -27,9 +27,10 @@ The record keeper picks it through agent-shell."
     (nreverse lines)))
 
 ;; ADR-3 §Decision: Machines end their work with one JSON line
-(defun trf-session--finished (text)
-  "Return a list holding the paths produced when TEXT ends with the JSON line saying finished.
-Return nil when it does not."
+(defun trf-session--ending (text)
+  "Return how TEXT's last line says the machine ended, or nil when it does not say.
+That is (finished PRODUCED) with the paths it produced, or (stopped REASON) with
+the reason it gives for stopping before finishing."
   (when-let* ((line (car (last (trf-session--without-closing-fences
                                 (split-string (or text "") "[\r\n]+" t "[ \t]+"))))))
     (let ((start 0) found)
@@ -40,13 +41,18 @@ Return nil when it does not."
                                 (json-parse-string (substring line position)
                                                    :object-type 'alist
                                                    :array-type 'list
-                                                   :false-object nil
+                                                   :false-object :false
                                                    :null-object nil)))
-                      ((consp object))
-                      ((eq (alist-get 'finished object) t)))
-            (let ((produced (alist-get 'produced object)))
-              (setq found (list (when (listp produced)
-                                  (seq-filter #'stringp produced))))))))
+                      ((consp object)))
+            (let ((finished (alist-get 'finished object))
+                  (produced (alist-get 'produced object))
+                  (reason (alist-get 'reason object)))
+              (cond ((eq finished t)
+                     (setq found (list 'finished (when (listp produced)
+                                                   (seq-filter #'stringp produced)))))
+                    ;; UW-1 §Extensions: Turn record changes into code
+                    ((and (eq finished :false) (stringp reason))
+                     (setq found (list 'stopped reason))))))))
       found)))
 
 (defun trf-session--stopped-p (stop-reason)
@@ -74,18 +80,26 @@ Return its buffer."
   "Run a machine in DIRECTORY with the AI program CONFIG and INSTRUCTIONS.
 Return its session buffer.  Call ON-FINISHED with the paths the machine
 produced at the end of the first turn ending with the JSON line saying it
-has finished.  Call ON-STOPPED, with the session buffer displayed, if the
-session fails, or a turn ends for a reason other than \"end_turn\",
-before then.  If the session's buffer is killed first, call neither."
+has finished.  Call ON-STOPPED, with the session buffer displayed, with the
+reason the machine gives when a turn ends with the JSON line saying it stopped
+before finishing, or with nil if the session fails, or a turn ends for a reason
+other than \"end_turn\", before then.  If the session's buffer is killed
+first, call neither."
   (let* ((default-directory directory)
          (buffer (trf-session--start config))
          (text "")
          (over nil)
          (finish (lambda (produced)
                    (run-at-time 0 nil on-finished produced)))
-         (stop (lambda ()
+         ;; ADR-3 §Consequences: Machines end their work with one JSON line
+         ;; UW-1 §Extensions: Turn record changes into code
+         (stop (lambda (&optional reason)
                  (when (buffer-live-p buffer) (display-buffer buffer))
-                 (run-at-time 0 nil on-stopped))))
+                 (run-at-time 0 nil on-stopped reason)))
+         (end (lambda (ending)
+                (pcase ending
+                  (`(finished ,produced) (funcall finish produced))
+                  (`(stopped ,reason) (funcall stop reason))))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'init-finished
      :on-event (lambda (_event)
@@ -98,12 +112,12 @@ before then.  If the session's buffer is killed first, call neither."
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'turn-complete
      :on-event (lambda (event)
-                 (let ((finished (trf-session--finished text)))
+                 (let ((ending (trf-session--ending text)))
                    (setq text "")
                    (unless over
-                     (cond (finished
+                     (cond (ending
                             (setq over t)
-                            (funcall finish (car finished)))
+                            (funcall end ending))
                            ;; UW-1 §Extensions: Turn record changes into code
                            ((trf-session--stopped-p
                              (map-elt (map-elt event :data) :stop-reason))
@@ -114,8 +128,8 @@ before then.  If the session's buffer is killed first, call neither."
      :on-event (lambda (_event)
                  (unless over
                    (setq over t)
-                   (if-let* ((finished (trf-session--finished text)))
-                       (funcall finish (car finished))
+                   (if-let* ((ending (trf-session--ending text)))
+                       (funcall end ending)
                      (funcall stop)))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'clean-up

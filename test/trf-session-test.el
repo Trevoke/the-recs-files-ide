@@ -91,7 +91,7 @@
   (trf-session-test-with-fake-shell
    (with-spy display-buffer calls
      (let ((stopped 0))
-       (trf-session-test-run #'ignore (lambda () (setq stopped (1+ stopped))))
+       (trf-session-test-run #'ignore (lambda (_reason) (setq stopped (1+ stopped))))
        (trf-session-test-fire 'error)
        (trf-session-test-fire 'error)
        (assert-equal 0 stopped "ON-STOPPED runs after the event handler returns")
@@ -109,7 +109,7 @@
    (with-spy display-buffer calls
      (let (finished (stopped 0))
        (trf-session-test-run (lambda (text) (setq finished text))
-                             (lambda () (setq stopped (1+ stopped))))
+                             (lambda (_reason) (setq stopped (1+ stopped))))
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason stop-reason)))
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason stop-reason)))
        (trf-session-test-settle)
@@ -166,7 +166,7 @@
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)) (stopped 0))
      (trf-session-test-run (trf-session-test-finishing finished)
-                           (lambda () (setq stopped (1+ stopped))))
+                           (lambda (_reason) (setq stopped (1+ stopped))))
      (apply #'trf-session-test-say chunks)
      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
      (trf-session-test-settle)
@@ -207,7 +207,7 @@
   "An error once the machine has said it finished finishes it rather than stopping it."
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)) stopped)
-     (trf-session-test-run (trf-session-test-finishing finished) (lambda () (setq stopped t)))
+     (trf-session-test-run (trf-session-test-finishing finished) (lambda (_reason) (setq stopped t)))
      (trf-session-test-say "{\"finished\": true}")
      (trf-session-test-fire 'error)
      (trf-session-test-settle)
@@ -222,7 +222,7 @@
     (setq trf-session-test-handlers nil)
     (trf-session-test-with-fake-shell
      (let ((finished (list 'finished)) stopped)
-       (trf-session-test-run (trf-session-test-finishing finished) (lambda () (setq stopped t)))
+       (trf-session-test-run (trf-session-test-finishing finished) (lambda (_reason) (setq stopped t)))
        (trf-session-test-say "{\"finished\": true}")
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason reason)))
        (trf-session-test-settle)
@@ -237,7 +237,7 @@
   "A session cleaned up before it finishes calls neither continuation."
   (trf-session-test-with-fake-shell
    (let (called)
-     (trf-session-test-run (lambda (_) (setq called t)) (lambda () (setq called t)))
+     (trf-session-test-run (lambda (_) (setq called t)) (lambda (_) (setq called t)))
      (trf-session-test-fire 'clean-up)
      (trf-session-test-say "{\"finished\": true}")
      (trf-session-test-fire 'turn-complete)
@@ -308,6 +308,78 @@
      (assert-true (buffer-local-value 'agent-shell-elicitation--experimental-feature-enabled buffer))
 
      (assert-nil (default-value 'agent-shell-elicitation--experimental-feature-enabled)))))
+
+(defun trf-session-test-stopping (&rest chunks)
+  "Run a machine through one normal turn streaming CHUNKS; return (FINISHED REASONS DISPLAYED)."
+  (setq trf-session-test-handlers nil)
+  (trf-session-test-with-fake-shell
+   (with-spy display-buffer calls
+     (let ((finished (list 'finished)) reasons)
+       (trf-session-test-run (trf-session-test-finishing finished)
+                             (lambda (reason) (push reason reasons)))
+       (apply #'trf-session-test-say chunks)
+       (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
+       (trf-session-test-settle)
+       (list (cdr finished) reasons (mapcar #'car calls))))))
+
+(deftest trf-session-stopped-with-the-reason-the-machine-gives ()
+  "A turn ending with the JSON line saying the machine did not finish stops it with its reason, showing its session."
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
+  ;; UW-1 §Extensions: Turn record changes into code
+  (let ((result (trf-session-test-stopping
+                  "I need to know one thing.\n"
+                  "{\"finished\": false, \"reason\": \"Which widget should be ordered first?\"}")))
+    (assert-equal (list nil '("Which widget should be ordered first?") (list (get-buffer trf-session-test-buffer-name)))
+                  result)))
+
+(deftest trf-session-stopped-with-the-reason-inside-a-code-fence ()
+  "The JSON line saying the machine did not finish stops it, inside a code fence too."
+  ;; ADR-3 §Decision: Machines end their work with one JSON line
+  ;; UW-1 §Extensions: Turn record changes into code
+  (let ((result (trf-session-test-stopping
+                  "```json\n{\"finished\": false, \"reason\": \"No device for questions.\"}\n```\n")))
+    (assert-equal (list nil '("No device for questions.") (list (get-buffer trf-session-test-buffer-name)))
+                  result)))
+
+(deftest trf-session-at-work-when-not-finished-without-a-reason ()
+  "The JSON line saying the machine did not finish, without a reason given as text, leaves the machine at work."
+  (dolist (line '("{\"finished\": false}" "{\"finished\": false, \"reason\": 3}"
+                  "{\"finished\": false, \"reason\": null}"))
+    ;; ADR-3 §Consequences: Machines end their work with one JSON line
+    (assert-equal '(nil nil nil) (trf-session-test-stopping "Hmm.\n" line)
+                  (format "%S leaves the machine at work" line))))
+
+(deftest trf-session-at-work-when-the-stopping-line-is-not-last ()
+  "The JSON line saying the machine did not finish, followed by more text, leaves the machine at work."
+  ;; ADR-3 §Consequences: Machines end their work with one JSON line
+  (assert-equal '(nil nil nil)
+                (trf-session-test-stopping "{\"finished\": false, \"reason\": \"Why?\"}\nNever mind.\n")))
+
+(deftest trf-session-stopped-on-error-after-the-stopping-line ()
+  "An error once the machine has said it did not finish stops it with its reason."
+  (trf-session-test-with-fake-shell
+   (let ((finished (list 'finished)) reasons)
+     (trf-session-test-run (trf-session-test-finishing finished)
+                           (lambda (reason) (push reason reasons)))
+     (trf-session-test-say "{\"finished\": false, \"reason\": \"Out of ideas.\"}")
+     (trf-session-test-fire 'error)
+     (trf-session-test-settle)
+     ;; ADR-3 §Decision: Machines end their work with one JSON line
+     ;; UW-1 §Extensions: Turn record changes into code
+     (assert-equal '("Out of ideas.") reasons)
+     (assert-nil (cdr finished)))))
+
+(deftest trf-session-stopped-without-a-reason-when-a-turn-ends-short ()
+  "A machine stopped by a turn cut short is stopped with no reason of its own."
+  (setq trf-session-test-handlers nil)
+  (trf-session-test-with-fake-shell
+   (let (reasons)
+     (trf-session-test-run #'ignore (lambda (reason) (push reason reasons)))
+     (trf-session-test-fire 'turn-complete (list (cons :stop-reason "refusal")))
+     (trf-session-test-settle)
+     ;; UW-1 §Extensions: Turn record changes into code
+     (assert-equal '(nil) reasons))))
 
 (provide 'trf-session-test)
 ;;; trf-session-test.el ends here
