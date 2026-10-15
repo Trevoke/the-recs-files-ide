@@ -14,9 +14,9 @@ kept.
   reconciliation assessor has written the record implementation report on the
   work in progress as it stands, accepting gives MSG-13: No record
   implementation report to accept, and brings nothing in.
-- When the codebase has moved since the work started, accepting runs the
-  implementation workflow again and produces a new record implementation
-  report.
+- When the codebase has moved since the work started, other than by bringing
+  this work in, accepting runs the implementation workflow again and produces a
+  new record implementation report.
 - When git fails and no other message covers it, the IDE gives MSG-7: Git could
   not do what the IDE asked, with git's own output, and keeps the work in
   progress; accepting again tries again.
