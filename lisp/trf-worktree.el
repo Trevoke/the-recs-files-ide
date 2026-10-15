@@ -6,6 +6,13 @@
 
 (define-error 'trf-worktree-merge-failed "Git refused the merge" 'trf-git-error)
 
+;; UW-1 §Main success scenario: Turn record changes into code
+(defconst trf-worktree-directory ".worktrees/"
+  "Where the worktrees of the works in progress sit, under the target product's root.")
+
+(defconst trf-worktree-state-directory ".trf/"
+  "Where a worktree keeps the IDE's own files about its work in progress.")
+
 (defun trf-worktree--exclude (root pattern)
   "Make git in ROOT ignore PATTERN, through the repository's info/exclude."
   (let ((exclude (expand-file-name
@@ -30,14 +37,14 @@
 (defun trf-worktree--write (directory file content)
   "Write CONTENT to FILE under DIRECTORY's .trf/."
   (let ((coding-system-for-write 'utf-8-unix))
-    (with-temp-file (expand-file-name (concat ".trf/" file) directory)
+    (with-temp-file (expand-file-name (concat trf-worktree-state-directory file) directory)
       (insert content "\n"))))
 
 (defun trf-worktree--read (directory file)
   "Return the content of FILE under DIRECTORY's .trf/."
   (with-temp-buffer
     (let ((coding-system-for-read 'utf-8-unix))
-      (insert-file-contents (expand-file-name (concat ".trf/" file) directory)))
+      (insert-file-contents (expand-file-name (concat trf-worktree-state-directory file) directory)))
     (string-trim (buffer-string))))
 
 ;; docs/knowledge-base/git-worktree-removal.org §git worktree remove refuses a worktree holding a modified buffer's lock file
@@ -57,12 +64,12 @@
          (name (make-temp-name (format-time-string "trf-%Y%m%d-%H%M%S-")))
          (branch (concat "trf/" name))
          (directory (file-name-as-directory
-                     (expand-file-name (concat ".worktrees/" name) root))))
-    (trf-worktree--exclude root "/.worktrees/")
-    (trf-worktree--exclude root "/.trf/")
+                     (expand-file-name (concat trf-worktree-directory name) root))))
+    (trf-worktree--exclude root (concat "/" trf-worktree-directory))
+    (trf-worktree--exclude root (concat "/" trf-worktree-state-directory))
     (trf-worktree--exclude-emacs-files root)
     (trf-git root "worktree" "add" "--quiet" "-b" branch directory commit)
-    (make-directory (expand-file-name ".trf/" directory) t)
+    (make-directory (expand-file-name trf-worktree-state-directory directory) t)
     (trf-worktree--write directory "root" root)
     (trf-worktree--write directory "base" commit)
     (trf-worktree--write directory "branch" branch)
@@ -74,7 +81,7 @@
   (when-let* ((directory (locate-dominating-file
                           file
                           (lambda (directory)
-                            (file-regular-p (expand-file-name ".trf/root" directory))))))
+                            (file-regular-p (expand-file-name (concat trf-worktree-state-directory "root") directory))))))
     (file-name-as-directory (expand-file-name directory))))
 
 (defun trf-worktree-root (directory)
@@ -88,7 +95,7 @@
 ;; UW-1 §Extensions: Turn record changes into code
 (defun trf-worktree-from (directory)
   "Return the commit or tree DIRECTORY's record changes were measured from, or nil when unknown."
-  (when (file-exists-p (expand-file-name ".trf/from" directory))
+  (when (file-exists-p (expand-file-name (concat trf-worktree-state-directory "from") directory))
     (trf-worktree--read directory "from")))
 
 (defun trf-worktree-branch (directory)

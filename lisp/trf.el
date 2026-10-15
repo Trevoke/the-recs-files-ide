@@ -300,7 +300,7 @@ From inside a worktree, return the target product's root it was created from."
       (trf-record-changes-refuse-operation-in-progress root)
       (trf--refuse-unless-on-the-primary-git-branch root)
       ;; F-1 §Rules: Ask the IDE to implement the record changes
-      (trf--offer-to-save root (expand-file-name ".worktrees/" root))
+      (trf--offer-to-save root (expand-file-name trf-worktree-directory root))
       (let ((changes (trf-record-changes root)))
         (unless changes
           (user-error "%s" trf-no-record-changes-message))
@@ -384,7 +384,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       (trf-record-changes-refuse-operation-in-progress root)
       (trf--refuse-unless-on-the-primary-git-branch root)
       ;; F-2 §Rules: Accept or reject the record implementation report
-      (trf--offer-to-save directory (expand-file-name ".trf/" directory))
+      (trf--offer-to-save directory (expand-file-name trf-worktree-state-directory directory))
       ;; UW-1 §Success guarantee: Turn record changes into code
       (let ((brought-in (trf-worktree-brought-in-p directory)))
         ;; F-2 §Rules: Accept or reject the record implementation report
@@ -418,7 +418,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       ;; MSG-11: No stopped machine to continue
       (user-error "%s" trf-no-stopped-machine-message))
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
-    (trf--offer-to-save directory (expand-file-name ".trf/" directory))
+    (trf--offer-to-save directory (expand-file-name trf-worktree-state-directory directory))
     (if (not (car continue))
         (progn
           (remhash (trf--worktree-key directory) trf--stopped-machines)

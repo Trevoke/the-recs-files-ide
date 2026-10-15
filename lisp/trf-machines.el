@@ -2,6 +2,7 @@
 
 (require 'subr-x)
 (require 'trf-group)
+(require 'trf-worktree)
 
 (defcustom trf-machines-skills
   '((brainstorming . "recs-brainstorming")
@@ -73,7 +74,7 @@
 ;; UW-1 §Main success scenario: Turn record changes into code
 (defun trf-machines-record-implementation-report-file ()
   "Return the record implementation report's path, relative to the worktree."
-  ".trf/record-implementation-report.org")
+  (concat trf-worktree-state-directory "record-implementation-report.org"))
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; UW-1 §Extensions: Turn record changes into code
