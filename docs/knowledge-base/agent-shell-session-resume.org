@@ -13,10 +13,11 @@ a real one does on resume is not established here.
 message as a new turn. agent-shell keeps the session's state after its process
 ends, and the process status tells the session has ended, but only until the
 buffer is given a message: that message starts a new agent process, which
-knows nothing of the session and runs on under the same name. =agent-shell-start= given =:session-id= resumes the
-session in a new buffer with =session/resume=, which replays nothing, under the
-default verbosity, and the elicitation switch holds there. A resume that fails
-starts a new session in its place.
+knows nothing of the session and runs on under the same name.
+=agent-shell-start= given =:session-id= resumes the session in a new buffer with
+=session/resume=, which replays nothing, under the default verbosity, and the
+elicitation switch holds there. A resume that fails starts a new session in its
+place.
 
 * A live buffer takes a next message
 
