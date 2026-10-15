@@ -4,9 +4,10 @@ Takes: a work in progress whose machine stopped before finishing, and what the
 record keeper tells that machine.
 
 Produces: that machine at work again on the work in progress as it stands,
-with everything it was told and said before it stopped, and the rest of the
-implementation workflow and the reconciliation assessor after it, as far as a
-record implementation report.
+with everything it was told and said before it stopped, asking the record
+keeper its questions as before, and followed by the rest of the implementation
+workflow and the reconciliation assessor after it, as far as a record
+implementation report.
 
 ** Rules
 

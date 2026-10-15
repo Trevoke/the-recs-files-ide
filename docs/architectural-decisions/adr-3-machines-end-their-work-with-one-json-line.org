@@ -16,7 +16,7 @@ The IDE instructs each machine to end its work with one line of JSON in its
 last message: {"finished": true, "produced": [the paths it wrote]} from the
 brainstorming machine and the planning machine, and {"finished": true} from
 the executing machine and the reconciliation assessor. A machine that stops
-before finishing ends its last message with
+itself before finishing ends its last message with
 {"finished": false, "reason": "why it stopped"}. The line may sit inside a
 code fence.
 
