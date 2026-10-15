@@ -108,13 +108,17 @@
 
 ;; ADR-4 §Decision: Machines ask the record keeper through ACP elicitation
 ;; ADR-4 §Consequences: Machines ask the record keeper through ACP elicitation
-;; ADR-3 §Decision: Machines end their work with one JSON line
 (defconst trf-machines--asking
   (concat "Ask the record keeper questions only through the device your AI program offers for "
           "asking questions, not in your message text. If you have a question and your AI program "
-          "offers no such device, stop, and end your last turn with one JSON line alone, an object "
-          "holding \"finished\": false and \"reason\": your question.")
+          "offers no such device, stop, with your question as the reason.")
   "What every machine is told about asking the record keeper questions.")
+
+;; ADR-3 §Decision: Machines end their work with one JSON line
+(defconst trf-machines--stopping
+  (concat "If you stop before finishing, for any reason, end your last turn with one JSON line "
+          "alone, an object holding \"finished\": false and \"reason\": why you stopped.")
+  "What every machine is told about stopping before finishing.")
 
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
 (defun trf-machines-instructions (machine changes &optional produced ide-instruction)
@@ -128,6 +132,7 @@ IDE-INSTRUCTION, when given, is a paragraph of its own."
                        (mapconcat #'trf-machines-change-line changes "\n"))
                (plist-get machine :work)
                trf-machines--asking
+               trf-machines--stopping
                ide-instruction
                (when (and produced (plist-get machine :reading))
                  (concat (plist-get machine :reading) "\n"
