@@ -2095,5 +2095,34 @@ Return (STOPPED MESSAGES PROMPTS CONTINUED) once the IDE has settled."
       ;; MSG-10: Machine stopped before finishing
       (assert-nil messages))))
 
+(deftest trf-implement-closes-the-record-changes-after-yes ()
+  "Once the record keeper confirms, the record changes buffer is closed and the machines start."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let (runs)
+    (trf-test-with-machines runs 'now
+      (trf-test-implement))
+    (assert-nil (get-buffer trf--record-changes-buffer-name))
+    (assert-equal 4 (length runs))))
+
+(deftest trf-implement-closes-the-record-changes-after-no ()
+  "Once the record keeper declines, the record changes buffer is closed and nothing starts."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) nil))
+            ((symbol-function 'trf-session-run) (lambda (&rest _) (error "Ran a machine"))))
+    (assert-nil (trf-test-implement)))
+  (assert-nil (get-buffer trf--record-changes-buffer-name))
+  (assert-nil (file-exists-p (expand-file-name ".worktrees" trf-test-root))))
+
+(deftest trf-implement-closes-the-record-changes-after-a-quit ()
+  "When the record keeper quits the question, the record changes buffer is closed."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) (signal 'quit nil)))
+            ((symbol-function 'trf-session-run) (lambda (&rest _) (error "Ran a machine"))))
+    (assert-equal '(quit) (condition-case err
+                              (let ((default-directory trf-test-root))
+                                (trf-implement-record-changes))
+                            (quit err))))
+  (assert-nil (get-buffer trf--record-changes-buffer-name)))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here

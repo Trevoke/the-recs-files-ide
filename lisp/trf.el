@@ -89,8 +89,15 @@
 
 (defconst trf--record-changes-buffer-name "*trf record changes*")
 
+(defun trf--close-record-changes (window)
+  "Close the buffer `trf--record-changes-buffer-name', and WINDOW if it shows it."
+  (when-let* ((buffer (get-buffer trf--record-changes-buffer-name)))
+    (if (and (window-live-p window) (eq (window-buffer window) buffer))
+        (quit-window t window)
+      (kill-buffer buffer))))
+
 (defun trf--show-record-changes (changes)
-  "Show CHANGES in the buffer `trf--record-changes-buffer-name'."
+  "Show CHANGES in the buffer `trf--record-changes-buffer-name'; return the window showing it."
   (with-current-buffer (get-buffer-create trf--record-changes-buffer-name)
     (let ((inhibit-read-only t))
       (erase-buffer)
@@ -300,12 +307,14 @@ From inside a worktree, return the target product's root it was created from."
       (let ((changes (trf-record-changes root)))
         (unless changes
           (user-error "%s" trf-no-record-changes-message))
-        (trf--show-record-changes changes)
-        (when (y-or-n-p "Implement these record changes? ")
-          (let* ((config (trf-session-config))
-                 (commit (trf-record-changes-commit root changes))
-                 (directory (trf-worktree-create root commit)))
-            (trf--implement directory config changes)))))))
+        (let ((window (trf--show-record-changes changes)))
+          (unwind-protect
+              (when (y-or-n-p "Implement these record changes? ")
+                (let* ((config (trf-session-config))
+                       (commit (trf-record-changes-commit root changes))
+                       (directory (trf-worktree-create root commit)))
+                  (trf--implement directory config changes)))
+            (trf--close-record-changes window)))))))
 
 (defun trf--work-in-progress ()
   "Return the worktree holding the current buffer's file, or signal a `user-error'."
