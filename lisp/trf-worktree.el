@@ -7,12 +7,15 @@
 (define-error 'trf-worktree-merge-failed "Git refused the merge" 'trf-git-error)
 
 ;; UW-1 §Main success scenario: Turn record changes into code
+;; ADR-7 §Decision: Run the implementation workflow in a git worktree of the target product
 (defconst trf-worktree-directory ".worktrees/"
   "Where the worktrees of the works in progress sit, under the target product's root.")
 
+;; ADR-7 §Decision: Run the implementation workflow in a git worktree of the target product
 (defconst trf-worktree-state-directory ".trf/"
   "Where a worktree keeps the IDE's own files about its work in progress.")
 
+;; ADR-7 §Decision: Run the implementation workflow in a git worktree of the target product
 (defun trf-worktree--exclude (root pattern)
   "Make git in ROOT ignore PATTERN, through the repository's info/exclude."
   (let ((exclude (expand-file-name
@@ -49,6 +52,7 @@
 
 ;; UW-1 §Main success scenario: Turn record changes into code
 ;; F-1 §Rules: Ask the IDE to implement the record changes
+;; ADR-7 §Decision: Run the implementation workflow in a git worktree of the target product
 (defun trf-worktree-create (root commit)
   "Create a worktree of ROOT starting from COMMIT; return its directory."
   (let* ((root (file-name-as-directory (expand-file-name root)))
