@@ -33,6 +33,10 @@
 (defconst trf-machine-stopped-message
   "A machine stopped before finishing:")
 
+;; MSG-11: No stopped machine to start again
+(defconst trf-no-stopped-machine-message
+  "There is no stopped machine here to start again.")
+
 ;; MSG-7: Git could not do what the IDE asked
 (defconst trf-git-failed-message
   "Git could not do what the IDE asked:")
@@ -91,6 +95,14 @@
   "The machines' session buffers, keyed by the worktree they work in.")
 
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
+;; F-3 §Rules: Start a stopped machine again on its work in progress
+(defvar trf--stopped-machines (make-hash-table :test #'equal)
+  "How to start again the machine that stopped, keyed by the worktree it works in.")
+
+(defun trf--worktree-key (directory)
+  "Return the key DIRECTORY's worktree has in `trf--session-buffers' and `trf--stopped-machines'."
+  (file-name-as-directory (expand-file-name directory)))
+
 (defun trf--run-machines (machines directory config changes produced on-done
                                     &optional ide-instruction)
   "Run MACHINES in turn in DIRECTORY with the AI program CONFIG on CHANGES.
@@ -109,9 +121,14 @@ has finished."
                ;; UW-1 §Extensions: Turn record changes into code
                ;; ADR-3 §Consequences: Machines end their work with one JSON line
                (message "%s\n%s\n%s" trf-machine-stopped-message (plist-get machine :name)
-                        (trf-record-changes-reason (or reason "")))))
-            (gethash (file-name-as-directory (expand-file-name directory))
-                     trf--session-buffers)))))
+                        (trf-record-changes-reason (or reason "")))
+               ;; F-3 §Rules: Start a stopped machine again on its work in progress
+               (puthash (trf--worktree-key directory)
+                        (lambda ()
+                          (trf--run-machines machines directory config changes produced on-done
+                                             ide-instruction))
+                        trf--stopped-machines)))
+            (gethash (trf--worktree-key directory) trf--session-buffers)))))
 
 (defun trf--assess (directory config changes)
   "Run the reconciliation assessor in DIRECTORY with CONFIG on CHANGES, then open its report."
@@ -201,7 +218,7 @@ From inside a worktree, return the target product's root it was created from."
 (defun trf--kill-the-works-buffers (directory root)
   "Kill the unmodified buffers visiting files in DIRECTORY, and its session buffers.
 Move every other buffer whose directory is in DIRECTORY to ROOT."
-  (let ((key (file-name-as-directory (expand-file-name directory))))
+  (let ((key (trf--worktree-key directory)))
     (dolist (buffer (trf--buffers-visiting directory))
       (unless (buffer-modified-p buffer)
         (kill-buffer buffer)))
@@ -224,6 +241,8 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
   "Remove the work in progress DIRECTORY and kill or move the buffers in it."
   (let ((root (trf-worktree-root directory)))
     (trf-worktree-remove directory)
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (remhash (trf--worktree-key directory) trf--stopped-machines)
     (trf--kill-the-works-buffers directory root)))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
@@ -258,6 +277,21 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
              (user-error "%s\n%s" trf-work-not-brought-in-message
                          (trf-record-changes-reason (cadr err)))))
           (trf--remove-work-in-progress directory))))))
+
+;; F-3 §Rules: Start a stopped machine again on its work in progress
+;; F-3 §Produces: Start a stopped machine again on its work in progress
+(defun trf-start-stopped-machine-again ()
+  "Start the machine that stopped before finishing again on the work in progress here."
+  (interactive)
+  (let* ((directory (trf-worktree-of (or buffer-file-name default-directory)))
+         (start (and directory
+                     (gethash (trf--worktree-key directory) trf--stopped-machines))))
+    (unless start
+      ;; MSG-11: No stopped machine to start again
+      (user-error "%s" trf-no-stopped-machine-message))
+    (trf--offer-to-save directory)
+    (remhash (trf--worktree-key directory) trf--stopped-machines)
+    (funcall start)))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
 (defun trf-reject-record-implementation-report ()

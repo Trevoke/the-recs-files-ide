@@ -1340,5 +1340,137 @@ Every other call to `trf-git' runs git."
     (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
                   messages)))
 
+(defun trf-test-start-again (&optional file)
+  "Start the stopped machine again from FILE's buffer, or from the target product; return what it signals."
+  (cl-letf (((symbol-function 'trf-session-config) (lambda () (error "Asked for a config"))))
+    (let ((default-directory trf-test-root))
+      (with-current-buffer (if file (find-file-noselect file) (current-buffer))
+        (condition-case err
+            (progn (trf-start-stopped-machine-again) nil)
+          (error err))))))
+
+(defun trf-test-stopped-work (stopping)
+  "Implement the record changes with the machine STOPPING names stopping once.
+Return (DIRECTORY RUNS) with RUNS holding the machines run so far."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let (runs)
+    (trf-test-with-machines runs stopping
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (trf-test-implement)))
+    (list (nth 1 (car runs)) runs)))
+
+(deftest trf-start-again-outside-any-work-in-progress ()
+  "Outside any work in progress, starting a stopped machine again gives MSG-11."
+  ;; F-3 §Rules: Start a stopped machine again on its work in progress
+  ;; MSG-11: No stopped machine to start again
+  (assert-equal '(user-error "There is no stopped machine here to start again.") (trf-test-start-again)))
+
+(deftest trf-start-again-where-no-machine-stopped ()
+  "In a work in progress where no machine stopped, starting a stopped machine again gives MSG-11."
+  (let ((directory (trf-test-implemented-worktree)))
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    ;; MSG-11: No stopped machine to start again
+    (assert-equal '(user-error "There is no stopped machine here to start again.")
+                  (trf-test-start-again (trf-test-report-file directory)))))
+
+(deftest trf-start-again-runs-the-stopped-machine-with-its-first-instructions ()
+  "Starting a stopped planning machine again runs it with its first instructions, then the rest as far as the report."
+  (let* ((stopping "planning machine")
+         runs directory)
+    (trf-test-write-files trf-test-root (list trf-test-record-change))
+    (trf-test-with-machines runs stopping
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (trf-test-implement)
+        (setq directory (nth 1 (car runs)))
+        (setq stopping 'now)
+        (assert-nil (trf-test-start-again (expand-file-name "src/widget.el" directory)))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    (assert-equal '("brainstorming machine" "planning machine" "planning machine"
+                    "executing machine" "reconciliation assessor")
+                  (mapcar #'car runs))
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-equal (nth 3 (nth 1 runs)) (nth 3 (nth 2 runs)))
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-match "^- docs/plans/brainstorming\\.md$" (nth 3 (nth 2 runs)))
+    ;; F-3 §Produces: Start a stopped machine again on its work in progress
+    (assert-equal (make-list 5 directory) (mapcar (lambda (run) (nth 1 run)) runs))
+    ;; F-3 §Produces: Start a stopped machine again on its work in progress
+    (assert-true (trf-test-report-shown-p))))
+
+(deftest trf-start-again-gives-the-rerun-its-instruction-again ()
+  "A brainstorming machine that stops in the rerun on a moved codebase starts again with the IDE's instruction."
+  (let* ((directory (trf-test-implemented-worktree))
+         (stopping "brainstorming machine")
+         runs)
+    (trf-test-write-files trf-test-root '(("src/other.el" . "(provide 'other)\n")))
+    (trf-test-git trf-test-root "add" "--all")
+    (trf-test-git trf-test-root "commit" "--quiet" "--message" "Other work")
+    (trf-test-with-machines runs stopping
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (with-current-buffer (find-file-noselect (trf-test-report-file directory))
+          (trf-accept-record-implementation-report))
+        (setq stopping 'now)
+        (assert-nil (trf-test-start-again (trf-test-report-file directory)))))
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-equal '("brainstorming machine" "brainstorming machine")
+                  (seq-take (mapcar #'car runs) 2))
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-match (regexp-quote trf-codebase-moved-instruction) (nth 3 (nth 1 runs)))))
+
+(deftest trf-start-again-offers-to-save-before-the-machine-starts ()
+  "Starting a stopped machine again offers to save the work in progress's files before the machine starts."
+  (let* ((stopping "planning machine")
+         runs directory offered runs-when-offered)
+    (trf-test-write-files trf-test-root (list trf-test-record-change))
+    (trf-test-with-machines runs stopping
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (trf-test-implement)
+        (setq directory (nth 1 (car runs)))
+        (setq stopping 'now)
+        (let ((buffer (find-file-noselect (expand-file-name "src/widget.el" directory))))
+          (with-current-buffer buffer
+            (goto-char (point-max))
+            (insert ";; saved\n"))
+          (cl-letf (((symbol-function 'map-y-or-n-p)
+                     (lambda (_prompter actor list &rest _)
+                       (setq offered list runs-when-offered (length runs))
+                       (mapc actor list)
+                       (length list))))
+            (assert-nil (trf-test-start-again (expand-file-name "src/widget.el" directory))))
+            ;; F-3 §Rules: Start a stopped machine again on its work in progress
+          (assert-equal (list buffer) offered))))
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-equal 2 runs-when-offered)
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-match ";; saved" (with-temp-buffer
+                              (insert-file-contents (expand-file-name "src/widget.el" directory))
+                              (buffer-string)))))
+
+(deftest trf-start-again-twice-gives-msg-11 ()
+  "Once the stopped machine has started again and finished, starting it again gives MSG-11."
+  (let* ((stopping "planning machine")
+         runs directory)
+    (trf-test-write-files trf-test-root (list trf-test-record-change))
+    (trf-test-with-machines runs stopping
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (trf-test-implement)
+        (setq directory (nth 1 (car runs)))
+        (setq stopping 'now)
+        (trf-test-start-again (expand-file-name "src/widget.el" directory))
+            ;; F-3 §Rules: Start a stopped machine again on its work in progress
+        ;; MSG-11: No stopped machine to start again
+        (assert-equal '(user-error "There is no stopped machine here to start again.")
+                      (trf-test-start-again (expand-file-name "src/widget.el" directory)))))))
+
+(deftest trf-start-again-forgets-the-stop-once-the-work-in-progress-is-removed ()
+  "Once accepting removes the work in progress, the machine that stopped there is forgotten."
+  (pcase-let ((`(,directory ,_runs) (trf-test-stopped-work "executing machine")))
+    (assert-true (gethash directory trf--stopped-machines))
+    (trf-test-build directory)
+    (assert-nil (trf-test-from-file (expand-file-name "src/widget.el" directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-3 §Rules: Start a stopped machine again on its work in progress
+    (assert-nil (gethash directory trf--stopped-machines))))
+
 (provide 'trf-test)
 ;;; trf-test.el ends here
