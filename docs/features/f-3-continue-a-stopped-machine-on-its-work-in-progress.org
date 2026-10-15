@@ -26,6 +26,7 @@ implementation report.
   saves, and unsaved edits are left as they are.
 - Restarting the machine at work asks the record keeper whether to stop it; on
   yes, the IDE stops it and continues it; on no, the machine carries on at work.
+- Restarting a stopped machine continues it.
 
 ** Next
 
