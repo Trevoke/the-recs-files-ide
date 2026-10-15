@@ -24,8 +24,13 @@
               (lambda (&rest _) (get-buffer-create trf-session-test-buffer-name)))
              ((symbol-function 'agent-shell-subscribe-to)
               (lambda (&rest args)
-                (push (cons (plist-get args :event) (plist-get args :on-event))
-                      trf-session-test-handlers)))
+                (let ((handler (plist-get args :on-event)))
+                  (when (eq (plist-get args :event) 'clean-up)
+                    (with-current-buffer (plist-get args :shell-buffer)
+                      (add-hook 'kill-buffer-hook
+                                (lambda () (funcall handler '((:event . clean-up))))
+                                nil t)))
+                  (push (cons (plist-get args :event) handler) trf-session-test-handlers))))
              ((symbol-function 'agent-shell-insert) (lambda (&rest _) nil)))
      ,@body))
 
@@ -96,7 +101,7 @@
   (trf-session-test-with-fake-shell
    (with-spy display-buffer calls
      (let ((stopped 0))
-       (trf-session-test-run #'ignore (lambda (_reason) (setq stopped (1+ stopped))))
+       (trf-session-test-run #'ignore (lambda (&rest _) (setq stopped (1+ stopped))))
        (trf-session-test-fire 'error)
        (trf-session-test-fire 'error)
        (assert-equal 0 stopped "ON-STOPPED runs after the event handler returns")
@@ -114,7 +119,7 @@
    (with-spy display-buffer calls
      (let (finished (stopped 0))
        (trf-session-test-run (lambda (text) (setq finished text))
-                             (lambda (_reason) (setq stopped (1+ stopped))))
+                             (lambda (&rest _) (setq stopped (1+ stopped))))
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason stop-reason)))
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason stop-reason)))
        (trf-session-test-settle)
@@ -171,7 +176,7 @@
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)) (stopped 0))
      (trf-session-test-run (trf-session-test-finishing finished)
-                           (lambda (_reason) (setq stopped (1+ stopped))))
+                           (lambda (&rest _) (setq stopped (1+ stopped))))
      (apply #'trf-session-test-say chunks)
      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
      (trf-session-test-settle)
@@ -212,7 +217,7 @@
   "An error once the machine has said it finished finishes it rather than stopping it."
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)) stopped)
-     (trf-session-test-run (trf-session-test-finishing finished) (lambda (_reason) (setq stopped t)))
+     (trf-session-test-run (trf-session-test-finishing finished) (lambda (&rest _) (setq stopped t)))
      (trf-session-test-say "{\"finished\": true}")
      (trf-session-test-fire 'error)
      (trf-session-test-settle)
@@ -227,7 +232,7 @@
     (setq trf-session-test-handlers nil)
     (trf-session-test-with-fake-shell
      (let ((finished (list 'finished)) stopped)
-       (trf-session-test-run (trf-session-test-finishing finished) (lambda (_reason) (setq stopped t)))
+       (trf-session-test-run (trf-session-test-finishing finished) (lambda (&rest _) (setq stopped t)))
        (trf-session-test-say "{\"finished\": true}")
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason reason)))
        (trf-session-test-settle)
@@ -238,17 +243,21 @@
        (assert-nil stopped
                    (format "a %s turn with the JSON line does not stop the machine" reason))))))
 
-(deftest trf-session-abandoned-when-buffer-killed ()
-  "A session cleaned up before it finishes calls neither continuation."
-  (trf-session-test-with-fake-shell
-   (let (called)
-     (trf-session-test-run (lambda (_) (setq called t)) (lambda (_) (setq called t)))
-     (trf-session-test-fire 'clean-up)
-     (trf-session-test-say "{\"finished\": true}")
-     (trf-session-test-fire 'turn-complete)
-     (trf-session-test-settle)
-     ;; UW-1 §Extensions: Turn record changes into code
-     (assert-nil called))))
+(deftest trf-session-stopped-when-its-buffer-is-killed ()
+  "A session buffer killed before the machine finishes or stops stops it, with no reason and the session it was in."
+  (trf-session-test-continuing "unused"
+    (let* (stops called
+           (buffer (trf-session-test-run
+                    (lambda (_) (setq called t))
+                    (lambda (reason &optional session-id) (push (list reason session-id) stops)))))
+      (with-current-buffer buffer
+        (setq trf-session-test-session-id "session-1"))
+      (kill-buffer buffer)
+      (trf-session-test-settle)
+      ;; UW-1 §Extensions: Turn record changes into code
+      ;; ADR-5 §Decision: Continue a machine in its own ACP session
+      (assert-equal '((nil "session-1")) stops)
+      (assert-nil called))))
 
 (deftest trf-session-json-line-right-after-an-earlier-message ()
   "The JSON line streamed straight after an earlier message's text still finishes the machine."
@@ -321,7 +330,7 @@
    (with-spy display-buffer calls
      (let ((finished (list 'finished)) reasons)
        (trf-session-test-run (trf-session-test-finishing finished)
-                             (lambda (reason) (push reason reasons)))
+                             (lambda (reason &optional _session-id) (push reason reasons)))
        (apply #'trf-session-test-say chunks)
        (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
        (trf-session-test-settle)
@@ -369,7 +378,7 @@
   (trf-session-test-with-fake-shell
    (let ((finished (list 'finished)) reasons)
      (trf-session-test-run (trf-session-test-finishing finished)
-                           (lambda (reason) (push reason reasons)))
+                           (lambda (reason &optional _session-id) (push reason reasons)))
      (trf-session-test-say "{\"finished\": false, \"reason\": \"Out of ideas.\"}")
      (trf-session-test-fire 'error)
      (trf-session-test-settle)
@@ -383,7 +392,7 @@
   (setq trf-session-test-handlers nil)
   (trf-session-test-with-fake-shell
    (let (reasons)
-     (trf-session-test-run #'ignore (lambda (reason) (push reason reasons)))
+     (trf-session-test-run #'ignore (lambda (reason &optional _session-id) (push reason reasons)))
      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "refusal")))
      (trf-session-test-settle)
      ;; UW-1 §Extensions: Turn record changes into code
@@ -452,9 +461,14 @@ In BODY, STARTS holds the arguments of each start and INSERTS those of each mess
       (accept-process-output nil 0.01))
     buffer))
 
-(defun trf-session-test-continue (buffer &optional finished stopped cannot)
-  "Continue the machine in BUFFER, telling it \"Use the blue widget.\"."
-  (trf-session-continue buffer trf-session-test-config "Use the blue widget."
+(defun trf-session-test-continue (buffer &optional finished stopped cannot session-id)
+  "Continue the machine in BUFFER, telling it \"Use the blue widget.\".
+SESSION-ID is the session it stopped in, by default the one BUFFER holds."
+  (trf-session-continue buffer
+                        (or session-id
+                            (and (buffer-live-p buffer)
+                                 (buffer-local-value 'trf-session-test-session-id buffer)))
+                        trf-session-test-config "Use the blue widget."
                         (or finished #'ignore) (or stopped #'ignore) (or cannot #'ignore)))
 
 (deftest trf-session-continue-gives-a-going-session-the-next-message ()
@@ -483,7 +497,7 @@ In BODY, STARTS holds the arguments of each start and INSERTS those of each mess
   (trf-session-test-continuing "unused"
     (let ((buffer (trf-session-test-session-buffer '("sleep" "60") "session-1"))
           reasons)
-      (trf-session-test-continue buffer nil (lambda (reason) (push reason reasons)))
+      (trf-session-test-continue buffer nil (lambda (reason &optional _session-id) (push reason reasons)))
       (trf-session-test-say "{\"finished\": false, \"reason\": \"Still unsure.\"}")
       (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
       (trf-session-test-settle)
@@ -546,17 +560,48 @@ In BODY, STARTS holds the arguments of each start and INSERTS those of each mess
       (assert-nil (get-buffer trf-session-test-resumed-buffer-name))
       (assert-nil inserts))))
 
-(deftest trf-session-continue-cannot-without-its-session-buffer ()
-  "A machine whose session buffer is gone cannot be continued."
+(deftest trf-session-continue-cannot-without-a-session ()
+  "A machine whose session buffer is gone, with no session known, cannot be continued."
   (trf-session-test-continuing "session-1"
     (let ((buffer (trf-session-test-ended-buffer "session-1"))
           (cannot (list 'cannot)))
       (kill-buffer buffer)
-      (trf-session-test-continue buffer nil nil (lambda (reason) (setcdr cannot (list reason))))
+      (trf-session-continue buffer nil trf-session-test-config "Go." #'ignore #'ignore
+                            (lambda (reason) (setcdr cannot (list reason))))
       (trf-session-test-settle)
       ;; ADR-5 §Consequences: Continue a machine in its own ACP session
       (assert-equal '(nil) (cdr cannot))
       (assert-nil starts))))
+
+(deftest trf-session-continue-resumes-the-session-of-a-killed-buffer ()
+  "A machine whose session buffer is gone is resumed in the session it stopped in."
+  (trf-session-test-continuing "session-1"
+    (let ((buffer (trf-session-test-ended-buffer "session-1"))
+          (finished (list 'finished)))
+      (kill-buffer buffer)
+      (trf-session-test-continue buffer (trf-session-test-finishing finished) nil nil "session-1")
+      ;; ADR-5 §Decision: Continue a machine in its own ACP session
+      (assert-equal "session-1" (plist-get (car starts) :session-id))
+      (trf-session-test-fire 'init-finished)
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-equal "Use the blue widget." (plist-get (car inserts) :text))
+      (trf-session-test-say "{\"finished\": true}")
+      (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
+      (trf-session-test-settle)
+      ;; F-3 §Produces: Continue a stopped machine on its work in progress
+      (assert-equal '(nil) (cdr finished)))))
+
+(deftest trf-session-continue-ending-the-old-buffer-stops-nothing ()
+  "Ending the old session buffer after a resume does not stop the continued machine."
+  (trf-session-test-continuing "session-1"
+    (let ((buffer (trf-session-test-ended-buffer "session-1"))
+          stops)
+      (trf-session-test-continue buffer nil (lambda (&rest args) (push args stops)))
+      (trf-session-test-fire 'init-finished)
+      (trf-session-test-settle)
+      ;; UW-1 §Extensions: Turn record changes into code
+      (assert-nil (buffer-live-p buffer))
+      (assert-nil stops))))
 
 (deftest trf-session-continue-resumes-when-a-new-process-replaced-the-stopped-one ()
   "A machine whose stopped agent process was replaced by another, as a message in its buffer does, is resumed."
@@ -579,7 +624,7 @@ In BODY, STARTS holds the arguments of each start and INSERTS those of each mess
           (calls 0)
           (finished (list 'finished)))
       (setq trf-session-test-handlers nil)
-      (trf-session--listen buffer (lambda (_) (cl-incf calls)) (lambda (_) (cl-incf calls)))
+      (trf-session--listen buffer (lambda (&rest _) (cl-incf calls)) (lambda (&rest _) (cl-incf calls)))
       (trf-session-test-say "{\"finished\": false, \"reason\": \"Stuck.\"}")
       (trf-session-test-fire 'turn-complete (list (cons :stop-reason "end_turn")))
       (trf-session-test-settle)

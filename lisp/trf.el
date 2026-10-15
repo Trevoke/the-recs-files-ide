@@ -122,13 +122,26 @@
     (when (file-exists-p report)
       (delete-file report))
     (when-let* ((buffer (find-buffer-visiting report)))
-      (unless (buffer-modified-p buffer)
-        (kill-buffer buffer)))))
+      (with-current-buffer buffer
+        (set-buffer-modified-p nil))
+      (kill-buffer buffer))))
 
 ;; F-2 §Rules: Accept or reject the record implementation report
 (defun trf--done-working (directory)
   "Mark the machines of DIRECTORY no longer at work."
   (remhash (trf--worktree-key directory) trf--machines-at-work))
+
+;; F-2 §Rules: Accept or reject the record implementation report
+(defmacro trf--unmarking-on-failure (directory &rest body)
+  "Run BODY; if it exits non-locally, mark the machines of DIRECTORY no longer at work."
+  (declare (indent 1) (debug t))
+  (let ((done (make-symbol "done")))
+    `(let ((,done nil))
+       (unwind-protect
+           (prog1 (progn ,@body)
+             (setq ,done t))
+         (unless ,done
+           (trf--done-working ,directory))))))
 
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
 (defun trf--run-machines (machines directory config changes produced on-done
@@ -147,12 +160,13 @@ has finished."
     (trf--set-to-work directory)
     (let ((machine (car machines))
           buffer)
-      (setq buffer (trf-session-run
-                    directory config
-                    (trf-machines-instructions machine changes produced ide-instruction)
-                    (trf--carrying-on machines directory config changes on-done)
-                    (trf--on-stopped machines directory config changes on-done
-                                     (lambda () buffer))))
+      (trf--unmarking-on-failure directory
+        (setq buffer (trf-session-run
+                      directory config
+                      (trf-machines-instructions machine changes produced ide-instruction)
+                      (trf--carrying-on machines directory config changes on-done)
+                      (trf--on-stopped machines directory config changes on-done
+                                       (lambda () buffer)))))
       (push buffer (gethash (trf--worktree-key directory) trf--session-buffers)))))
 
 (defun trf--carrying-on (machines directory config changes on-done)
@@ -163,9 +177,10 @@ has finished."
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
 (defun trf--on-stopped (machines directory config changes on-done session-buffer)
   "Return what the IDE does when the first of MACHINES stops before finishing.
-SESSION-BUFFER returns the buffer of the session it stopped in."
+SESSION-BUFFER returns the buffer of the session it stopped in; the handler is given
+the reason it gave and the session's id."
   (let ((machine (car machines)))
-    (lambda (&optional reason)
+    (lambda (&optional reason session-id)
       ;; F-2 §Rules: Accept or reject the record implementation report
       (trf--done-working directory)
       ;; MSG-10: Machine stopped before finishing
@@ -176,20 +191,24 @@ SESSION-BUFFER returns the buffer of the session it stopped in."
       (puthash (trf--worktree-key directory)
                (lambda (message)
                  (trf--continue machines directory config changes on-done
-                                (funcall session-buffer) message))
+                                (funcall session-buffer) session-id message))
                trf--stopped-machines))))
 
 ;; F-3 §Rules: Continue a stopped machine on its work in progress
 ;; F-3 §Produces: Continue a stopped machine on its work in progress
 ;; ADR-5 §Decision: Continue a machine in its own ACP session
-(defun trf--continue (machines directory config changes on-done session-buffer message)
-  "Continue the first of MACHINES in SESSION-BUFFER, telling it MESSAGE, then run the rest."
+(defun trf--continue (machines directory config changes on-done session-buffer session-id
+                               message)
+  "Continue the first of MACHINES in SESSION-BUFFER and SESSION-ID, telling it MESSAGE.
+Then run the rest."
   ;; F-2 §Rules: Accept or reject the record implementation report
   (trf--set-to-work directory)
   (let ((machine (car machines))
+        (default-directory directory)
         buffer)
-    (setq buffer (trf-session-continue
-                  session-buffer config message
+    (trf--unmarking-on-failure directory
+      (setq buffer (trf-session-continue
+                  session-buffer session-id config message
                   (trf--carrying-on machines directory config changes on-done)
                   (trf--on-stopped machines directory config changes on-done
                                    (lambda () buffer))
@@ -200,7 +219,7 @@ SESSION-BUFFER returns the buffer of the session it stopped in."
                     ;; UW-1 §Extensions: Turn record changes into code
                     (message "%s\n%s\n%s" trf-machine-cannot-be-continued-message
                              (plist-get machine :name)
-                             (trf-record-changes-reason (or reason ""))))))
+                             (trf-record-changes-reason (or reason "")))))))
     (when buffer
       (push buffer (gethash (trf--worktree-key directory) trf--session-buffers)))))
 
@@ -339,7 +358,7 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
       (trf-record-changes-refuse-operation-in-progress root)
       (trf--refuse-unless-on-the-primary-git-branch root)
       ;; F-2 §Rules: Accept or reject the record implementation report
-      (trf--offer-to-save directory)
+      (trf--offer-to-save directory (expand-file-name ".trf/" directory))
       ;; UW-1 §Success guarantee: Turn record changes into code
       (let ((brought-in (trf-worktree-brought-in-p directory)))
         ;; F-2 §Rules: Accept or reject the record implementation report
@@ -372,7 +391,8 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
     (unless continue
       ;; MSG-11: No stopped machine to continue
       (user-error "%s" trf-no-stopped-machine-message))
-    (trf--offer-to-save directory)
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    (trf--offer-to-save directory (expand-file-name ".trf/" directory))
     (let ((message ""))
       (while (string-blank-p message)
         (setq message (read-string "Tell the machine: ")))

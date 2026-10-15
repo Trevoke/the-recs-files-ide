@@ -90,23 +90,27 @@ Return its buffer."
   "Listen to the machine in BUFFER until it finishes or stops.
 Call ON-FINISHED with the paths it produced at the end of the first turn
 ending with the JSON line saying it has finished.
-Call ON-STOPPED with BUFFER displayed, before then, in three cases.
+Call ON-STOPPED, before then, with the reason the machine gives and the session
+it stopped in, with BUFFER displayed, in three cases.
 When a turn ends with the JSON line saying the machine stopped before finishing,
 pass the reason it gives.  When the session fails, pass nil.  When a turn ends
 for a reason other than \"end_turn\", pass nil.
-If BUFFER is killed first, call neither."
+When BUFFER is killed first, call ON-STOPPED with nil and that session."
   (let* ((text "")
          (over nil)
          (finish (lambda (produced)
                    (run-at-time 0 nil on-finished produced)))
          ;; ADR-3 §Consequences: Machines end their work with one JSON line
          ;; UW-1 §Extensions: Turn record changes into code
-         (stop (lambda (&optional reason)
-                 (when (buffer-live-p buffer)
-                   (with-current-buffer buffer
-                     (setq trf-session--stopped-process (trf-session--process buffer)))
-                   (display-buffer buffer))
-                 (run-at-time 0 nil on-stopped reason)))
+         (stop (lambda (&optional reason killed)
+                 (let ((session-id (when (buffer-live-p buffer)
+                                     (agent-shell-session-id :shell-buffer buffer))))
+                   (when (buffer-live-p buffer)
+                     (with-current-buffer buffer
+                       (setq trf-session--stopped-process (trf-session--process buffer)))
+                     (unless killed
+                       (display-buffer buffer)))
+                   (run-at-time 0 nil on-stopped reason session-id))))
          (end (lambda (ending)
                 (pcase ending
                   (`(finished ,produced) (funcall finish produced))
@@ -139,7 +143,12 @@ If BUFFER is killed first, call neither."
                      (funcall stop)))))
     (agent-shell-subscribe-to
      :shell-buffer buffer :event 'clean-up
-     :on-event (lambda (_event) (setq over t)))))
+     :on-event (lambda (_event)
+                 (unless over
+                   (setq over t)
+                   ;; UW-1 §Extensions: Turn record changes into code
+                   ;; ADR-5 §Decision: Continue a machine in its own ACP session
+                   (funcall stop nil t))))))
 
 ;; ADR-2 §Decision: Talk to machines over ACP
 (defun trf-session-run (directory config instructions on-finished on-stopped)
@@ -180,11 +189,13 @@ Return its session buffer.  Call ON-FINISHED and ON-STOPPED as
 ;; docs/knowledge-base/agent-shell-session-resume.org §A live buffer takes a next message
 ;; docs/knowledge-base/agent-shell-session-resume.org §A message in a dead buffer reaches a new process without its session
 ;; docs/knowledge-base/agent-shell-session-resume.org §A resume that fails starts a new session
-(defun trf-session-continue (buffer config message on-finished on-stopped on-cannot-continue)
-  "Continue the machine whose session is in BUFFER, giving it MESSAGE as its next message.
+(defun trf-session-continue (buffer session-id config message on-finished on-stopped
+                                    on-cannot-continue)
+  "Continue the machine that stopped in BUFFER and SESSION-ID, giving it MESSAGE as its next message.
 CONFIG is its AI program.  Return the buffer the machine now works in.
-While the session is going, give MESSAGE there.  Once it has ended, resume it
-in a new buffer, end BUFFER, and give MESSAGE there.
+While the session is going in BUFFER, give MESSAGE there.  Once it has ended,
+or BUFFER is gone, resume SESSION-ID in a new buffer, end BUFFER, and give
+MESSAGE there.
 Call ON-FINISHED and ON-STOPPED as `trf-session--listen' does.
 Call ON-CANNOT-CONTINUE with the AI program's reason, or nil, when the session
 cannot be resumed."
@@ -194,25 +205,27 @@ cannot be resumed."
      ((trf-session--going-p buffer)
       (trf-session--give buffer message on-finished on-stopped)
       buffer)
-     ((not (and (buffer-live-p buffer) (agent-shell-session-id :shell-buffer buffer)))
+     ((not session-id)
       (funcall cannot nil)
       nil)
      (t
-      (let* ((asked (agent-shell-session-id :shell-buffer buffer))
-             (default-directory (buffer-local-value 'default-directory buffer))
-             (resumed (trf-session--start config asked))
+      (let* ((default-directory (if (buffer-live-p buffer)
+                                    (buffer-local-value 'default-directory buffer)
+                                  default-directory))
+             (resumed (trf-session--start config session-id))
              (settled nil))
         (agent-shell-subscribe-to
          :shell-buffer resumed :event 'init-finished
          :on-event (lambda (_event)
                      (unless settled
                        (setq settled t)
-                       (if (equal (agent-shell-session-id :shell-buffer resumed) asked)
+                       (if (equal (agent-shell-session-id :shell-buffer resumed) session-id)
                            (progn
-                             ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
-                             (with-current-buffer buffer
-                               (let ((kill-buffer-query-functions nil))
-                                 (kill-buffer buffer)))
+                             (when (buffer-live-p buffer)
+                               ;; docs/knowledge-base/agent-shell-session-buffers.org §Killing a session buffer asks about queued prompts and an unsaved transcript
+                               (with-current-buffer buffer
+                                 (let ((kill-buffer-query-functions nil))
+                                   (kill-buffer buffer))))
                              (trf-session--give resumed message on-finished on-stopped))
                          (kill-buffer resumed)
                          (funcall cannot nil)))))

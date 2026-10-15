@@ -37,8 +37,8 @@
 The brainstorming and planning machines produce docs/plans/<slug>.md; the reconciliation
 assessor writes the record implementation report.
 FINISHING is `now' to finish each machine at once, `later' to finish it from a timer,
-the name of the machine that stops instead of finishing, or a list of that name and the
-reason it gives for stopping."
+the name of the machine that stops instead of finishing, or a list of that name, the
+reason it gives for stopping, and the session it stopped in."
   (let ((timers (make-symbol "timers")))
     `(let ((,timers nil))
        (unwind-protect
@@ -51,7 +51,8 @@ reason it gives for stopping."
                                                                 instructions))))
                           (if (or (equal ,finishing name)
                                   (and (consp ,finishing) (equal (car ,finishing) name)))
-                              (funcall on-stopped (when (consp ,finishing) (cadr ,finishing)))
+                              (funcall on-stopped (when (consp ,finishing) (cadr ,finishing))
+                                       (when (consp ,finishing) (nth 2 ,finishing)))
                             (let ((produced
                                    (when (member name '("brainstorming machine" "planning machine"))
                                      (list (format "docs/plans/%s.md" (car (split-string name)))))))
@@ -1343,12 +1344,12 @@ Every other call to `trf-git' runs git."
 (defconst trf-test-continued-buffer-name "*trf continued machine*")
 
 (defmacro trf-test-continuing (continued ending &rest body)
-  "Run BODY with continuing a machine replaced; CONTINUED collects (buffer message).
+  "Run BODY with continuing a machine replaced; CONTINUED collects (buffer message session-id).
 ENDING is (finish PRODUCED), (stop REASON) or (cannot REASON): how the continued machine ends."
   (declare (indent 2) (debug t))
   `(cl-letf (((symbol-function 'trf-session-continue)
-              (lambda (buffer _config message on-finished on-stopped on-cannot-continue)
-                (setq ,continued (append ,continued (list (list buffer message))))
+              (lambda (buffer session-id _config message on-finished on-stopped on-cannot-continue)
+                (setq ,continued (append ,continued (list (list buffer message session-id))))
                 (pcase ,ending
                   (`(finish ,produced) (funcall on-finished produced))
                   (`(stop ,reason) (funcall on-stopped reason))
@@ -1413,7 +1414,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
         (assert-nil (trf-test-continue widget "Plan for the blue widget.")))
       ;; F-3 §Rules: Continue a stopped machine on its work in progress
       ;; ADR-5 §Decision: Continue a machine in its own ACP session
-      (assert-equal (list (list (get-buffer trf-test-machine-buffer-name) "Plan for the blue widget."))
+      (assert-equal (list (list (get-buffer trf-test-machine-buffer-name) "Plan for the blue widget." nil))
                     continued)
       ;; F-3 §Produces: Continue a stopped machine on its work in progress
       (assert-equal '("brainstorming machine" "planning machine" "executing machine"
@@ -1464,7 +1465,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
                       messages)
         (assert-nil (trf-test-continue widget "Pick the blue one."))
         ;; F-3 §Rules: Continue a stopped machine on its work in progress
-        (assert-equal (list (get-buffer trf-test-continued-buffer-name) "Pick the blue one.")
+        (assert-equal (list (get-buffer trf-test-continued-buffer-name) "Pick the blue one." nil)
                       (nth 1 continued))))))
 
 (deftest trf-continue-records-the-buffer-the-machine-works-in ()
@@ -1630,7 +1631,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
       (trf-test-build directory)
       (trf-test-write-files directory '((".trf/record-implementation-report.org" . "Stale report.")))
       (cl-letf (((symbol-function 'trf-session-continue)
-                 (lambda (_buffer _config _message finished _stopped _cannot)
+                 (lambda (_buffer _session-id _config _message finished _stopped _cannot)
                    (setq on-finished finished)
                    (get-buffer-create trf-test-continued-buffer-name))))
         (trf-test-continue widget))
@@ -1712,6 +1713,72 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
     (trf-test-assert-accept-refuses
      directory
      '(user-error "There is no record implementation report here to accept yet."))))
+
+(deftest trf-continue-a-machine-whose-session-buffer-was-killed ()
+  "A machine whose session buffer is killed mid-work stops with no reason, leaves no report to accept, and continues in its session."
+  (let (continued refusal)
+    (trf-test-with-a-stopped-machine '("planning machine" nil "session-1")
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-nil (gethash directory trf--machines-at-work))
+      (setq refusal (trf-test-from-file widget #'trf-accept-record-implementation-report))
+      (trf-test-continuing continued '(stop "Again.")
+        (assert-nil (trf-test-continue widget))))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    ;; MSG-13: No record implementation report to accept
+    (assert-equal '(user-error "There is no record implementation report here to accept yet.") refusal)
+    ;; F-3 §Rules: Continue a stopped machine on its work in progress
+    ;; ADR-5 §Decision: Continue a machine in its own ACP session
+    (assert-equal "session-1" (nth 2 (car continued)))))
+
+(deftest trf-implement-clears-the-at-work-mark-when-a-start-fails ()
+  "When starting a machine fails, its work in progress is no longer marked at work."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (cl-letf (((symbol-function 'trf-session-config) (lambda () trf-test-config))
+            ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
+            ((symbol-function 'trf-session-run) (lambda (&rest _) (error "Cannot start"))))
+    (assert-equal '(error "Cannot start") (trf-test-implement)))
+  (let ((directory (car (directory-files (expand-file-name ".worktrees/" trf-test-root) t "\\`trf-"))))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-nil (gethash (file-name-as-directory directory) trf--machines-at-work))))
+
+(deftest trf-continue-clears-the-at-work-mark-when-resuming-fails ()
+  "When resuming a stopped machine fails, its work in progress is no longer marked at work."
+  (trf-test-with-a-stopped-machine "planning machine"
+    (cl-letf (((symbol-function 'trf-session-continue) (lambda (&rest _) (error "Cannot resume"))))
+      (assert-equal '(error "Cannot resume") (trf-test-continue widget)))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-nil (gethash directory trf--machines-at-work))))
+
+(deftest trf-continue-a-modified-report-cannot-come-back ()
+  "An edited record implementation report is not offered for saving and is ended when machines start, so it cannot be accepted after a stop."
+  (let (continued offered report)
+    (trf-test-with-a-stopped-machine "executing machine"
+      (setq report (find-file-noselect (trf-test-report-file directory)))
+      (with-current-buffer report
+        (insert "An old report."))
+      (trf-test-continuing continued '(stop "Again.")
+        (cl-letf (((symbol-function 'map-y-or-n-p)
+                   (lambda (_prompter actor list &rest _)
+                     (setq offered (append offered list))
+                     (mapc actor list)
+                     (length list))))
+          (trf-test-continue widget)))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      ;; F-3 §Rules: Continue a stopped machine on its work in progress
+      (assert-nil (memq report offered))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-nil (buffer-live-p report))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      ;; MSG-13: No record implementation report to accept
+      (trf-test-assert-accept-refuses directory '(user-error "There is no record implementation report here to accept yet.")))))
+
+(deftest trf-implement-gives-msg-10-when-a-session-buffer-is-killed ()
+  "A machine whose session buffer is killed mid-work, which stops it with no reason, gives MSG-10 with no reason given."
+  (pcase-let ((`(,messages ,_runs) (trf-test-stopping '("planning machine" nil "session-1"))))
+    ;; UW-1 §Extensions: Turn record changes into code
+    ;; MSG-10: Machine stopped before finishing
+    (assert-equal '("A machine stopped before finishing:\nplanning machine\nNo reason given.")
+                  messages)))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here
