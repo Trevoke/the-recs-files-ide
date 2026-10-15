@@ -41,6 +41,10 @@
 (defconst trf-machine-cannot-be-continued-message
   "A machine cannot be continued:")
 
+;; MSG-13: No record implementation report to accept
+(defconst trf-no-report-to-accept-message
+  "There is no record implementation report here to accept yet.")
+
 ;; MSG-7: Git could not do what the IDE asked
 (defconst trf-git-failed-message
   "Git could not do what the IDE asked:")
@@ -102,9 +106,29 @@
 (defvar trf--stopped-machines (make-hash-table :test #'equal)
   "How to continue the machine that stopped, keyed by the worktree it works in.")
 
+;; F-2 §Rules: Accept or reject the record implementation report
+(defvar trf--machines-at-work (make-hash-table :test #'equal)
+  "The worktrees whose machines are at work, keyed as `trf--session-buffers' is.")
+
 (defun trf--worktree-key (directory)
   "Return the key DIRECTORY's worktree has in `trf--session-buffers' and `trf--stopped-machines'."
   (file-name-as-directory (expand-file-name directory)))
+
+;; F-2 §Rules: Accept or reject the record implementation report
+(defun trf--set-to-work (directory)
+  "Mark the machines of DIRECTORY at work, and delete its record implementation report."
+  (puthash (trf--worktree-key directory) t trf--machines-at-work)
+  (let ((report (expand-file-name (trf-machines-record-implementation-report-file) directory)))
+    (when (file-exists-p report)
+      (delete-file report))
+    (when-let* ((buffer (find-buffer-visiting report)))
+      (unless (buffer-modified-p buffer)
+        (kill-buffer buffer)))))
+
+;; F-2 §Rules: Accept or reject the record implementation report
+(defun trf--done-working (directory)
+  "Mark the machines of DIRECTORY no longer at work."
+  (remhash (trf--worktree-key directory) trf--machines-at-work))
 
 ;; ADR-3 §Consequences: Machines end their work with one JSON line
 (defun trf--run-machines (machines directory config changes produced on-done
@@ -115,7 +139,12 @@ has finished."
   ;; F-3 §Rules: Continue a stopped machine on its work in progress
   (remhash (trf--worktree-key directory) trf--stopped-machines)
   (if (null machines)
-      (funcall on-done)
+      (progn
+        ;; F-2 §Rules: Accept or reject the record implementation report
+        (trf--done-working directory)
+        (funcall on-done))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (trf--set-to-work directory)
     (let ((machine (car machines))
           buffer)
       (setq buffer (trf-session-run
@@ -137,6 +166,8 @@ has finished."
 SESSION-BUFFER returns the buffer of the session it stopped in."
   (let ((machine (car machines)))
     (lambda (&optional reason)
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (trf--done-working directory)
       ;; MSG-10: Machine stopped before finishing
       ;; UW-1 §Extensions: Turn record changes into code
       (message "%s\n%s\n%s" trf-machine-stopped-message (plist-get machine :name)
@@ -153,6 +184,8 @@ SESSION-BUFFER returns the buffer of the session it stopped in."
 ;; ADR-5 §Decision: Continue a machine in its own ACP session
 (defun trf--continue (machines directory config changes on-done session-buffer message)
   "Continue the first of MACHINES in SESSION-BUFFER, telling it MESSAGE, then run the rest."
+  ;; F-2 §Rules: Accept or reject the record implementation report
+  (trf--set-to-work directory)
   (let ((machine (car machines))
         buffer)
     (setq buffer (trf-session-continue
@@ -161,6 +194,8 @@ SESSION-BUFFER returns the buffer of the session it stopped in."
                   (trf--on-stopped machines directory config changes on-done
                                    (lambda () buffer))
                   (lambda (reason)
+                    ;; F-2 §Rules: Accept or reject the record implementation report
+                    (trf--done-working directory)
                     ;; MSG-12: Machine cannot be continued
                     ;; UW-1 §Extensions: Turn record changes into code
                     (message "%s\n%s\n%s" trf-machine-cannot-be-continued-message
@@ -282,6 +317,8 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
     (trf-worktree-remove directory)
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
     (remhash (trf--worktree-key directory) trf--stopped-machines)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (trf--done-working directory)
     (trf--kill-the-works-buffers directory root)))
 
 ;; F-2 §Takes: Accept or reject the record implementation report
@@ -292,6 +329,13 @@ Move every other buffer whose directory is in DIRECTORY to ROOT."
   (trf--giving-git-failures
     (let* ((directory (trf--work-in-progress))
            (root (trf-worktree-root directory)))
+      (when (or (gethash (trf--worktree-key directory) trf--machines-at-work)
+                (not (file-exists-p
+                      (expand-file-name (trf-machines-record-implementation-report-file)
+                                        directory))))
+        ;; F-2 §Rules: Accept or reject the record implementation report
+        ;; MSG-13: No record implementation report to accept
+        (user-error "%s" trf-no-report-to-accept-message))
       (trf-record-changes-refuse-operation-in-progress root)
       (trf--refuse-unless-on-the-primary-git-branch root)
       ;; F-2 §Rules: Accept or reject the record implementation report

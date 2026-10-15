@@ -1540,6 +1540,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
   (trf-test-with-a-stopped-machine "executing machine"
     (assert-true (gethash directory trf--stopped-machines))
     (trf-test-build directory)
+    (trf-test-write-files directory '((".trf/record-implementation-report.org" . "Report.")))
     (assert-nil (trf-test-from-file widget #'trf-accept-record-implementation-report))
     ;; F-3 §Rules: Continue a stopped machine on its work in progress
     (assert-nil (gethash directory trf--stopped-machines))))
@@ -1552,6 +1553,7 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
       (trf-test-write-files trf-test-root '(("src/other.el" . "(provide 'other)\n")))
       (trf-test-git trf-test-root "add" "--all")
       (trf-test-git trf-test-root "commit" "--quiet" "--message" "Other work")
+      (trf-test-write-files directory '((".trf/record-implementation-report.org" . "Report.")))
       (with-current-buffer (find-file-noselect widget)
         (trf-accept-record-implementation-report))
       (setq count (length runs))
@@ -1597,6 +1599,119 @@ said, WIDGET a file of the work in progress, and setting STOPPING changes which 
         (assert-true (gethash directory trf--stopped-machines))
         ;; F-3 §Rules: Continue a stopped machine on its work in progress
         (assert-nil continued)))))
+
+(deftest trf-accept-while-machines-are-at-work ()
+  "While the machines are at work on the work in progress, accepting gives MSG-13 and brings nothing in."
+  (trf-test-write-files trf-test-root (list trf-test-record-change))
+  (let (runs)
+    (trf-test-with-machines runs 'later
+      (trf-test-implement)
+      (let ((directory (nth 1 (car runs))))
+        (trf-test-build directory)
+        ;; F-2 §Rules: Accept or reject the record implementation report
+        ;; MSG-13: No record implementation report to accept
+        ;; UW-1 §Extensions: Turn record changes into code
+        (trf-test-assert-accept-refuses directory '(user-error "There is no record implementation report here to accept yet."))
+        (trf-test-settle #'trf-test-report-shown-p)))))
+
+(deftest trf-accept-after-a-machine-stopped-without-a-report ()
+  "After a machine stopped, with no record implementation report, accepting gives MSG-13 and brings nothing in."
+  (trf-test-with-a-stopped-machine "executing machine"
+    (trf-test-build directory)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    ;; MSG-13: No record implementation report to accept
+    ;; UW-1 §Extensions: Turn record changes into code
+    (trf-test-assert-accept-refuses directory '(user-error "There is no record implementation report here to accept yet."))))
+
+(deftest trf-accept-after-a-continue-until-the-assessor-finishes ()
+  "After a stopped machine is continued, accepting gives MSG-13 until the reconciliation assessor finishes, then brings the work in."
+  (let (continued on-finished)
+    (trf-test-with-a-stopped-machine "executing machine"
+      (trf-test-build directory)
+      (trf-test-write-files directory '((".trf/record-implementation-report.org" . "Stale report.")))
+      (cl-letf (((symbol-function 'trf-session-continue)
+                 (lambda (_buffer _config _message finished _stopped _cannot)
+                   (setq on-finished finished)
+                   (get-buffer-create trf-test-continued-buffer-name))))
+        (trf-test-continue widget))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-nil (file-exists-p (trf-test-report-file directory)))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      ;; MSG-13: No record implementation report to accept
+      (trf-test-assert-accept-refuses directory '(user-error "There is no record implementation report here to accept yet."))
+      (funcall on-finished nil)
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-true (file-exists-p (trf-test-report-file directory)))
+      (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                      #'trf-accept-record-implementation-report))
+      ;; F-2 §Produces: Accept or reject the record implementation report
+      (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))
+      (when (get-buffer trf-test-continued-buffer-name)
+        (kill-buffer trf-test-continued-buffer-name)))))
+
+(deftest trf-accept-after-a-restart-with-a-report-on-disk ()
+  "After the IDE restarts, a record implementation report on disk can be accepted."
+  (let ((directory (trf-test-implemented-worktree)))
+    (trf-test-build directory)
+    (clrhash trf--machines-at-work)
+    (clrhash trf--stopped-machines)
+    (clrhash trf--session-buffers)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-nil (trf-test-from-file (trf-test-report-file directory)
+                                    #'trf-accept-record-implementation-report))
+    ;; F-2 §Produces: Accept or reject the record implementation report
+    (assert-equal "(provide 'widget) ; built\n" (trf-test-widget))))
+
+(deftest trf-accept-the-report-goes-when-machines-start ()
+  "When machines start on a work in progress, its record implementation report is deleted and its buffer closed, leaving git's view of it unchanged."
+  (let* ((directory (trf-test-implemented-worktree))
+         (report (find-file-noselect (trf-test-report-file directory)))
+         (status (trf-test-git directory "status" "--porcelain"))
+         seen)
+    (trf-test-with-machines seen "brainstorming machine"
+      (cl-letf (((symbol-function 'message) #'ignore))
+        (trf--implement directory trf-test-config
+                        (list (list :path "docs/features/f-1-order.org" :status 'added
+                                    :identifier "F-1" :title "Order")))))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-nil (file-exists-p (trf-test-report-file directory)))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-nil (buffer-live-p report))
+    (assert-equal status (trf-test-git directory "status" "--porcelain"))))
+
+(deftest trf-accept-on-a-moved-codebase-reruns-then-waits-for-the-new-report ()
+  "Accepting a report on a moved codebase reruns the workflow and deletes the old report; accepting during the rerun gives MSG-13."
+  (let ((directory (trf-test-implemented-worktree))
+        runs refusal)
+    (trf-test-build directory)
+    (trf-test-write-files trf-test-root '(("src/other.el" . "(provide 'other)\n")))
+    (trf-test-git trf-test-root "add" "--all")
+    (trf-test-git trf-test-root "commit" "--quiet" "--message" "Other work")
+    (trf-test-with-machines runs 'later
+      (with-current-buffer (find-file-noselect (trf-test-report-file directory))
+        (trf-accept-record-implementation-report))
+      ;; F-2 §Rules: Accept or reject the record implementation report
+      (assert-nil (file-exists-p (trf-test-report-file directory)))
+      (setq refusal (trf-test-from-file (expand-file-name "src/widget.el" directory)
+                                        #'trf-accept-record-implementation-report))
+      (trf-test-settle #'trf-test-report-shown-p))
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    ;; MSG-13: No record implementation report to accept
+    (assert-equal '(user-error "There is no record implementation report here to accept yet.") refusal)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    (assert-equal '("brainstorming machine" "planning machine" "executing machine"
+                    "reconciliation assessor")
+                  (mapcar #'car runs))))
+
+(deftest trf-accept-mid-merge-without-a-report-gives-msg-13-before-msg-3 ()
+  "Mid merge, with no record implementation report, accepting gives MSG-13 rather than MSG-3."
+  (trf-test-with-a-stopped-machine "executing machine"
+    (trf-test-leave-in-progress trf-test-root 'merge)
+    ;; F-2 §Rules: Accept or reject the record implementation report
+    ;; MSG-13: No record implementation report to accept
+    (trf-test-assert-accept-refuses
+     directory
+     '(user-error "There is no record implementation report here to accept yet."))))
 
 (provide 'trf-test)
 ;;; trf-test.el ends here
