@@ -44,3 +44,10 @@ Each term is defined within its bounded context, as named in the vision.
 - work in progress :: what the implementation workflow and the reconciliation
   assessor have made from one commit of record changes, kept apart from the
   codebase until the record keeper accepts its record implementation report.
+- model :: the version of the AI program a machine runs as, such as Opus 5.5.
+- permission mode :: how much a machine may do without asking the record
+  keeper, such as manual or auto.
+- thinking effort :: how much the AI program reasons before it acts, such as
+  medium.
+- machine settings :: the AI program, model, permission mode and thinking
+  effort the IDE starts each machine with.
