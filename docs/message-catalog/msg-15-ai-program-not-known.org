@@ -1,0 +1,5 @@
+* MSG-15 AI program not known
+
+Text: The IDE does not know this AI program:
+
+Followed by: the AI program named, and the AI programs the IDE knows.

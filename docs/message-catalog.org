@@ -17,3 +17,4 @@ changes in code.
 - MSG-12 :: [[./message-catalog/msg-12-machine-cannot-be-continued.org][Machine cannot be continued]]
 - MSG-13 :: [[./message-catalog/msg-13-no-record-implementation-report-to-accept.org][No record implementation report to accept]]
 - MSG-14 :: [[./message-catalog/msg-14-machine-setting-not-offered.org][Machine setting not offered]]
+- MSG-15 :: [[./message-catalog/msg-15-ai-program-not-known.org][AI program not known]]
