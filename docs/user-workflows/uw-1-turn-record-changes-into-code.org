@@ -66,6 +66,11 @@ The record keeper asks to implement the record changes.
 - 3-5a1. The machine cannot be continued :: IDE gives MSG-12: Machine cannot be
   continued, with the reason the AI program gave; IDE keeps the work in
   progress; the use case ends in failure.
+- 3-5b. The AI program does not offer one of the machine settings :: IDE gives
+  MSG-14: Machine setting not offered, and the machine stops before it is told
+  anything; IDE keeps the work in progress; record keeper changes the machine
+  settings (UW-2: Choose the machine settings) and has that machine continue
+  (F-3: Continue a stopped machine on its work in progress).
 - 4a. A machine has a question and its AI program offers no device for
   questions :: the machine stops before finishing, with the question as its
   reason; continues at 3-5a.

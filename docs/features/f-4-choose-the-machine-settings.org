@@ -10,6 +10,9 @@ on, in this and later runs of the IDE.
 
 - Until the record keeper chooses otherwise, the machine settings are Claude
   Code, Opus 5.5, auto and medium.
+- When the AI program does not offer one of the machine settings, the machine
+  stops before it is told anything, and the IDE gives MSG-14: Machine setting
+  not offered.
 
 ** Next
 

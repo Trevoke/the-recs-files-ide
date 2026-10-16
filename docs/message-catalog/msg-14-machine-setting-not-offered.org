@@ -1,0 +1,6 @@
+* MSG-14 Machine setting not offered
+
+Text: The AI program does not offer this machine setting:
+
+Followed by: the setting and its value, and the values the AI program offers
+for it.
