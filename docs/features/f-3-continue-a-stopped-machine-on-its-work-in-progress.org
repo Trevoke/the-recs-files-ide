@@ -12,8 +12,8 @@ implementation report.
 ** Rules
 
 - When the machine was told something before it stopped, the IDE asks the
-  record keeper what to tell it, and gives it to the machine as its next
-  message.
+  record keeper what to tell it once the machine has its machine settings, and
+  gives it to the machine as its next message.
 - When the machine stopped before it was told anything, the IDE starts it with
   the instructions it gives it at first, including the paths the machine
   before it produced, and asks the record keeper nothing.
