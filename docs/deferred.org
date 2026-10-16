@@ -65,6 +65,28 @@ A placeholder, not yet dressed. When written, UW-1 *a points at it.
 - Covers :: finding the works in progress; continuing the implementation
   workflow to a record implementation report.
 
+* Follow a record reference to learn more about it (user workflow)
+
+A placeholder, not yet dressed.
+
+- Primary actor :: record keeper
+- Trigger :: the record keeper reads a reference to a record, such as F-1, and
+  wants to learn more about that record or refresh their memory of it.
+- Precondition :: the record exists.
+- Covers :: following the reference to the record wherever the record keeper
+  reads it in the IDE: the records, the record changes, the record
+  implementation report, the machines' work and the codebase.
+
+* Learn the target product's git state (user workflow)
+
+A placeholder, not yet dressed.
+
+- Primary actor :: record keeper
+- Trigger :: the record keeper wants to know quickly where the target product
+  stands in git.
+- Covers :: seeing the target product's branches, uncommitted edits and recent
+  commits.
+
 * Structured end of a machine's work over ACP
 
 ADR-3 Machines end their work with one JSON line is what stands today.

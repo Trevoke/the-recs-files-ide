@@ -6,3 +6,4 @@ One user workflow record is pending at a time; the rest wait in
 [[./deferred.org][deferred]].
 
 - UW-1 :: [[./user-workflows/uw-1-turn-record-changes-into-code.org][Turn record changes into code]]
+- UW-2 :: [[./user-workflows/uw-2-choose-the-machine-settings.org][Choose the machine settings]]

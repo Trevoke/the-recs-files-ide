@@ -1,0 +1,39 @@
+* UW-2 Choose the machine settings
+
+- Scope :: the IDE (black-box)
+- Level :: user goal
+- Primary actor :: record keeper
+
+** Stakeholders and interests
+
+- Record keeper :: machines run the way the record keeper chose, without the
+  record keeper being asked each time one starts.
+
+** Precondition
+
+None.
+
+** Minimal guarantee
+
+The machine settings stay as they were.
+
+** Success guarantee
+
+Every machine the IDE starts from then on runs with the machine settings the
+record keeper chose, in this and later runs of the IDE.
+
+** Trigger
+
+The record keeper wants machines to run with other machine settings.
+
+** Main success scenario
+
+1. Record keeper asks the IDE for the machine settings.
+2. IDE shows the machine settings.
+3. Record keeper changes any of them, and saves.
+4. IDE keeps the machine settings for every machine it starts from then on.
+
+** Extensions
+
+- 3a. Record keeper leaves without saving :: the machine settings stay as they
+  were; the use case ends.
