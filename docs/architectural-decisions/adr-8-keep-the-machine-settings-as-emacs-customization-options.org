@@ -1,0 +1,26 @@
+* ADR-8 Keep the machine settings as Emacs customization options
+
+** Context
+
+ADR-1 Ship the IDE as a bare Emacs with its own pinned binary makes the IDE an
+Emacs. Emacs's Customize shows options with their values and documentation,
+lets them be changed, and saves them to a custom file, which Emacs reads at
+each start. The machine settings last across runs of the IDE.
+
+** Decision
+
+Each of the machine settings is a customization option of the IDE's own group.
+Emacs saves them to custom.el under the IDE's configuration directory:
+recs-files-ide in $XDG_CONFIG_HOME, or in ~/.config when it is not set.
+
+** Status
+
+Accepted.
+
+** Consequences
+
+- The record keeper sees and changes the machine settings in a Customize
+  buffer.
+- Nothing the record keeper saves is written into the IDE's own files.
+- The record keeper types the model, permission mode and thinking effort; the
+  values an AI program offers are known only once a machine starts.

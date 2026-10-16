@@ -11,3 +11,4 @@ context, decision, status, consequences.
 - ADR-5 :: [[./architectural-decisions/adr-5-continue-a-machine-in-its-own-acp-session.org][Continue a machine in its own ACP session]]
 - ADR-6 :: [[./architectural-decisions/adr-6-keep-the-ides-emacs-files-outside-the-target-product.org][Keep the IDE's Emacs files outside the target product]]
 - ADR-7 :: [[./architectural-decisions/adr-7-run-the-implementation-workflow-in-a-git-worktree-of-the-target-product.org][Run the implementation workflow in a git worktree of the target product]]
+- ADR-8 :: [[./architectural-decisions/adr-8-keep-the-machine-settings-as-emacs-customization-options.org][Keep the machine settings as Emacs customization options]]
