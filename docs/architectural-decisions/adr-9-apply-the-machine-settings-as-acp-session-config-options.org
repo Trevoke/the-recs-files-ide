@@ -11,10 +11,10 @@ and can report back a value other than the one set.
 
 ** Decision
 
-Before a machine is told anything more, the IDE sets the model, permission mode
-and thinking effort on its ACP session as the session config options of the
-model, mode and thought level categories, and reads back the value the AI
-program reports for each.
+Before a machine is told anything more, the IDE sets each of the model,
+permission mode and thinking effort the record keeper has set on its ACP
+session, as the session config options of the model, mode and thought level
+categories, and reads back the value the AI program reports for each.
 
 ** Status
 

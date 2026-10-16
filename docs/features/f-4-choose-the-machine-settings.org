@@ -10,6 +10,9 @@ on, in this and later runs of the IDE.
 
 - Until the record keeper chooses otherwise, the machine settings are Claude
   Code, Opus 5.5, auto and medium.
+- The record keeper may leave the model, permission mode or thinking effort
+  unset; the IDE then sets nothing for it, and the machine runs with the AI
+  program's own.
 - When the IDE does not know the AI program, the machine stops before it is
   told anything more, and the IDE gives MSG-15: AI program not known.
 - When the AI program does not offer one of the machine settings, the machine
