@@ -1,0 +1,17 @@
+* F-5 Find the IDE's commands in The Recs Files menu
+
+Takes: nothing.
+
+Produces: a menu named The Recs Files on the menu bar of every buffer of the
+IDE, after Tools, holding each command the record keeper gives the IDE, each
+with its key.
+
+** Rules
+
+- The menu holds: implement the record changes, accept the record
+  implementation report, reject it, continue a stopped machine, and the machine
+  settings.
+
+** Next
+
+The record keeper picks a command from the menu.

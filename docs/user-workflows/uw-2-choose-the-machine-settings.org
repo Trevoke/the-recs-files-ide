@@ -29,7 +29,7 @@ The record keeper wants machines to run with other machine settings.
 ** Main success scenario
 
 1. Record keeper asks the IDE for the machine settings (F-4: Choose the
-   machine settings).
+   machine settings; F-5: Find the IDE's commands in The Recs Files menu).
 2. IDE shows the machine settings.
 3. Record keeper changes any of them, and saves (F-4: Choose the machine
    settings).

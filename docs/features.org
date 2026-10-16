@@ -7,3 +7,4 @@ keeper may do next.
 - F-2 :: [[./features/f-2-accept-or-reject-the-record-implementation-report.org][Accept or reject the record implementation report]]
 - F-3 :: [[./features/f-3-continue-a-stopped-machine-on-its-work-in-progress.org][Continue a stopped machine on its work in progress]]
 - F-4 :: [[./features/f-4-choose-the-machine-settings.org][Choose the machine settings]]
+- F-5 :: [[./features/f-5-find-the-ides-commands-in-the-recs-files-menu.org][Find the IDE's commands in The Recs Files menu]]
