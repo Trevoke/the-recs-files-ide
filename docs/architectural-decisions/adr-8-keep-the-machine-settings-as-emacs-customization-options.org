@@ -24,3 +24,4 @@ Accepted.
 - Nothing the record keeper saves is written into the IDE's own files.
 - The record keeper types the model, permission mode and thinking effort; the
   values an AI program offers are known only once a machine starts.
+- The record keeper picks the AI program from the AI programs the IDE knows.
