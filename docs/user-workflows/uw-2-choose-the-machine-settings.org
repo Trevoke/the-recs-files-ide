@@ -28,9 +28,11 @@ The record keeper wants machines to run with other machine settings.
 
 ** Main success scenario
 
-1. Record keeper asks the IDE for the machine settings.
+1. Record keeper asks the IDE for the machine settings (F-4: Choose the
+   machine settings).
 2. IDE shows the machine settings.
-3. Record keeper changes any of them, and saves.
+3. Record keeper changes any of them, and saves (F-4: Choose the machine
+   settings).
 4. IDE keeps the machine settings for every machine it starts from then on.
 
 ** Extensions

@@ -1,0 +1,16 @@
+* F-4 Choose the machine settings
+
+Takes: the AI program, model, permission mode and thinking effort the record
+keeper chooses.
+
+Produces: the machine settings, kept for every machine the IDE starts from then
+on, in this and later runs of the IDE.
+
+** Rules
+
+- Until the record keeper chooses otherwise, the machine settings are Claude
+  Code, Opus 5.5, auto and medium.
+
+** Next
+
+The record keeper asks the IDE to implement the record changes.
